@@ -15,6 +15,7 @@
   .tab-active { border-bottom: 3px solid #1d4ed8 !important; color: #1d4ed8 !important; font-weight: 600; }
   .filter-active { background: #1d4ed8 !important; color: white !important; }
   .sub-tab-active { background: #1d4ed8 !important; color: white !important; }
+  .media-sub-active { background: #1d4ed8 !important; color: white !important; }
   @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
   .fade-in { animation: fadeSlideIn 0.35s ease-out; }
   .modal-backdrop { backdrop-filter: blur(6px); background: rgba(0,0,0,0.55); }
@@ -231,19 +232,59 @@
 
       <!-- Media Stats Tab -->
       <div id="tab-media" class="tab-panel hidden">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div>
-            <h3 class="text-base font-bold text-gray-700 mb-4">📋 台灣媒體曝光排行榜</h3>
-            <div id="mediaRankList" class="space-y-2">
-              <div class="text-center py-10 text-gray-400">
-                <div class="text-4xl mb-3">📊</div>
-                <div>抓取新聞後將自動統計媒體曝光數據</div>
+        <!-- 媒體子分頁 -->
+        <div class="flex gap-2 mb-6">
+          <button onclick="switchMediaTab('exposure')" class="media-sub-tab media-sub-active px-4 py-1.5 rounded-lg text-sm font-medium transition-all" data-mt="exposure">📊 媒體曝光排行</button>
+          <button onclick="switchMediaTab('compare')" class="media-sub-tab px-4 py-1.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-mt="compare">🥊 競品媒體對比</button>
+          <button onclick="switchMediaTab('reporter')" class="media-sub-tab px-4 py-1.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-mt="reporter">✍️ 記者追蹤</button>
+        </div>
+
+        <!-- 媒體曝光排行 -->
+        <div id="media-exposure" class="media-panel">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div>
+              <h3 class="text-base font-bold text-gray-700 mb-4">📋 台灣媒體曝光排行榜（創見）</h3>
+              <div id="mediaRankList" class="space-y-2">
+                <div class="text-center py-10 text-gray-400"><div class="text-4xl mb-3">📊</div><div>抓取新聞後將自動統計</div></div>
               </div>
             </div>
+            <div>
+              <h3 class="text-base font-bold text-gray-700 mb-4">📈 媒體曝光趨勢</h3>
+              <canvas id="mediaChart" height="300"></canvas>
+            </div>
           </div>
-          <div>
-            <h3 class="text-base font-bold text-gray-700 mb-4">📈 媒體曝光趨勢</h3>
-            <canvas id="mediaChart" height="300"></canvas>
+        </div>
+
+        <!-- 競品媒體對比 -->
+        <div id="media-compare" class="media-panel hidden">
+          <div class="mb-4 flex items-center gap-3">
+            <h3 class="text-base font-bold text-gray-700">🥊 各媒體品牌曝光對比</h3>
+            <span class="text-xs text-gray-400">以創見曝光最多的前 8 家媒體為基準</span>
+          </div>
+          <div class="mb-6">
+            <canvas id="compareChart" height="180"></canvas>
+          </div>
+          <div id="compareTable" class="overflow-x-auto">
+            <div class="text-center py-10 text-gray-400"><div class="text-4xl mb-3">🥊</div><div>抓取新聞後將自動生成對比圖</div></div>
+          </div>
+        </div>
+
+        <!-- 記者追蹤 -->
+        <div id="media-reporter" class="media-panel hidden">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div>
+              <h3 class="text-base font-bold text-gray-700 mb-4">✍️ 記者報導排行（創見相關）</h3>
+              <p class="text-xs text-gray-400 mb-4">從新聞作者欄位自動辨識，排除媒體名稱後統計個人記者</p>
+              <div id="reporterList" class="space-y-2">
+                <div class="text-center py-10 text-gray-400"><div class="text-4xl mb-3">✍️</div><div>抓取新聞後將自動辨識記者名單</div></div>
+              </div>
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-gray-700 mb-4">📰 記者最新報導</h3>
+              <div id="reporterArticles" class="space-y-2 text-sm text-gray-500">
+                <div class="text-center py-10 text-gray-400">點選記者名稱查看其報導</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -685,6 +726,7 @@ function makeArticle(item, src) {
   const id = btoa(encodeURIComponent((item.link || item.guid || item.title || '') + src.cat)).slice(0, 24);
   const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
   const content = (item.content || item.description || '').replace(/<[^>]*>/g, '').trim();
+  const rawAuthor = (item.author || '').trim();
   return {
     id,
     title: (item.title || '').replace(/<[^>]*>/g, '').trim(),
@@ -696,6 +738,7 @@ function makeArticle(item, src) {
     brand: src.brand || null,
     sourceName: src.label,
     mediaName: getMediaName(item),
+    rawAuthor,
     fetchedAt: new Date()
   };
 }
@@ -984,8 +1027,7 @@ function renderMediaChart(data) {
         label: '新聞數量',
         data: data.map(([, c]) => c),
         backgroundColor: data.map((_, i) => `hsla(${220 - i*12}, 70%, ${55 + i*2}%, 0.85)`),
-        borderRadius: 6,
-        borderSkipped: false
+        borderRadius: 6, borderSkipped: false
       }]
     },
     options: {
@@ -1000,6 +1042,184 @@ function renderMediaChart(data) {
 }
 
 // ═══════════════════════════════════════════
+// 競品媒體對比
+// ═══════════════════════════════════════════
+const COMPARE_BRANDS = [
+  { key: 'transcend', label: '創見', color: 'rgba(37,99,235,0.8)' },
+  { key: 'ADATA',     label: 'ADATA', color: 'rgba(16,185,129,0.8)' },
+  { key: 'Kingston',  label: 'Kingston', color: 'rgba(245,158,11,0.8)' },
+  { key: 'Innodisk',  label: 'Innodisk', color: 'rgba(239,68,68,0.8)' },
+  { key: 'Apacer',    label: 'Apacer', color: 'rgba(139,92,246,0.8)' },
+  { key: 'Silicon Power', label: 'Silicon Power', color: 'rgba(236,72,153,0.8)' },
+];
+
+let compareChartInstance = null;
+function renderCompareChart() {
+  const period = state.currentFilter;
+  const allNews = state.news.filter(n => isInPeriod(n.pubDate, period));
+
+  // 取創見曝光最多的前 8 家媒體作為 X 軸
+  const transcendByMedia = {};
+  allNews.filter(n => n.cat === 'transcend').forEach(n => {
+    transcendByMedia[n.mediaName] = (transcendByMedia[n.mediaName] || 0) + 1;
+  });
+  const topMedia = Object.entries(transcendByMedia).sort((a,b) => b[1]-a[1]).slice(0, 8).map(([m]) => m);
+
+  if (topMedia.length === 0) {
+    document.getElementById('compareTable').innerHTML =
+      '<div class="text-center py-10 text-gray-400"><div class="text-4xl mb-3">🥊</div><div>請先抓取新聞</div></div>';
+    return;
+  }
+
+  // 計算每個品牌在這些媒體的曝光數
+  const datasets = COMPARE_BRANDS.map(brand => {
+    const data = topMedia.map(media => {
+      if (brand.key === 'transcend') {
+        return allNews.filter(n => n.cat === 'transcend' && n.mediaName === media).length;
+      }
+      return allNews.filter(n => n.brand === brand.key && n.mediaName === media).length;
+    });
+    return { label: brand.label, data, backgroundColor: brand.color, borderRadius: 4, borderSkipped: false };
+  });
+
+  // 圖表
+  const ctx = document.getElementById('compareChart').getContext('2d');
+  if (compareChartInstance) compareChartInstance.destroy();
+  compareChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: topMedia.map(m => m.length > 7 ? m.slice(0,7)+'…' : m), datasets },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } }
+      },
+      scales: {
+        x: { ticks: { font: { size: 10 } }, grid: { display: false } },
+        y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: '#f1f5f9' } }
+      }
+    }
+  });
+
+  // 表格
+  const filterLabel = { today:'今日', week:'本週', month:'本月', year:'本年' }[period];
+  let html = `<div class="text-xs text-gray-500 mb-3">${filterLabel}各媒體品牌曝光次數</div>
+    <table class="w-full text-sm border-collapse">
+      <thead><tr class="bg-gray-50">
+        <th class="text-left p-2 border border-gray-200 font-semibold text-gray-700">媒體</th>
+        ${COMPARE_BRANDS.map(b => `<th class="p-2 border border-gray-200 font-semibold text-center" style="color:${b.color.replace('0.8','1')}">${b.label}</th>`).join('')}
+      </tr></thead><tbody>`;
+  topMedia.forEach((media, i) => {
+    const row = COMPARE_BRANDS.map(brand => {
+      const cnt = datasets.find(d => d.label === brand.label).data[i];
+      return `<td class="p-2 border border-gray-100 text-center font-medium ${cnt > 0 ? 'text-gray-800' : 'text-gray-300'}">${cnt || '-'}</td>`;
+    }).join('');
+    html += `<tr class="${i%2===0?'bg-white':'bg-gray-50'} hover:bg-blue-50 transition-colors">
+      <td class="p-2 border border-gray-200 font-medium text-gray-700">${media}</td>${row}</tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('compareTable').innerHTML = html;
+}
+
+// ═══════════════════════════════════════════
+// 記者追蹤
+// ═══════════════════════════════════════════
+const MEDIA_NAME_SET = new Set(Object.values(TAIWAN_MEDIA));
+
+function extractReporter(rawAuthor) {
+  if (!rawAuthor) return null;
+  const a = rawAuthor.trim();
+  if (!a || a.length < 2 || a.length > 15 || a.includes('@') || a.includes('http')) return null;
+  // 排除已知媒體名稱
+  if (MEDIA_NAME_SET.has(a)) return null;
+  for (const name of MEDIA_NAME_SET) { if (a.includes(name) || name.includes(a)) return null; }
+  // 是中文人名（2-4字）或英文人名（含空格）
+  const isCNName = /^[\u4e00-\u9fa5]{2,4}$/.test(a);
+  const isENName = /^[A-Z][a-z]+([ ][A-Z][a-z]+)+$/.test(a);
+  return (isCNName || isENName) ? a : null;
+}
+
+function renderReporterStats() {
+  const transcendNews = state.news.filter(n => isInPeriod(n.pubDate, state.currentFilter) && n.cat === 'transcend');
+  const reporterMap = {}; // reporter -> { count, media, articles }
+
+  transcendNews.forEach(n => {
+    const reporter = extractReporter(n.rawAuthor || n.mediaName);
+    if (!reporter) return;
+    if (!reporterMap[reporter]) reporterMap[reporter] = { count: 0, media: n.mediaName, articles: [] };
+    reporterMap[reporter].count++;
+    if (reporterMap[reporter].articles.length < 5) reporterMap[reporter].articles.push(n);
+  });
+
+  const sorted = Object.entries(reporterMap).sort((a,b) => b[1].count - a[1].count);
+  const listEl = document.getElementById('reporterList');
+
+  if (sorted.length === 0) {
+    listEl.innerHTML = `<div class="text-center py-8 text-gray-400">
+      <div class="text-3xl mb-2">✍️</div>
+      <div class="text-sm">目前無法從 RSS 辨識個人記者</div>
+      <div class="text-xs mt-2 text-gray-400">部分媒體 RSS 不提供記者姓名，<br>建議後續考慮直接爬取文章頁面</div>
+    </div>`;
+    return;
+  }
+
+  const max = sorted[0][1].count;
+  listEl.innerHTML = sorted.slice(0, 20).map(([name, info], i) => `
+    <div class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors"
+         onclick="showReporterArticles('${name}')">
+      <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0
+        ${i===0?'bg-yellow-100 text-yellow-700':i===1?'bg-gray-200 text-gray-600':i===2?'bg-orange-100 text-orange-600':'bg-gray-100 text-gray-500'}">${i+1}</span>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-semibold text-gray-800">${name}</span>
+          <span class="text-xs text-gray-400">${info.media}</span>
+        </div>
+        <div class="h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
+          <div class="h-full bg-purple-400 rounded-full" style="width:${Math.round(info.count/max*100)}%"></div>
+        </div>
+      </div>
+      <span class="text-sm font-bold text-purple-600 flex-shrink-0">${info.count} 篇</span>
+    </div>
+  `).join('');
+
+  // 儲存到 state 方便查詢
+  state.reporterMap = reporterMap;
+}
+
+function showReporterArticles(reporter) {
+  const info = state.reporterMap?.[reporter];
+  if (!info) return;
+  const el = document.getElementById('reporterArticles');
+  el.innerHTML = `<div class="font-semibold text-gray-700 mb-3">✍️ ${reporter} 的近期報導</div>` +
+    info.articles.map(a => `
+      <div class="p-3 bg-gray-50 rounded-lg mb-2 hover:bg-blue-50 cursor-pointer" onclick="openArticle('${encodeURIComponent(a.link)}')">
+        <div class="text-xs text-gray-400 mb-1">${formatDate(a.pubDate)} · ${a.mediaName}</div>
+        <div class="text-sm font-medium text-gray-800 line-clamp-2">${a.title}</div>
+        <div class="text-xs mt-1 ${a.sentiment==='positive'?'text-green-600':a.sentiment==='negative'?'text-red-600':'text-gray-400'}">
+          ${a.sentiment==='positive'?'🟢 正面':a.sentiment==='negative'?'🔴 負面':'⚪ 中立'}
+        </div>
+      </div>`).join('');
+}
+
+// ═══════════════════════════════════════════
+// 媒體子分頁切換
+// ═══════════════════════════════════════════
+function switchMediaTab(mt) {
+  state.currentMediaTab = mt;
+  document.querySelectorAll('.media-sub-tab').forEach(t => {
+    t.classList.remove('media-sub-active', 'bg-blue-600', 'text-white');
+    t.classList.add('text-gray-600', 'bg-gray-100');
+  });
+  const active = document.querySelector(`[data-mt="${mt}"]`);
+  active.classList.add('media-sub-active', 'bg-blue-600', 'text-white');
+  active.classList.remove('text-gray-600', 'bg-gray-100');
+  document.querySelectorAll('.media-panel').forEach(p => p.classList.add('hidden'));
+  document.getElementById('media-' + mt).classList.remove('hidden');
+  // 切換時重新渲染對應內容
+  if (mt === 'compare') renderCompareChart();
+  if (mt === 'reporter') renderReporterStats();
+}
+
+// ═══════════════════════════════════════════
 // TAB SWITCHING
 // ═══════════════════════════════════════════
 function switchTab(tab) {
@@ -1008,6 +1228,11 @@ function switchTab(tab) {
   document.querySelector(`[data-tab="${tab}"]`).classList.add('tab-active');
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
   document.getElementById('tab-' + tab).classList.remove('hidden');
+  if (tab === 'media') {
+    const mt = state.currentMediaTab || 'exposure';
+    if (mt === 'compare') renderCompareChart();
+    if (mt === 'reporter') renderReporterStats();
+  }
 }
 
 function switchSubTab(st) {

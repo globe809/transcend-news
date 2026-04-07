@@ -162,6 +162,24 @@ def clean_html(text):
     return re.sub(r'<[^>]+>', '', text or '').strip()
 
 
+def extract_reporter(raw_author):
+    """嘗試從作者欄位辨識個人記者姓名（排除媒體機構名稱）"""
+    if not raw_author:
+        return None
+    a = raw_author.strip()
+    if not a or len(a) < 2 or len(a) > 15 or '@' in a or 'http' in a:
+        return None
+    # 排除已知媒體名稱
+    for name in TAIWAN_MEDIA.values():
+        if a == name or name in a or a in name:
+            return None
+    # 中文人名（2-4字）或英文人名（含空格大寫開頭）
+    import re
+    is_cn = bool(re.match(r'^[\u4e00-\u9fa5]{2,4}$', a))
+    is_en = bool(re.match(r'^[A-Z][a-z]+([ ][A-Z][a-z]+)+$', a))
+    return a if (is_cn or is_en) else None
+
+
 def fetch_source(src, retry=2):
     for attempt in range(retry + 1):
         try:
@@ -177,6 +195,7 @@ def fetch_source(src, retry=2):
                 link = getattr(entry, 'link', '') or getattr(entry, 'id', '')
                 content = clean_html(getattr(entry, 'summary', '') or getattr(entry, 'description', ''))[:500]
                 pub_date = parse_date(entry)
+                raw_author = (getattr(entry, 'author', '') or '').strip()
                 article = {
                     'id': make_article_id(link, title),
                     'title': title,
@@ -188,6 +207,7 @@ def fetch_source(src, retry=2):
                     'brand': src.get('brand'),
                     'sourceName': src['label'],
                     'mediaName': get_media_name(entry, link),
+                    'rawAuthor': raw_author,
                     'fetchedAt': datetime.datetime.now(datetime.timezone.utc),
                     'fetchMode': os.environ.get('FETCH_MODE', 'all'),
                 }
