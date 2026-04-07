@@ -57,17 +57,29 @@ def get_sources(mode):
         {'label': 'Flash Storage', 'url': 'https://news.google.com/rss/search?q=flash+storage+industry+supply&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
     ]
     competitors = [
-        {'label': 'Kingston', 'url': 'https://news.google.com/rss/search?q=Kingston+Technology+memory', 'cat': 'competitor', 'brand': 'Kingston'},
-        {'label': 'ADATA', 'url': 'https://news.google.com/rss/search?q=ADATA+威剛+memory+storage', 'cat': 'competitor', 'brand': 'ADATA'},
-        {'label': 'SanDisk', 'url': 'https://news.google.com/rss/search?q=SanDisk+storage+flash', 'cat': 'competitor', 'brand': 'SanDisk'},
-        {'label': 'Lexar', 'url': 'https://news.google.com/rss/search?q=Lexar+memory+card+flash', 'cat': 'competitor', 'brand': 'Lexar'},
+        # ─── 競品品牌 ───
+        {'label': 'ADATA 威剛',       'url': 'https://news.google.com/rss/search?q=ADATA+威剛+memory+storage&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'ADATA'},
+        {'label': 'Innodisk 宜鼎',    'url': 'https://news.google.com/rss/search?q=Innodisk+宜鼎+industrial+flash&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Innodisk'},
+        {'label': 'Apacer 宇瞻',      'url': 'https://news.google.com/rss/search?q=Apacer+宇瞻+memory+flash&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Apacer'},
+        {'label': 'Silicon Power 廣穎','url': 'https://news.google.com/rss/search?q=Silicon+Power+廣穎+memory+flash&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Silicon Power'},
+        {'label': 'Kingston 金士頓',   'url': 'https://news.google.com/rss/search?q=Kingston+Technology+memory+flash', 'cat': 'competitor', 'brand': 'Kingston'},
+        {'label': 'Lexar',             'url': 'https://news.google.com/rss/search?q=Lexar+memory+card+flash+storage', 'cat': 'competitor', 'brand': 'Lexar'},
+        {'label': 'PNY',               'url': 'https://news.google.com/rss/search?q=PNY+Technologies+flash+memory', 'cat': 'competitor', 'brand': 'PNY'},
     ]
     suppliers = [
-        {'label': 'Micron', 'url': 'https://news.google.com/rss/search?q=Micron+Technology+DRAM+NAND', 'cat': 'supplier', 'brand': 'Micron'},
-        {'label': 'Samsung Memory', 'url': 'https://news.google.com/rss/search?q=Samsung+DRAM+NAND+Flash', 'cat': 'supplier', 'brand': 'Samsung'},
-        {'label': 'SK Hynix', 'url': 'https://news.google.com/rss/search?q=SK+Hynix+memory+HBM', 'cat': 'supplier', 'brand': 'SK Hynix'},
-        {'label': 'Kioxia', 'url': 'https://news.google.com/rss/search?q=Kioxia+NAND+Flash', 'cat': 'supplier', 'brand': 'Kioxia'},
-        {'label': 'Western Digital', 'url': 'https://news.google.com/rss/search?q=Western+Digital+NAND+flash', 'cat': 'supplier', 'brand': 'WD'},
+        # ─── DRAM 上游 ───
+        {'label': 'Samsung DRAM',      'url': 'https://news.google.com/rss/search?q=Samsung+DRAM+memory+DDR5&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Samsung'},
+        {'label': 'Micron DRAM',       'url': 'https://news.google.com/rss/search?q=Micron+Technology+DRAM+memory&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Micron'},
+        {'label': 'SK Hynix',          'url': 'https://news.google.com/rss/search?q=SK+Hynix+DRAM+HBM+memory&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'SK Hynix'},
+        # ─── NAND Flash 上游 ───
+        {'label': 'SanDisk NAND',      'url': 'https://news.google.com/rss/search?q=SanDisk+Western+Digital+NAND+Flash&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'SanDisk/WD'},
+        {'label': 'Samsung NAND',      'url': 'https://news.google.com/rss/search?q=Samsung+NAND+Flash+V-NAND&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Samsung'},
+        {'label': 'Kioxia',            'url': 'https://news.google.com/rss/search?q=Kioxia+NAND+Flash+BiCS&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Kioxia'},
+        {'label': 'Micron NAND',       'url': 'https://news.google.com/rss/search?q=Micron+NAND+Flash+QLC+TLC&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Micron'},
+        # ─── NAND Controller（主控晶片）───
+        {'label': 'SMI 慧榮',          'url': 'https://news.google.com/rss/search?q=SMI+Silicon+Motion+慧榮+controller&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'SMI'},
+        {'label': 'Phison 群聯',       'url': 'https://news.google.com/rss/search?q=Phison+群聯+NAND+controller&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Phison'},
+        {'label': 'Realtek 瑞昱',      'url': 'https://news.google.com/rss/search?q=Realtek+瑞昱+flash+controller&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Realtek'},
     ]
 
     if mode == 'morning':
