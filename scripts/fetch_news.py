@@ -3,7 +3,7 @@
 由 GitHub Actions 排程執行（台灣時間 08:00 / 16:00）
 儲存結果到 Firebase Firestore
 """
-
+ 
 import os
 import json
 import hashlib
@@ -13,7 +13,7 @@ import time
 import feedparser
 import firebase_admin
 from firebase_admin import credentials, firestore
-
+ 
 # ─── 情緒關鍵字 ───
 POS_KW = ['獲獎','表揚','優勝','榮獲','營收','新高','成長','獲利','上漲','突破',
            '合作','推出','創新','領先','冠軍','熱銷','供不應求','超預期','亮眼',
@@ -23,7 +23,7 @@ NEG_KW = ['崩盤','瑕疵','虧損','下滑','召回','訴訟','罰款','跌','
            '裁員','停產','倒閉','供應鏈中斷','市場萎縮','利空',
            'recall','loss','lawsuit','fine','crash','decline','fall','drop',
            'risk','bearish','weak','miss','cut','layoff','bankruptcy','downgrade']
-
+ 
 # ─── 台灣媒體對照表 ───
 TAIWAN_MEDIA = {
     'udn.com': '聯合報', 'money.udn.com': '經濟日報', 'ctee.com.tw': '工商時報',
@@ -36,7 +36,7 @@ TAIWAN_MEDIA = {
     'cnyes.com': '鉅亨網', 'moneydj.com': 'MoneyDJ', 'stockfeel.com.tw': '股感',
     'nownews.com': 'NOWnews', 'mirrormedia.mg': '鏡週刊', 'ctinews.com': '中天新聞',
 }
-
+ 
 # ─── RSS 新聞來源 ───
 def get_sources(mode):
     """
@@ -81,15 +81,15 @@ def get_sources(mode):
         {'label': 'Phison 群聯',       'url': 'https://news.google.com/rss/search?q=Phison+群聯+NAND+controller&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Phison'},
         {'label': 'Realtek 瑞昱',      'url': 'https://news.google.com/rss/search?q=Realtek+瑞昱+flash+controller&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Realtek'},
     ]
-
+ 
     if mode == 'morning':
         return transcend + competitors + suppliers
     elif mode == 'afternoon':
         return us_market + competitors + suppliers
     else:  # all
         return transcend + us_market + competitors + suppliers
-
-
+ 
+ 
 def analyze_sentiment(title, content=''):
     text = (title + ' ' + content).lower()
     pos = sum(1 for k in POS_KW if k.lower() in text)
@@ -99,8 +99,8 @@ def analyze_sentiment(title, content=''):
     elif neg > pos:
         return 'negative'
     return 'neutral'
-
-
+ 
+ 
 def get_media_name(entry, link=''):
     # Try author field first
     author = getattr(entry, 'author', '') or ''
@@ -110,7 +110,7 @@ def get_media_name(entry, link=''):
                 return name
         if len(author) > 1:
             return author
-
+ 
     # Try link domain
     try:
         from urllib.parse import urlparse
@@ -121,13 +121,13 @@ def get_media_name(entry, link=''):
         return domain or '未知媒體'
     except Exception:
         return '未知媒體'
-
-
+ 
+ 
 def make_article_id(link, title):
     raw = (link or title or '') + 'v1'
     return hashlib.md5(raw.encode('utf-8')).hexdigest()[:20]
-
-
+ 
+ 
 def parse_date(entry):
     """Try multiple date fields, return datetime object."""
     for field in ['published_parsed', 'updated_parsed', 'created_parsed']:
@@ -138,13 +138,13 @@ def parse_date(entry):
             except Exception:
                 pass
     return datetime.datetime.now(datetime.timezone.utc)
-
-
+ 
+ 
 def clean_html(text):
     import re
     return re.sub(r'<[^>]+>', '', text or '').strip()
-
-
+ 
+ 
 def fetch_source(src, retry=2):
     for attempt in range(retry + 1):
         try:
@@ -184,8 +184,8 @@ def fetch_source(src, retry=2):
             else:
                 print(f"  ✗ {src['label']} 最終失敗: {e}")
                 return []
-
-
+ 
+ 
 def save_to_firestore(db, articles):
     """批次寫入 Firestore，每 400 筆一批"""
     batch_size = 400
@@ -199,48 +199,64 @@ def save_to_firestore(db, articles):
         batch.commit()
         saved += len(chunk)
     return saved
-
-
+ 
+ 
 def main():
     mode = os.environ.get('FETCH_MODE', 'all')
     print(f"\n{'='*50}")
     print(f"創見資訊新聞監控 — 自動抓取")
     print(f"模式: {mode} | 時間: {datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime('%Y-%m-%d %H:%M:%S')} (台灣時間)")
     print(f"{'='*50}")
-
+ 
     # ─── Firebase 初始化 ───
     sa_key = os.environ.get('FIREBASE_SERVICE_ACCOUNT')
     if not sa_key:
         print("❌ 找不到 FIREBASE_SERVICE_ACCOUNT 環境變數")
         sys.exit(1)
-
+ 
+    # 支援兩種格式：原始 JSON 或 Base64 編碼的 JSON
+    import base64
+    sa_json = sa_key.strip()
+    if not sa_json.startswith('{'):
+        print("🔄 偵測到 Base64 格式，正在解碼...")
+        try:
+            sa_json = base64.b64decode(sa_json).decode('utf-8')
+            print("✅ Base64 解碼成功")
+        except Exception as e:
+            print(f"❌ Base64 解碼失敗: {e}")
+            sys.exit(1)
+ 
     try:
-        sa_dict = json.loads(sa_key)
+        sa_dict = json.loads(sa_json)
         cred = credentials.Certificate(sa_dict)
         if not firebase_admin._apps:
             firebase_admin.initialize_app(cred)
         db = firestore.client()
         print("✅ Firebase Firestore 已連線\n")
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON 格式錯誤（行 {e.lineno} 欄 {e.colno}）: {e.msg}")
+        print("💡 建議到 base64encode.org 將 JSON 轉為 Base64 後再貼入 GitHub Secret")
+        sys.exit(1)
     except Exception as e:
         print(f"❌ Firebase 初始化失敗: {e}")
         sys.exit(1)
-
+ 
     # ─── 抓取新聞 ───
     sources = get_sources(mode)
     print(f"📡 開始抓取 {len(sources)} 個來源...\n")
-
+ 
     all_articles = []
     seen_links = set()
-
+ 
     for src in sources:
         articles = fetch_source(src)
         for a in articles:
             if a['link'] not in seen_links:
                 seen_links.add(a['link'])
                 all_articles.append(a)
-
+ 
     print(f"\n📊 共抓取 {len(all_articles)} 則不重複新聞")
-
+ 
     # ─── 儲存到 Firestore ───
     if all_articles:
         print(f"\n💾 儲存到 Firebase Firestore...")
@@ -248,7 +264,7 @@ def main():
         print(f"✅ 成功儲存 {saved} 則新聞")
     else:
         print("⚠ 沒有新聞可儲存")
-
+ 
     # ─── 情緒統計 ───
     pos = sum(1 for a in all_articles if a['sentiment'] == 'positive')
     neg = sum(1 for a in all_articles if a['sentiment'] == 'negative')
@@ -257,7 +273,8 @@ def main():
     print(f"\n{'='*50}")
     print("抓取完成！")
     print(f"{'='*50}\n")
-
-
+ 
+ 
 if __name__ == '__main__':
     main()
+           
