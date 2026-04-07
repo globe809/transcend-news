@@ -3,7 +3,7 @@
 由 GitHub Actions 排程執行（台灣時間 08:00 / 16:00）
 儲存結果到 Firebase Firestore
 """
- 
+
 import os
 import json
 import hashlib
@@ -13,7 +13,7 @@ import time
 import feedparser
 import firebase_admin
 from firebase_admin import credentials, firestore
- 
+
 # ─── 情緒關鍵字 ───
 POS_KW = ['獲獎','表揚','優勝','榮獲','營收','新高','成長','獲利','上漲','突破',
            '合作','推出','創新','領先','冠軍','熱銷','供不應求','超預期','亮眼',
@@ -23,7 +23,7 @@ NEG_KW = ['崩盤','瑕疵','虧損','下滑','召回','訴訟','罰款','跌','
            '裁員','停產','倒閉','供應鏈中斷','市場萎縮','利空',
            'recall','loss','lawsuit','fine','crash','decline','fall','drop',
            'risk','bearish','weak','miss','cut','layoff','bankruptcy','downgrade']
- 
+
 # ─── 台灣媒體對照表 ───
 TAIWAN_MEDIA = {
     'udn.com': '聯合報', 'money.udn.com': '經濟日報', 'ctee.com.tw': '工商時報',
@@ -36,7 +36,7 @@ TAIWAN_MEDIA = {
     'cnyes.com': '鉅亨網', 'moneydj.com': 'MoneyDJ', 'stockfeel.com.tw': '股感',
     'nownews.com': 'NOWnews', 'mirrormedia.mg': '鏡週刊', 'ctinews.com': '中天新聞',
 }
- 
+
 # ─── RSS 新聞來源 ───
 def get_sources(mode):
     """
@@ -57,39 +57,56 @@ def get_sources(mode):
         {'label': 'Flash Storage', 'url': 'https://news.google.com/rss/search?q=flash+storage+industry+supply&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
     ]
     competitors = [
-        # ─── 競品品牌 ───
-        {'label': 'ADATA 威剛',       'url': 'https://news.google.com/rss/search?q=ADATA+威剛+memory+storage&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'ADATA'},
-        {'label': 'Innodisk 宜鼎',    'url': 'https://news.google.com/rss/search?q=Innodisk+宜鼎+industrial+flash&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Innodisk'},
-        {'label': 'Apacer 宇瞻',      'url': 'https://news.google.com/rss/search?q=Apacer+宇瞻+memory+flash&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Apacer'},
-        {'label': 'Silicon Power 廣穎','url': 'https://news.google.com/rss/search?q=Silicon+Power+廣穎+memory+flash&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Silicon Power'},
-        {'label': 'Kingston 金士頓',   'url': 'https://news.google.com/rss/search?q=Kingston+Technology+memory+flash', 'cat': 'competitor', 'brand': 'Kingston'},
-        {'label': 'Lexar',             'url': 'https://news.google.com/rss/search?q=Lexar+memory+card+flash+storage', 'cat': 'competitor', 'brand': 'Lexar'},
-        {'label': 'PNY',               'url': 'https://news.google.com/rss/search?q=PNY+Technologies+flash+memory', 'cat': 'competitor', 'brand': 'PNY'},
+        # ─── 競品：英文新聞 ───
+        {'label': 'ADATA EN',          'url': 'https://news.google.com/rss/search?q=ADATA+memory+storage&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'ADATA'},
+        {'label': 'Innodisk EN',       'url': 'https://news.google.com/rss/search?q=Innodisk+industrial+flash+storage&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Innodisk'},
+        {'label': 'Apacer EN',         'url': 'https://news.google.com/rss/search?q=Apacer+memory+flash+storage&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Apacer'},
+        {'label': 'Silicon Power EN',  'url': 'https://news.google.com/rss/search?q=Silicon+Power+memory+flash&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Silicon Power'},
+        {'label': 'Kingston EN',       'url': 'https://news.google.com/rss/search?q=Kingston+Technology+memory+flash&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Kingston'},
+        {'label': 'Lexar EN',          'url': 'https://news.google.com/rss/search?q=Lexar+memory+card+flash+storage&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Lexar'},
+        {'label': 'PNY EN',            'url': 'https://news.google.com/rss/search?q=PNY+Technologies+flash+memory&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'PNY'},
+        # ─── 競品：中文新聞 ───
+        {'label': 'ADATA 威剛 TW',     'url': 'https://news.google.com/rss/search?q=ADATA+威剛&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'ADATA'},
+        {'label': 'Innodisk 宜鼎 TW',  'url': 'https://news.google.com/rss/search?q=Innodisk+宜鼎&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Innodisk'},
+        {'label': 'Apacer 宇瞻 TW',    'url': 'https://news.google.com/rss/search?q=Apacer+宇瞻&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Apacer'},
+        {'label': 'Silicon Power 廣穎 TW', 'url': 'https://news.google.com/rss/search?q=廣穎+Silicon+Power&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Silicon Power'},
+        {'label': 'Kingston 金士頓 TW', 'url': 'https://news.google.com/rss/search?q=金士頓+Kingston&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Kingston'},
+        {'label': 'Lexar TW',          'url': 'https://news.google.com/rss/search?q=Lexar+記憶卡+隨身碟&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Lexar'},
     ]
     suppliers = [
-        # ─── DRAM 上游 ───
-        {'label': 'Samsung DRAM',      'url': 'https://news.google.com/rss/search?q=Samsung+DRAM+memory+DDR5&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Samsung'},
-        {'label': 'Micron DRAM',       'url': 'https://news.google.com/rss/search?q=Micron+Technology+DRAM+memory&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Micron'},
-        {'label': 'SK Hynix',          'url': 'https://news.google.com/rss/search?q=SK+Hynix+DRAM+HBM+memory&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'SK Hynix'},
-        # ─── NAND Flash 上游 ───
-        {'label': 'SanDisk NAND',      'url': 'https://news.google.com/rss/search?q=SanDisk+Western+Digital+NAND+Flash&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'SanDisk/WD'},
-        {'label': 'Samsung NAND',      'url': 'https://news.google.com/rss/search?q=Samsung+NAND+Flash+V-NAND&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Samsung'},
-        {'label': 'Kioxia',            'url': 'https://news.google.com/rss/search?q=Kioxia+NAND+Flash+BiCS&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Kioxia'},
-        {'label': 'Micron NAND',       'url': 'https://news.google.com/rss/search?q=Micron+NAND+Flash+QLC+TLC&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Micron'},
+        # ─── DRAM 上游：英文新聞 ───
+        {'label': 'Samsung DRAM EN',   'url': 'https://news.google.com/rss/search?q=Samsung+DRAM+memory+DDR5&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Samsung'},
+        {'label': 'Micron DRAM EN',    'url': 'https://news.google.com/rss/search?q=Micron+Technology+DRAM+memory&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Micron'},
+        {'label': 'SK Hynix EN',       'url': 'https://news.google.com/rss/search?q=SK+Hynix+DRAM+HBM+memory&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'SK Hynix'},
+        # ─── DRAM 上游：中文新聞 ───
+        {'label': 'Samsung 三星 TW',   'url': 'https://news.google.com/rss/search?q=三星+Samsung+DRAM+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Samsung'},
+        {'label': 'Micron 美光 TW',    'url': 'https://news.google.com/rss/search?q=美光+Micron+DRAM&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Micron'},
+        {'label': 'SK Hynix TW',       'url': 'https://news.google.com/rss/search?q=SK+海力士+Hynix+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'SK Hynix'},
+        # ─── NAND Flash 上游：英文新聞 ───
+        {'label': 'SanDisk NAND EN',   'url': 'https://news.google.com/rss/search?q=SanDisk+Western+Digital+NAND+Flash&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'SanDisk/WD'},
+        {'label': 'Samsung NAND EN',   'url': 'https://news.google.com/rss/search?q=Samsung+NAND+Flash+V-NAND&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Samsung'},
+        {'label': 'Kioxia EN',         'url': 'https://news.google.com/rss/search?q=Kioxia+NAND+Flash+BiCS&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Kioxia'},
+        {'label': 'Micron NAND EN',    'url': 'https://news.google.com/rss/search?q=Micron+NAND+Flash+QLC+TLC&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Micron'},
+        # ─── NAND Flash 上游：中文新聞 ───
+        {'label': 'SanDisk WD TW',     'url': 'https://news.google.com/rss/search?q=SanDisk+威騰+NAND+Flash&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'SanDisk/WD'},
+        {'label': 'Samsung NAND TW',   'url': 'https://news.google.com/rss/search?q=三星+NAND+Flash+快閃記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Samsung'},
+        {'label': 'Kioxia TW',         'url': 'https://news.google.com/rss/search?q=Kioxia+鎧俠+NAND+Flash&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Kioxia'},
         # ─── NAND Controller（主控晶片）───
-        {'label': 'SMI 慧榮',          'url': 'https://news.google.com/rss/search?q=SMI+Silicon+Motion+慧榮+controller&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'SMI'},
-        {'label': 'Phison 群聯',       'url': 'https://news.google.com/rss/search?q=Phison+群聯+NAND+controller&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Phison'},
-        {'label': 'Realtek 瑞昱',      'url': 'https://news.google.com/rss/search?q=Realtek+瑞昱+flash+controller&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Realtek'},
+        {'label': 'SMI 慧榮',          'url': 'https://news.google.com/rss/search?q=SMI+Silicon+Motion+慧榮&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'SMI'},
+        {'label': 'Phison 群聯',       'url': 'https://news.google.com/rss/search?q=Phison+群聯+主控&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Phison'},
+        {'label': 'Realtek 瑞昱',      'url': 'https://news.google.com/rss/search?q=Realtek+瑞昱&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Realtek'},
+        {'label': 'SMI EN',            'url': 'https://news.google.com/rss/search?q=Silicon+Motion+SMI+NAND+controller&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'SMI'},
+        {'label': 'Phison EN',         'url': 'https://news.google.com/rss/search?q=Phison+Electronics+NAND+controller&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Phison'},
     ]
- 
+
     if mode == 'morning':
         return transcend + competitors + suppliers
     elif mode == 'afternoon':
         return us_market + competitors + suppliers
     else:  # all
         return transcend + us_market + competitors + suppliers
- 
- 
+
+
 def analyze_sentiment(title, content=''):
     text = (title + ' ' + content).lower()
     pos = sum(1 for k in POS_KW if k.lower() in text)
@@ -99,8 +116,8 @@ def analyze_sentiment(title, content=''):
     elif neg > pos:
         return 'negative'
     return 'neutral'
- 
- 
+
+
 def get_media_name(entry, link=''):
     # Try author field first
     author = getattr(entry, 'author', '') or ''
@@ -110,7 +127,7 @@ def get_media_name(entry, link=''):
                 return name
         if len(author) > 1:
             return author
- 
+
     # Try link domain
     try:
         from urllib.parse import urlparse
@@ -121,13 +138,13 @@ def get_media_name(entry, link=''):
         return domain or '未知媒體'
     except Exception:
         return '未知媒體'
- 
- 
+
+
 def make_article_id(link, title):
     raw = (link or title or '') + 'v1'
     return hashlib.md5(raw.encode('utf-8')).hexdigest()[:20]
- 
- 
+
+
 def parse_date(entry):
     """Try multiple date fields, return datetime object."""
     for field in ['published_parsed', 'updated_parsed', 'created_parsed']:
@@ -138,13 +155,13 @@ def parse_date(entry):
             except Exception:
                 pass
     return datetime.datetime.now(datetime.timezone.utc)
- 
- 
+
+
 def clean_html(text):
     import re
     return re.sub(r'<[^>]+>', '', text or '').strip()
- 
- 
+
+
 def fetch_source(src, retry=2):
     for attempt in range(retry + 1):
         try:
@@ -184,8 +201,8 @@ def fetch_source(src, retry=2):
             else:
                 print(f"  ✗ {src['label']} 最終失敗: {e}")
                 return []
- 
- 
+
+
 def save_to_firestore(db, articles):
     """批次寫入 Firestore，每 400 筆一批"""
     batch_size = 400
@@ -199,21 +216,21 @@ def save_to_firestore(db, articles):
         batch.commit()
         saved += len(chunk)
     return saved
- 
- 
+
+
 def main():
     mode = os.environ.get('FETCH_MODE', 'all')
     print(f"\n{'='*50}")
     print(f"創見資訊新聞監控 — 自動抓取")
     print(f"模式: {mode} | 時間: {datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime('%Y-%m-%d %H:%M:%S')} (台灣時間)")
     print(f"{'='*50}")
- 
+
     # ─── Firebase 初始化 ───
     sa_key = os.environ.get('FIREBASE_SERVICE_ACCOUNT')
     if not sa_key:
         print("❌ 找不到 FIREBASE_SERVICE_ACCOUNT 環境變數")
         sys.exit(1)
- 
+
     # 支援兩種格式：原始 JSON 或 Base64 編碼的 JSON
     import base64
     sa_json = sa_key.strip()
@@ -225,7 +242,7 @@ def main():
         except Exception as e:
             print(f"❌ Base64 解碼失敗: {e}")
             sys.exit(1)
- 
+
     try:
         sa_dict = json.loads(sa_json)
         cred = credentials.Certificate(sa_dict)
@@ -240,23 +257,23 @@ def main():
     except Exception as e:
         print(f"❌ Firebase 初始化失敗: {e}")
         sys.exit(1)
- 
+
     # ─── 抓取新聞 ───
     sources = get_sources(mode)
     print(f"📡 開始抓取 {len(sources)} 個來源...\n")
- 
+
     all_articles = []
     seen_links = set()
- 
+
     for src in sources:
         articles = fetch_source(src)
         for a in articles:
             if a['link'] not in seen_links:
                 seen_links.add(a['link'])
                 all_articles.append(a)
- 
+
     print(f"\n📊 共抓取 {len(all_articles)} 則不重複新聞")
- 
+
     # ─── 儲存到 Firestore ───
     if all_articles:
         print(f"\n💾 儲存到 Firebase Firestore...")
@@ -264,7 +281,7 @@ def main():
         print(f"✅ 成功儲存 {saved} 則新聞")
     else:
         print("⚠ 沒有新聞可儲存")
- 
+
     # ─── 情緒統計 ───
     pos = sum(1 for a in all_articles if a['sentiment'] == 'positive')
     neg = sum(1 for a in all_articles if a['sentiment'] == 'negative')
@@ -273,8 +290,7 @@ def main():
     print(f"\n{'='*50}")
     print("抓取完成！")
     print(f"{'='*50}\n")
- 
- 
+
+
 if __name__ == '__main__':
     main()
-           
