@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 新聞集合 - 允許讀取（前端網頁），寫入僅限後端（由 Firebase Admin SDK 執行）
+    match /news/{articleId} {
+      // 任何人都可以讀取（GitHub Pages 上的前端讀取）
+      allow read: if true;
+
+      // 寫入：只允許已驗證的服務帳號（即 GitHub Actions 用的 Admin SDK）
+      // Admin SDK 會繞過這些規則，所以這裡設為 false 即可防止客戶端寫入
+      allow write: if false;
+    }
+
+    // 其他集合一律拒絕
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>創見資訊 新聞監控 | Transcend News Intelligence</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+<style>
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+  .news-card { transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }
+  .news-card:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.12); border-color: #93c5fd; }
+  .tab-active { border-bottom: 3px solid #1d4ed8 !important; color: #1d4ed8 !important; font-weight: 600; }
+  .filter-active { background: #1d4ed8 !important; color: white !important; }
+  .sub-tab-active { background: #1d4ed8 !important; color: white !important; }
+  @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeSlideIn 0.35s ease-out; }
+  .modal-backdrop { backdrop-filter: blur(6px); background: rgba(0,0,0,0.55); }
+  .sentiment-pos { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+  .sentiment-neg { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+  .sentiment-neu { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+  .scrollbar-thin::-webkit-scrollbar { width: 5px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: #f8fafc; border-radius: 10px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+  .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .gradient-header { background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #2563eb 100%); }
+  .glow-green { box-shadow: 0 0 0 3px rgba(34,197,94,0.25); }
+  .glow-red { box-shadow: 0 0 0 3px rgba(239,68,68,0.25); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin 1s linear infinite; display: inline-block; }
+  .news-modal-content { max-height: 75vh; overflow-y: auto; }
+  .pr-section { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 1px solid #86efac; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+  .ai-response { white-space: pre-wrap; line-height: 1.75; }
+  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .pulse-dot { animation: pulse-dot 1.5s infinite; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- ─────────────── HEADER ─────────────── -->
+<header class="gradient-header text-white sticky top-0 z-40 shadow-xl">
+  <div class="max-w-7xl mx-auto px-4 py-3.5">
+    <div class="flex items-center justify-between">
+      <!-- Logo -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-white bg-opacity-20 rounded-xl flex items-center justify-center text-xl font-bold border border-white border-opacity-30 backdrop-blur-sm">創</div>
+        <div>
+          <h1 class="text-lg font-bold leading-tight">創見資訊 新聞監控系統</h1>
+          <p class="text-xs text-blue-200 leading-tight">Transcend Information News Intelligence</p>
+        </div>
+      </div>
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-2">
+        <div id="lastFetchBadge" class="hidden text-xs text-blue-200 mr-2">
+          上次更新: <span id="lastFetchTime" class="text-white font-medium">-</span>
+        </div>
+        <button onclick="fetchAllNews()" id="fetchBtn"
+          class="px-3.5 py-1.5 bg-white bg-opacity-20 hover:bg-opacity-30 text-white border border-white border-opacity-30 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-all">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          抓取新聞
+        </button>
+        <button onclick="openAISummary()"
+          class="px-3.5 py-1.5 bg-purple-500 hover:bg-purple-400 text-white rounded-lg text-sm font-medium flex items-center gap-1.5 transition-all shadow-md">
+          ✨ AI 摘要
+        </button>
+        <button onclick="openPRAdvice()"
+          class="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-sm font-medium flex items-center gap-1.5 transition-all shadow-md">
+          📢 公關口徑
+        </button>
+        <button onclick="openSettings()"
+          class="p-2 bg-white bg-opacity-10 hover:bg-opacity-20 text-white rounded-lg border border-white border-opacity-20 transition-all">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Status Bar -->
+<div id="statusBar" class="hidden bg-blue-600 text-white px-4 py-2 text-sm">
+  <div class="max-w-7xl mx-auto flex items-center gap-2">
+    <span class="pulse-dot w-2 h-2 bg-white rounded-full inline-block"></span>
+    <span id="statusMsg">正在抓取新聞...</span>
+  </div>
+</div>
+
+<!-- ─────────────── MAIN CONTENT ─────────────── -->
+<div class="max-w-7xl mx-auto px-4 py-6">
+
+  <!-- Stats Cards -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-3xl font-bold text-gray-900" id="statTotal">0</span>
+        <span class="text-2xl">📰</span>
+      </div>
+      <div class="text-sm text-gray-500">篩選範圍新聞</div>
+      <div class="text-xs text-blue-600 mt-1" id="statPeriod">今日</div>
+    </div>
+    <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-3xl font-bold text-green-600" id="statPos">0</span>
+        <span class="text-2xl">🟢</span>
+      </div>
+      <div class="text-sm text-gray-500">正面新聞</div>
+      <div class="text-xs text-green-600 mt-1">利多訊號</div>
+    </div>
+    <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-3xl font-bold text-red-600" id="statNeg">0</span>
+        <span class="text-2xl">🔴</span>
+      </div>
+      <div class="text-sm text-gray-500">負面新聞</div>
+      <div class="text-xs text-red-600 mt-1">風險關注</div>
+    </div>
+    <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-3xl font-bold text-purple-600" id="statMediaCnt">0</span>
+        <span class="text-2xl">📡</span>
+      </div>
+      <div class="text-sm text-gray-500">媒體曝光次數</div>
+      <div class="text-xs text-purple-600 mt-1" id="statMediaSrc">來源數</div>
+    </div>
+  </div>
+
+  <!-- Main Panel -->
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
+
+    <!-- Main Tabs -->
+    <div class="flex border-b border-gray-100 bg-gray-50">
+      <button onclick="switchTab('transcend')" class="main-tab tab-active px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="transcend">
+        🏢 創見資訊
+      </button>
+      <button onclick="switchTab('usMarket')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="usMarket">
+        🇺🇸 美國市場
+      </button>
+      <button onclick="switchTab('competitors')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="competitors">
+        🥊 競品 &amp; 供應商
+      </button>
+      <button onclick="switchTab('media')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="media">
+        📊 媒體曝光統計
+      </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap items-center gap-2 px-6 py-3 border-b border-gray-100 bg-gray-50">
+      <span class="text-xs text-gray-400 font-medium">時間:</span>
+      <button onclick="setFilter('today')" class="time-filter filter-active px-3 py-1 rounded-full text-xs font-medium transition-all" data-f="today">今天</button>
+      <button onclick="setFilter('week')" class="time-filter px-3 py-1 rounded-full text-xs font-medium text-gray-500 hover:bg-gray-200 transition-all" data-f="week">本週</button>
+      <button onclick="setFilter('month')" class="time-filter px-3 py-1 rounded-full text-xs font-medium text-gray-500 hover:bg-gray-200 transition-all" data-f="month">本月</button>
+      <button onclick="setFilter('year')" class="time-filter px-3 py-1 rounded-full text-xs font-medium text-gray-500 hover:bg-gray-200 transition-all" data-f="year">本年</button>
+      <div class="ml-auto flex items-center gap-2">
+        <input type="text" id="searchInput" placeholder="🔍 搜尋關鍵字..."
+          class="text-xs border border-gray-200 rounded-lg px-3 py-1.5 w-40 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+          oninput="renderAll()">
+        <select id="sentFilter" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400" onchange="renderAll()">
+          <option value="all">全部情緒</option>
+          <option value="positive">🟢 正面</option>
+          <option value="negative">🔴 負面</option>
+          <option value="neutral">⚪ 中立</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Tab Contents -->
+    <div id="tabContent" class="p-6">
+
+      <!-- Transcend Tab -->
+      <div id="tab-transcend" class="tab-panel">
+        <div id="transcendGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div class="col-span-3 text-center py-16 text-gray-400">
+            <div class="text-5xl mb-4">📰</div>
+            <div class="text-lg font-semibold text-gray-500">點擊「抓取新聞」開始監控</div>
+            <div class="text-sm mt-2 text-gray-400">或等待每日 08:00（台灣時間）自動更新</div>
+            <div class="flex flex-wrap justify-center gap-2 mt-4">
+              <span class="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full">創見資訊</span>
+              <span class="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full">Transcend</span>
+              <span class="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full">2451</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- US Market Tab -->
+      <div id="tab-usMarket" class="tab-panel hidden">
+        <div id="usMarketGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div class="col-span-3 text-center py-16 text-gray-400">
+            <div class="text-5xl mb-4">🌐</div>
+            <div class="text-lg font-semibold text-gray-500">美國 DRAM / Flash 市場動態</div>
+            <div class="text-sm mt-2 text-gray-400">每日台灣時間 16:00 自動更新</div>
+            <div class="flex flex-wrap justify-center gap-2 mt-4">
+              <span class="text-xs bg-orange-50 text-orange-600 px-3 py-1 rounded-full">DRAM</span>
+              <span class="text-xs bg-orange-50 text-orange-600 px-3 py-1 rounded-full">NAND Flash</span>
+              <span class="text-xs bg-orange-50 text-orange-600 px-3 py-1 rounded-full">Memory Market</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Competitors Tab -->
+      <div id="tab-competitors" class="tab-panel hidden">
+        <div class="flex gap-2 mb-4">
+          <button onclick="switchSubTab('competitor')" class="sub-tab sub-tab-active px-4 py-1.5 rounded-lg text-sm font-medium transition-all" data-st="competitor">🥊 競品</button>
+          <button onclick="switchSubTab('supplier')" class="sub-tab px-4 py-1.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-st="supplier">🏭 上游供應商</button>
+        </div>
+        <div id="competitorGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div class="col-span-3 text-center py-12 text-gray-400">
+            <div class="text-5xl mb-3">🥊</div>
+            <div class="font-semibold text-gray-500">競品新聞監控</div>
+            <div class="text-sm mt-1">Kingston、ADATA、SanDisk、PNY、Corsair</div>
+          </div>
+        </div>
+        <div id="supplierGrid" class="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div class="col-span-3 text-center py-12 text-gray-400">
+            <div class="text-5xl mb-3">🏭</div>
+            <div class="font-semibold text-gray-500">上游供應商新聞監控</div>
+            <div class="text-sm mt-1">Micron、Samsung、SK Hynix、Kioxia、Western Digital</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Media Stats Tab -->
+      <div id="tab-media" class="tab-panel hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div>
+            <h3 class="text-base font-bold text-gray-700 mb-4">📋 台灣媒體曝光排行榜</h3>
+            <div id="mediaRankList" class="space-y-2">
+              <div class="text-center py-10 text-gray-400">
+                <div class="text-4xl mb-3">📊</div>
+                <div>抓取新聞後將自動統計媒體曝光數據</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-gray-700 mb-4">📈 媒體曝光趨勢</h3>
+            <canvas id="mediaChart" height="300"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Schedule Info -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+      <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">🌅</div>
+      <div class="flex-1">
+        <div class="font-semibold text-gray-800">每日 08:00（台灣時間）</div>
+        <div class="text-xs text-gray-500 mt-0.5">自動抓取 創見資訊 / Transcend / 2451 新聞</div>
+      </div>
+      <div id="morningStatus"><span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full">待機中</span></div>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+      <div class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">🌆</div>
+      <div class="flex-1">
+        <div class="font-semibold text-gray-800">每日 16:00（台灣時間）</div>
+        <div class="text-xs text-gray-500 mt-0.5">自動抓取美國 DRAM / NAND Flash 市場新聞</div>
+      </div>
+      <div id="afternoonStatus"><span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full">待機中</span></div>
+    </div>
+  </div>
+
+  <!-- Firebase Info Banner -->
+  <div id="firebaseBanner" class="bg-orange-50 border border-orange-200 rounded-2xl p-4 mb-6 hidden">
+    <div class="flex items-center gap-3">
+      <span class="text-xl">🔥</span>
+      <div>
+        <div class="text-sm font-semibold text-orange-800">Firebase 已連線</div>
+        <div class="text-xs text-orange-600">新聞資料將自動儲存至 Firestore 資料庫</div>
+      </div>
+      <span class="ml-auto text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">✅ 已連線</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ─────────────── MODAL: Settings ─────────────── -->
+<div id="settingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto scrollbar-thin">
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h2 class="text-xl font-bold text-gray-900">⚙️ 系統設定</h2>
+          <p class="text-xs text-gray-500 mt-1">API 金鑰與資料庫設定</p>
+        </div>
+        <button onclick="closeSettings()" class="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Claude API -->
+      <div class="mb-6 p-4 bg-purple-50 rounded-xl border border-purple-100">
+        <h3 class="text-sm font-bold text-purple-800 mb-3 flex items-center gap-2">
+          <span class="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold">AI</span>
+          Claude API 設定
+        </h3>
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs font-medium text-gray-600 block mb-1">Anthropic API Key <span class="text-red-500">*</span></label>
+            <input type="password" id="s_claudeKey" placeholder="sk-ant-api03-..."
+              class="w-full border border-purple-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white">
+            <p class="text-xs text-gray-400 mt-1">前往 <a href="https://console.anthropic.com" target="_blank" class="text-purple-600 underline">console.anthropic.com</a> 取得 API Key</p>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-600 block mb-1">Claude 模型</label>
+            <select id="s_claudeModel" class="w-full border border-purple-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white">
+              <option value="claude-opus-4-6">Claude Opus 4.6（最強，速度慢）</option>
+              <option value="claude-sonnet-4-6" selected>Claude Sonnet 4.6（推薦）</option>
+              <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5（最快）</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Firebase Config -->
+      <div class="mb-6 p-4 bg-orange-50 rounded-xl border border-orange-100">
+        <h3 class="text-sm font-bold text-orange-800 mb-1 flex items-center gap-2">
+          <span class="text-lg">🔥</span> Firebase 設定
+          <span class="text-xs font-normal bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">選填</span>
+        </h3>
+        <p class="text-xs text-orange-600 mb-3">用於雲端儲存新聞資料，不填寫則使用瀏覽器記憶體（重整後清空）</p>
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs font-medium text-gray-600 block mb-1">Firebase API Key</label>
+            <input type="text" id="s_fbKey" placeholder="AIzaSy..." class="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white">
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-xs font-medium text-gray-600 block mb-1">Auth Domain</label>
+              <input type="text" id="s_fbAuthDomain" placeholder="your-app.firebaseapp.com" class="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white">
+            </div>
+            <div>
+              <label class="text-xs font-medium text-gray-600 block mb-1">Project ID</label>
+              <input type="text" id="s_fbProjectId" placeholder="your-project-id" class="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-xs font-medium text-gray-600 block mb-1">Storage Bucket</label>
+              <input type="text" id="s_fbBucket" placeholder="your-app.appspot.com" class="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white">
+            </div>
+            <div>
+              <label class="text-xs font-medium text-gray-600 block mb-1">Messaging Sender ID</label>
+              <input type="text" id="s_fbSenderId" placeholder="123456789" class="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white">
+            </div>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-600 block mb-1">App ID</label>
+            <input type="text" id="s_fbAppId" placeholder="1:xxx:web:xxx" class="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white">
+          </div>
+        </div>
+      </div>
+
+      <!-- RSS2JSON API (optional) -->
+      <div class="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
+        <h3 class="text-sm font-bold text-blue-800 mb-1 flex items-center gap-2">
+          <span class="text-lg">📡</span> RSS2JSON API Key
+          <span class="text-xs font-normal bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">選填</span>
+        </h3>
+        <p class="text-xs text-blue-600 mb-3">免費版每天 10,000 次，不填也可使用（共用額度）</p>
+        <input type="text" id="s_rssKey" placeholder="RSS2JSON API Key（選填）"
+          class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">
+        <p class="text-xs text-gray-400 mt-1">前往 <a href="https://rss2json.com" target="_blank" class="text-blue-600 underline">rss2json.com</a> 申請</p>
+      </div>
+
+      <div class="flex gap-3">
+        <button onclick="saveSettings()" class="flex-1 bg-blue-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-blue-700 transition-colors">
+          💾 儲存設定
+        </button>
+        <button onclick="testClaudeKey()" class="px-4 bg-purple-100 text-purple-700 rounded-xl py-2.5 text-sm font-semibold hover:bg-purple-200 transition-colors">
+          測試 AI
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────── MODAL: AI Summary ─────────────── -->
+<div id="aiSummaryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4">
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <h2 class="text-xl font-bold text-gray-900">✨ AI 新聞摘要</h2>
+          <p class="text-xs text-gray-500 mt-1">Claude 分析今日 5 則重要新聞 + 公關方向建議</p>
+        </div>
+        <button onclick="closeModal('aiSummaryModal')" class="text-gray-400 hover:text-gray-700 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="news-modal-content scrollbar-thin">
+        <div id="aiSummaryContent" class="text-sm text-gray-700 ai-response"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────── MODAL: PR Advice ─────────────── -->
+<div id="prAdviceModal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4">
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <h2 class="text-xl font-bold text-gray-900">📢 AI 公關口徑建議</h2>
+          <p class="text-xs text-gray-500 mt-1">根據目前篩選的新聞，生成公關應對策略</p>
+        </div>
+        <button onclick="closeModal('prAdviceModal')" class="text-gray-400 hover:text-gray-700 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="news-modal-content scrollbar-thin">
+        <div id="prAdviceContent" class="text-sm text-gray-700 ai-response"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="hidden fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-2xl text-sm font-medium text-white transition-all duration-300 max-w-xs"></div>
+
+<!-- ─────────────── JAVASCRIPT ─────────────── -->
+<script>
+// ═══════════════════════════════════════════
+// CONSTANTS & CONFIG
+// ═══════════════════════════════════════════
+
+const RSS_API = 'https://api.rss2json.com/v1/api.json';
+
+const SOURCES = {
+  transcend: [
+    { label: '創見資訊', url: 'https://news.google.com/rss/search?q=創見資訊&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
+    { label: 'Transcend Info', url: 'https://news.google.com/rss/search?q=Transcend+Information+memory&hl=en&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
+    { label: '2451 股票', url: 'https://news.google.com/rss/search?q=2451+創見+股票&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
+    { label: '聯合報-創見', url: 'https://udn.com/rssfeed/news/2/6644?ch=news', cat: 'transcend', filter: '創見' },
+    { label: '科技新報-創見', url: 'https://technews.tw/feed/', cat: 'transcend', filter: '創見' },
+  ],
+  usMarket: [
+    { label: 'DRAM Market', url: 'https://news.google.com/rss/search?q=DRAM+memory+market+2025&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
+    { label: 'NAND Flash', url: 'https://news.google.com/rss/search?q=NAND+Flash+storage+market&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
+    { label: 'Memory Chip', url: 'https://news.google.com/rss/search?q=memory+chip+semiconductor+market&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
+    { label: 'Flash Storage', url: 'https://news.google.com/rss/search?q=flash+storage+industry+supply&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
+  ],
+  competitors: [
+    { label: 'Kingston', url: 'https://news.google.com/rss/search?q=Kingston+Technology+memory+storage', cat: 'competitor', brand: 'Kingston' },
+    { label: 'ADATA', url: 'https://news.google.com/rss/search?q=ADATA+威剛+memory+storage&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'ADATA' },
+    { label: 'SanDisk', url: 'https://news.google.com/rss/search?q=SanDisk+storage+flash&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'SanDisk' },
+    { label: 'PNY', url: 'https://news.google.com/rss/search?q=PNY+Technologies+flash+memory', cat: 'competitor', brand: 'PNY' },
+    { label: 'Corsair', url: 'https://news.google.com/rss/search?q=Corsair+memory+SSD', cat: 'competitor', brand: 'Corsair' },
+    { label: 'Lexar', url: 'https://news.google.com/rss/search?q=Lexar+memory+card+flash', cat: 'competitor', brand: 'Lexar' },
+  ],
+  suppliers: [
+    { label: 'Micron', url: 'https://news.google.com/rss/search?q=Micron+Technology+DRAM+NAND', cat: 'supplier', brand: 'Micron' },
+    { label: 'Samsung Memory', url: 'https://news.google.com/rss/search?q=Samsung+DRAM+NAND+Flash+memory', cat: 'supplier', brand: 'Samsung' },
+    { label: 'SK Hynix', url: 'https://news.google.com/rss/search?q=SK+Hynix+memory+HBM', cat: 'supplier', brand: 'SK Hynix' },
+    { label: 'Kioxia', url: 'https://news.google.com/rss/search?q=Kioxia+NAND+Flash', cat: 'supplier', brand: 'Kioxia' },
+    { label: 'Western Digital', url: 'https://news.google.com/rss/search?q=Western+Digital+NAND+flash', cat: 'supplier', brand: 'WD' },
+  ]
+};
+
+const POS_KW = ['獲獎','表揚','優勝','榮獲','營收','新高','成長','獲利','上漲','上升','突破','合作','推出','創新','領先','冠軍','熱銷','供不應求','超預期','亮眼','利多','上調','漲','award','growth','revenue','record high','profit','partnership','launch','beats','strong','bullish','surge','rise','positive','upgrade','outperform','rally','expand'];
+const NEG_KW = ['崩盤','瑕疵','虧損','下滑','召回','訴訟','罰款','跌','下跌','危機','衝擊','困境','裁員','停產','倒閉','賠','供應鏈中斷','市場萎縮','利空','下調','recall','loss','lawsuit','fine','crash','decline','fall','drop','risk','bearish','weak','miss','cut','layoff','bankruptcy','warning','concern','shortfall','downgrade'];
+
+const TAIWAN_MEDIA = {
+  'udn.com': '聯合報', 'money.udn.com': '經濟日報', 'ctee.com.tw': '工商時報',
+  'chinatimes.com': '中時電子報', 'technews.tw': '科技新報', 'ithome.com.tw': 'iThome',
+  'digitimes.com.tw': 'Digitimes', 'digitimes.com': 'Digitimes',
+  'eettaiwan.com': 'EE Times Taiwan', 'anue.com.tw': '鉅亨網',
+  'ltn.com.tw': '自由時報', 'setn.com': '三立新聞', 'tvbs.com.tw': 'TVBS',
+  'ettoday.net': 'ETtoday', 'storm.mg': '風傳媒', 'businessweekly.com.tw': '商業週刊',
+  'cw.com.tw': '天下雜誌', 'bnext.com.tw': 'Meet 創業小聚', 'inside.com.tw': 'INSIDE',
+  'tw.stock.yahoo.com': 'Yahoo 財經', 'cnyes.com': '鉅亨網', 'moneydj.com': 'MoneyDJ',
+  'stockfeel.com.tw': '股感', 'ptt.cc': 'PTT', 'nownews.com': 'NOWnews',
+  'ctinews.com': '中天新聞', 'ftv.com.tw': '民視新聞', 'pts.org.tw': '公視',
+  'mirrormedia.mg': '鏡週刊'
+};
+
+// ═══════════════════════════════════════════
+// APP STATE
+// ═══════════════════════════════════════════
+let state = {
+  news: [],
+  settings: { claudeKey: '', claudeModel: 'claude-sonnet-4-6', fbKey: '', fbProjectId: '', fbAuthDomain: '', fbBucket: '', fbSenderId: '', fbAppId: '', rssKey: '' },
+  currentTab: 'transcend',
+  currentSubTab: 'competitor',
+  currentFilter: 'today',
+  db: null,
+  chart: null,
+  isFetching: false
+};
+
+// ═══════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════
+function loadSettings() {
+  try {
+    const saved = localStorage.getItem('transcend_settings');
+    if (saved) state.settings = { ...state.settings, ...JSON.parse(saved) };
+  } catch(e) {}
+}
+
+function saveSettings() {
+  state.settings.claudeKey = document.getElementById('s_claudeKey').value.trim();
+  state.settings.claudeModel = document.getElementById('s_claudeModel').value;
+  state.settings.fbKey = document.getElementById('s_fbKey').value.trim();
+  state.settings.fbAuthDomain = document.getElementById('s_fbAuthDomain').value.trim();
+  state.settings.fbProjectId = document.getElementById('s_fbProjectId').value.trim();
+  state.settings.fbBucket = document.getElementById('s_fbBucket').value.trim();
+  state.settings.fbSenderId = document.getElementById('s_fbSenderId').value.trim();
+  state.settings.fbAppId = document.getElementById('s_fbAppId').value.trim();
+  state.settings.rssKey = document.getElementById('s_rssKey').value.trim();
+  localStorage.setItem('transcend_settings', JSON.stringify(state.settings));
+  if (state.settings.fbKey && state.settings.fbProjectId) initFirebase();
+  closeModal('settingsModal');
+  showToast('✅ 設定已儲存', 'success');
+}
+
+function openSettings() {
+  document.getElementById('s_claudeKey').value = state.settings.claudeKey || '';
+  document.getElementById('s_claudeModel').value = state.settings.claudeModel || 'claude-sonnet-4-6';
+  document.getElementById('s_fbKey').value = state.settings.fbKey || '';
+  document.getElementById('s_fbAuthDomain').value = state.settings.fbAuthDomain || '';
+  document.getElementById('s_fbProjectId').value = state.settings.fbProjectId || '';
+  document.getElementById('s_fbBucket').value = state.settings.fbBucket || '';
+  document.getElementById('s_fbSenderId').value = state.settings.fbSenderId || '';
+  document.getElementById('s_fbAppId').value = state.settings.fbAppId || '';
+  document.getElementById('s_rssKey').value = state.settings.rssKey || '';
+  document.getElementById('settingsModal').classList.remove('hidden');
+}
+
+function closeSettings() { closeModal('settingsModal'); }
+
+async function testClaudeKey() {
+  if (!state.settings.claudeKey) { showToast('⚠️ 請先填入 Claude API Key', 'warning'); return; }
+  showToast('🔄 測試 Claude API...', 'info');
+  try {
+    const res = await callClaude('請用繁體中文回答：創見資訊是哪個國家的公司？一句話即可。');
+    showToast('✅ Claude API 連線正常！', 'success');
+  } catch(e) {
+    showToast('❌ 連線失敗：' + e.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════
+// FIREBASE
+// ═══════════════════════════════════════════
+function initFirebase() {
+  try {
+    const cfg = {
+      apiKey: state.settings.fbKey,
+      authDomain: state.settings.fbAuthDomain,
+      projectId: state.settings.fbProjectId,
+      storageBucket: state.settings.fbBucket,
+      messagingSenderId: state.settings.fbSenderId,
+      appId: state.settings.fbAppId
+    };
+    if (!firebase.apps.length) firebase.initializeApp(cfg);
+    else firebase.app();
+    state.db = firebase.firestore();
+    document.getElementById('firebaseBanner').classList.remove('hidden');
+    showToast('🔥 Firebase 已連線', 'success');
+  } catch(e) {
+    console.error('Firebase init error:', e);
+    showToast('⚠️ Firebase 連線失敗', 'warning');
+  }
+}
+
+async function saveToFirebase(articles) {
+  if (!state.db) return;
+  const batch = state.db.batch();
+  articles.forEach(a => {
+    const ref = state.db.collection('news').doc(a.id);
+    batch.set(ref, {
+      ...a,
+      pubDate: a.pubDate instanceof Date ? firebase.firestore.Timestamp.fromDate(a.pubDate) : a.pubDate,
+      fetchedAt: firebase.firestore.Timestamp.now()
+    }, { merge: true });
+  });
+  await batch.commit();
+}
+
+async function loadFromFirebase(days = 1) {
+  if (!state.db) return [];
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  const snap = await state.db.collection('news')
+    .where('pubDate', '>=', firebase.firestore.Timestamp.fromDate(since))
+    .orderBy('pubDate', 'desc')
+    .limit(500)
+    .get();
+  return snap.docs.map(d => {
+    const data = d.data();
+    return { ...data, pubDate: data.pubDate?.toDate?.() || new Date(data.pubDate), id: d.id };
+  });
+}
+
+// ═══════════════════════════════════════════
+// SENTIMENT ANALYSIS
+// ═══════════════════════════════════════════
+function analyzeSentiment(title, content = '') {
+  const text = (title + ' ' + content).toLowerCase();
+  let pos = 0, neg = 0;
+  POS_KW.forEach(k => { if (text.includes(k.toLowerCase())) pos++; });
+  NEG_KW.forEach(k => { if (text.includes(k.toLowerCase())) neg++; });
+  if (pos > neg) return 'positive';
+  if (neg > pos) return 'negative';
+  return 'neutral';
+}
+
+// ═══════════════════════════════════════════
+// MEDIA NAME EXTRACTION
+// ═══════════════════════════════════════════
+function getMediaName(item) {
+  // From rss2json, author often contains the media source for Google News
+  const author = (item.author || '').trim();
+  if (author && author.length < 30 && !author.includes('@')) {
+    // Check if author matches known Taiwan media
+    for (const [, name] of Object.entries(TAIWAN_MEDIA)) {
+      if (author.includes(name) || name.includes(author)) return name;
+    }
+    if (author.length > 1) return author;
+  }
+  // Try link domain
+  try {
+    const domain = new URL(item.link || item.url || '').hostname.replace('www.', '');
+    for (const [key, name] of Object.entries(TAIWAN_MEDIA)) {
+      if (domain.includes(key) || key.includes(domain)) return name;
+    }
+    return domain;
+  } catch { return '未知媒體'; }
+}
+
+// ═══════════════════════════════════════════
+// RSS FETCHING
+// ═══════════════════════════════════════════
+async function fetchRSS(url, keyFilter) {
+  const apiUrl = RSS_API + '?rss_url=' + encodeURIComponent(url) + '&count=30' +
+    (state.settings.rssKey ? '&api_key=' + state.settings.rssKey : '');
+  const res = await fetch(apiUrl);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  const items = (data.items || []);
+  if (keyFilter) return items.filter(i => i.title && i.title.includes(keyFilter));
+  return items;
+}
+
+function makeArticle(item, src) {
+  const id = btoa(encodeURIComponent((item.link || item.guid || item.title || '') + src.cat)).slice(0, 24);
+  const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
+  const content = (item.content || item.description || '').replace(/<[^>]*>/g, '').trim();
+  return {
+    id,
+    title: (item.title || '').replace(/<[^>]*>/g, '').trim(),
+    content: content.slice(0, 500),
+    link: item.link || item.url || '#',
+    pubDate,
+    sentiment: analyzeSentiment(item.title, content),
+    cat: src.cat,
+    brand: src.brand || null,
+    sourceName: src.label,
+    mediaName: getMediaName(item),
+    fetchedAt: new Date()
+  };
+}
+
+async function fetchTranscendNews() {
+  const articles = [];
+  for (const src of SOURCES.transcend) {
+    try {
+      const items = await fetchRSS(src.url, src.filter);
+      items.forEach(i => articles.push(makeArticle(i, src)));
+    } catch(e) { console.warn('Fetch failed:', src.label, e.message); }
+  }
+  return articles;
+}
+
+async function fetchUSMarketNews() {
+  const articles = [];
+  for (const src of SOURCES.usMarket) {
+    try {
+      const items = await fetchRSS(src.url);
+      items.forEach(i => articles.push(makeArticle(i, src)));
+    } catch(e) { console.warn('Fetch failed:', src.label, e.message); }
+  }
+  return articles;
+}
+
+async function fetchCompetitorNews() {
+  const articles = [];
+  for (const src of [...SOURCES.competitors, ...SOURCES.suppliers]) {
+    try {
+      const items = await fetchRSS(src.url);
+      items.forEach(i => articles.push(makeArticle(i, src)));
+    } catch(e) { console.warn('Fetch failed:', src.label, e.message); }
+  }
+  return articles;
+}
+
+async function fetchAllNews() {
+  if (state.isFetching) return;
+  state.isFetching = true;
+  const btn = document.getElementById('fetchBtn');
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spin">⚙️</span> 抓取中...`;
+
+  showStatus('正在抓取所有新聞資料...');
+  showToast('🔄 開始抓取新聞...', 'info');
+
+  try {
+    setStatus('抓取創見資訊相關新聞...');
+    const t = await fetchTranscendNews();
+    setStatus('抓取美國市場新聞...');
+    const u = await fetchUSMarketNews();
+    setStatus('抓取競品與供應商新聞...');
+    const c = await fetchCompetitorNews();
+
+    const all = [...t, ...u, ...c];
+    // Deduplicate by link
+    const seen = new Set();
+    const unique = all.filter(a => {
+      if (!a.link || seen.has(a.link)) return false;
+      seen.add(a.link);
+      return true;
+    });
+
+    state.news = unique;
+    localStorage.setItem('transcend_last_fetch', new Date().toISOString());
+    localStorage.setItem('transcend_news_cache', JSON.stringify(unique.slice(0, 200).map(n => ({...n, pubDate: n.pubDate.toISOString(), fetchedAt: n.fetchedAt.toISOString()}))));
+
+    if (state.db) {
+      setStatus('儲存至 Firebase...');
+      await saveToFirebase(unique);
+    }
+
+    // Update schedule status
+    const now = getTaiwanTime();
+    const h = now.getHours();
+    if (h === 8 || h < 9) {
+      document.getElementById('morningStatus').innerHTML = '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">✅ 已更新</span>';
+      localStorage.setItem('transcend_morning_fetch', now.toDateString());
+    }
+    if (h >= 16) {
+      document.getElementById('afternoonStatus').innerHTML = '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">✅ 已更新</span>';
+      localStorage.setItem('transcend_afternoon_fetch', now.toDateString());
+    }
+
+    hideStatus();
+    renderAll();
+    updateStats();
+    renderMediaStats();
+    showToast(`✅ 成功抓取 ${unique.length} 則新聞`, 'success');
+
+    document.getElementById('lastFetchBadge').classList.remove('hidden');
+    document.getElementById('lastFetchTime').textContent = new Date().toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'});
+
+  } catch(e) {
+    hideStatus();
+    showToast('❌ 抓取失敗：' + e.message, 'error');
+    console.error(e);
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> 抓取新聞`;
+  state.isFetching = false;
+}
+
+// ═══════════════════════════════════════════
+// TIME FILTERING
+// ═══════════════════════════════════════════
+function getTaiwanTime() {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
+}
+
+function isInPeriod(date, period) {
+  const tw = getTaiwanTime();
+  const d = date instanceof Date ? date : new Date(date);
+  const today = new Date(tw.getFullYear(), tw.getMonth(), tw.getDate());
+  switch(period) {
+    case 'today':
+      return d >= today;
+    case 'week': {
+      const dow = tw.getDay();
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+      return d >= startOfWeek;
+    }
+    case 'month': {
+      const startOfMonth = new Date(tw.getFullYear(), tw.getMonth(), 1);
+      return d >= startOfMonth;
+    }
+    case 'year': {
+      const startOfYear = new Date(tw.getFullYear(), 0, 1);
+      return d >= startOfYear;
+    }
+    default: return true;
+  }
+}
+
+function getFilteredNews(cat, brand) {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const sentFilter = document.getElementById('sentFilter').value;
+  return state.news.filter(n => {
+    if (cat && n.cat !== cat) return false;
+    if (brand) {
+      // If we're in competitor or supplier sub-tabs, check cat
+      if (brand === 'competitor' && n.cat !== 'competitor') return false;
+      if (brand === 'supplier' && n.cat !== 'supplier') return false;
+    }
+    if (!isInPeriod(n.pubDate, state.currentFilter)) return false;
+    if (sentFilter !== 'all' && n.sentiment !== sentFilter) return false;
+    if (search && !n.title.toLowerCase().includes(search) && !n.content.toLowerCase().includes(search)) return false;
+    return true;
+  });
+}
+
+// ═══════════════════════════════════════════
+// NEWS CARD RENDERING
+// ═══════════════════════════════════════════
+function sentimentBadge(s) {
+  const cfg = {
+    positive: { cls: 'sentiment-pos', icon: '🟢', txt: '正面' },
+    negative: { cls: 'sentiment-neg', icon: '🔴', txt: '負面' },
+    neutral:  { cls: 'sentiment-neu', icon: '⚪', txt: '中立' }
+  };
+  const c = cfg[s] || cfg.neutral;
+  return `<span class="text-xs px-2 py-0.5 rounded-full font-medium ${c.cls}">${c.icon} ${c.txt}</span>`;
+}
+
+function formatDate(d) {
+  const date = d instanceof Date ? d : new Date(d);
+  return date.toLocaleString('zh-TW', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+function renderCards(containerId, articles) {
+  const el = document.getElementById(containerId);
+  if (!articles || articles.length === 0) {
+    el.innerHTML = `<div class="col-span-3 text-center py-16 text-gray-400">
+      <div class="text-5xl mb-3">📭</div>
+      <div class="text-lg font-semibold text-gray-500">沒有符合條件的新聞</div>
+      <div class="text-sm mt-2">請嘗試更換時間範圍、關鍵字，或先點選「抓取新聞」</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML = articles.slice(0, 60).map(a => {
+    const clean = a.content.replace(/<[^>]*>/g, '').slice(0, 120);
+    return `<div class="news-card fade-in bg-white border border-gray-200 rounded-xl p-4 cursor-pointer" onclick="openArticle('${encodeURIComponent(a.link)}')">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        ${sentimentBadge(a.sentiment)}
+        <span class="text-xs text-gray-400">${formatDate(a.pubDate)}</span>
+      </div>
+      <h3 class="text-sm font-semibold text-gray-900 mb-2 line-clamp-2 leading-snug">${a.title}</h3>
+      ${clean ? `<p class="text-xs text-gray-500 line-clamp-2 mb-3">${clean}</p>` : ''}
+      <div class="flex items-center justify-between gap-2 mt-auto">
+        <span class="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full truncate max-w-[120px]">${a.mediaName}</span>
+        ${a.brand ? `<span class="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">${a.brand}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openArticle(encodedUrl) {
+  window.open(decodeURIComponent(encodedUrl), '_blank');
+}
+
+// ═══════════════════════════════════════════
+// RENDER ALL
+// ═══════════════════════════════════════════
+function renderAll() {
+  const transcend = getFilteredNews('transcend');
+  const usMarket = getFilteredNews('usMarket');
+  const competitor = getFilteredNews(null, 'competitor');
+  const supplier = getFilteredNews(null, 'supplier');
+
+  renderCards('transcendGrid', transcend);
+  renderCards('usMarketGrid', usMarket);
+  renderCards('competitorGrid', competitor);
+  renderCards('supplierGrid', supplier);
+
+  updateStats();
+  renderMediaStats();
+}
+
+// ═══════════════════════════════════════════
+// STATS
+// ═══════════════════════════════════════════
+function updateStats() {
+  const all = state.news.filter(n => isInPeriod(n.pubDate, state.currentFilter));
+  const pos = all.filter(n => n.sentiment === 'positive').length;
+  const neg = all.filter(n => n.sentiment === 'negative').length;
+  const mediaSrc = new Set(all.map(n => n.mediaName)).size;
+
+  document.getElementById('statTotal').textContent = all.length;
+  document.getElementById('statPos').textContent = pos;
+  document.getElementById('statNeg').textContent = neg;
+  document.getElementById('statMediaCnt').textContent = all.length;
+  document.getElementById('statMediaSrc').textContent = `來自 ${mediaSrc} 個媒體`;
+
+  const labels = { today:'今日', week:'本週', month:'本月', year:'本年' };
+  document.getElementById('statPeriod').textContent = labels[state.currentFilter] || '篩選期間';
+}
+
+// ═══════════════════════════════════════════
+// MEDIA STATS
+// ═══════════════════════════════════════════
+function renderMediaStats() {
+  const all = state.news.filter(n => isInPeriod(n.pubDate, state.currentFilter) && n.cat === 'transcend');
+  const counts = {};
+  all.forEach(n => {
+    counts[n.mediaName] = (counts[n.mediaName] || 0) + 1;
+  });
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+  // Rank list
+  const listEl = document.getElementById('mediaRankList');
+  if (sorted.length === 0) {
+    listEl.innerHTML = '<div class="text-center py-8 text-gray-400"><div class="text-3xl mb-2">📊</div><div class="text-sm">抓取創見新聞後自動統計</div></div>';
+  } else {
+    const max = sorted[0][1];
+    listEl.innerHTML = sorted.slice(0, 15).map(([name, cnt], i) => `
+      <div class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50">
+        <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${i === 0 ? 'bg-yellow-100 text-yellow-700' : i === 1 ? 'bg-gray-200 text-gray-600' : i === 2 ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'}">${i+1}</span>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium text-gray-800 truncate">${name}</div>
+          <div class="h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
+            <div class="h-full bg-blue-500 rounded-full" style="width:${Math.round(cnt/max*100)}%"></div>
+          </div>
+        </div>
+        <span class="text-sm font-bold text-blue-600 flex-shrink-0">${cnt}</span>
+      </div>
+    `).join('');
+  }
+
+  // Chart
+  renderMediaChart(sorted.slice(0, 10));
+}
+
+let mediaChartInstance = null;
+function renderMediaChart(data) {
+  const ctx = document.getElementById('mediaChart').getContext('2d');
+  if (mediaChartInstance) mediaChartInstance.destroy();
+  if (!data || data.length === 0) return;
+  mediaChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(([n]) => n.length > 8 ? n.slice(0, 8) + '…' : n),
+      datasets: [{
+        label: '新聞數量',
+        data: data.map(([, c]) => c),
+        backgroundColor: data.map((_, i) => `hsla(${220 - i*12}, 70%, ${55 + i*2}%, 0.85)`),
+        borderRadius: 6,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: '#f1f5f9' } },
+        x: { ticks: { font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════
+function switchTab(tab) {
+  state.currentTab = tab;
+  document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('tab-active'));
+  document.querySelector(`[data-tab="${tab}"]`).classList.add('tab-active');
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.getElementById('tab-' + tab).classList.remove('hidden');
+}
+
+function switchSubTab(st) {
+  state.currentSubTab = st;
+  document.querySelectorAll('.sub-tab').forEach(t => {
+    t.classList.remove('sub-tab-active');
+    t.classList.add('text-gray-600', 'bg-gray-100');
+  });
+  document.querySelector(`[data-st="${st}"]`).classList.add('sub-tab-active');
+  document.getElementById('competitorGrid').classList.toggle('hidden', st !== 'competitor');
+  document.getElementById('supplierGrid').classList.toggle('hidden', st !== 'supplier');
+}
+
+function setFilter(f) {
+  state.currentFilter = f;
+  document.querySelectorAll('.time-filter').forEach(b => {
+    b.classList.remove('filter-active');
+    b.classList.add('text-gray-500');
+    if (!b.classList.contains('filter-active')) b.classList.add('hover:bg-gray-200');
+  });
+  const active = document.querySelector(`[data-f="${f}"]`);
+  active.classList.add('filter-active');
+  active.classList.remove('text-gray-500', 'hover:bg-gray-200');
+  renderAll();
+}
+
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+// ═══════════════════════════════════════════
+// CLAUDE API
+// ═══════════════════════════════════════════
+async function callClaude(prompt) {
+  if (!state.settings.claudeKey) throw new Error('請先在設定中填入 Claude API Key');
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': state.settings.claudeKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: state.settings.claudeModel || 'claude-sonnet-4-6',
+      max_tokens: 2048,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return data.content?.[0]?.text || '';
+}
+
+// ═══════════════════════════════════════════
+// AI SUMMARY
+// ═══════════════════════════════════════════
+async function openAISummary() {
+  document.getElementById('aiSummaryModal').classList.remove('hidden');
+  const el = document.getElementById('aiSummaryContent');
+  el.innerHTML = `<div class="text-center py-10"><div class="spin text-4xl inline-block mb-3">⚙️</div><div class="text-gray-500 mt-2">Claude 正在分析新聞中...</div></div>`;
+
+  try {
+    const filtered = state.news.filter(n => isInPeriod(n.pubDate, state.currentFilter));
+    if (!filtered.length) {
+      el.innerHTML = '<div class="text-center py-8 text-gray-400">📭 目前沒有符合條件的新聞，請先抓取新聞資料。</div>';
+      return;
+    }
+
+    const topNews = filtered.slice(0, 10).map((n, i) =>
+      `${i+1}. 【${n.cat === 'transcend' ? '創見' : n.cat === 'usMarket' ? '美國市場' : n.brand || n.cat}】【${n.sentiment === 'positive' ? '正面' : n.sentiment === 'negative' ? '負面' : '中立'}】\n   ${n.title}\n   來源: ${n.mediaName} | ${formatDate(n.pubDate)}`
+    ).join('\n\n');
+
+    const filterLabel = { today:'今天', week:'本週', month:'本月', year:'本年' }[state.currentFilter];
+    const prompt = `你是創見資訊（Transcend Information，股票代碼 2451）的公關顧問。請分析以下${filterLabel}的最新新聞，並：
+
+1. 挑出 5 則最值得關注的新聞，並說明為何重要
+2. 提供今日整體媒體情緒評估（正面/中立/負面比例與原因）
+3. 提供一段「公關口徑建議」：如果有記者詢問今日市場動態，公關人員應如何回應？
+
+請以繁體中文回答，格式清晰，語氣專業。
+
+以下是最新新聞列表：
+${topNews}`;
+
+    const result = await callClaude(prompt);
+    el.innerHTML = formatAIResponse(result);
+  } catch(e) {
+    el.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
+      <div class="font-semibold mb-1">❌ 無法取得 AI 分析</div>
+      <div class="text-sm">${e.message}</div>
+      ${!state.settings.claudeKey ? '<div class="mt-2 text-sm"><a href="#" onclick="openSettings()" class="underline text-red-600">請先在設定中填入 Claude API Key</a></div>' : ''}
+    </div>`;
+  }
+}
+
+// ═══════════════════════════════════════════
+// PR ADVICE
+// ═══════════════════════════════════════════
+async function openPRAdvice() {
+  document.getElementById('prAdviceModal').classList.remove('hidden');
+  const el = document.getElementById('prAdviceContent');
+  el.innerHTML = `<div class="text-center py-10"><div class="spin text-4xl inline-block mb-3">📢</div><div class="text-gray-500 mt-2">Claude 正在生成公關口徑建議...</div></div>`;
+
+  try {
+    const filtered = state.news.filter(n => isInPeriod(n.pubDate, state.currentFilter));
+    if (!filtered.length) {
+      el.innerHTML = '<div class="text-center py-8 text-gray-400">📭 目前沒有符合條件的新聞，請先抓取新聞資料。</div>';
+      return;
+    }
+
+    const transcendNews = filtered.filter(n => n.cat === 'transcend').slice(0, 5);
+    const marketNews = filtered.filter(n => n.cat === 'usMarket').slice(0, 3);
+    const compNews = filtered.filter(n => n.cat === 'competitor' || n.cat === 'supplier').slice(0, 5);
+
+    const formatList = (items) => items.map((n, i) =>
+      `${i+1}. 【${n.sentiment === 'positive' ? '正面' : n.sentiment === 'negative' ? '負面' : '中立'}】${n.title}（${n.mediaName}）`
+    ).join('\n');
+
+    const filterLabel = { today:'今天', week:'本週', month:'本月', year:'本年' }[state.currentFilter];
+    const prompt = `你是創見資訊（Transcend Information，台灣知名記憶體與儲存裝置廠商，股票代碼 2451）的資深公關顧問。
+
+請根據以下${filterLabel}的新聞資料，生成一份完整的「公關口徑策略」文件，包含：
+
+## 一、整體情勢研判
+- 對品牌的有利因素
+- 需要應對的風險點
+- 市場機會
+
+## 二、核心公關訊息（Key Messages）
+- 3-5 個主要訴求點
+
+## 三、各場景問答 Q&A
+- 針對正面新聞：如何放大聲量？
+- 針對負面新聞：如何進行危機管理？
+- 針對競品動態：如何差異化定位？
+
+## 四、建議媒體溝通策略
+- 主動出擊的時機
+- 媒體接觸優先級
+
+請以繁體中文回答，語氣專業且實用。
+
+【創見相關新聞】
+${transcendNews.length ? formatList(transcendNews) : '（無）'}
+
+【美國市場動態】
+${marketNews.length ? formatList(marketNews) : '（無）'}
+
+【競品與供應商動態】
+${compNews.length ? formatList(compNews) : '（無）'}`;
+
+    const result = await callClaude(prompt);
+    el.innerHTML = formatAIResponse(result);
+  } catch(e) {
+    el.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
+      <div class="font-semibold mb-1">❌ 無法取得 AI 分析</div>
+      <div class="text-sm">${e.message}</div>
+      ${!state.settings.claudeKey ? '<div class="mt-2 text-sm"><a href="#" onclick="openSettings()" class="underline text-red-600">請先在設定中填入 Claude API Key</a></div>' : ''}
+    </div>`;
+  }
+}
+
+function formatAIResponse(text) {
+  // Simple markdown-like formatting
+  return text
+    .replace(/^## (.+)$/gm, '<h3 class="text-base font-bold text-gray-800 mt-5 mb-2 pb-1 border-b border-gray-200">$1</h3>')
+    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-bold text-gray-700 mt-4 mb-1">$1</h4>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^- (.+)$/gm, '<li class="ml-4 text-sm text-gray-700 mb-1">• $1</li>')
+    .replace(/^\d+\. (.+)$/gm, '<li class="ml-4 text-sm text-gray-700 mb-1 list-decimal">$1</li>')
+    .replace(/\n\n/g, '</p><p class="mb-3">')
+    .replace(/\n/g, '<br>')
+    .replace(/^/, '<p class="mb-3">')
+    .replace(/$/, '</p>');
+}
+
+// ═══════════════════════════════════════════
+// SCHEDULE CHECK
+// ═══════════════════════════════════════════
+function checkSchedule() {
+  const tw = getTaiwanTime();
+  const h = tw.getHours();
+  const m = tw.getMinutes();
+  const today = tw.toDateString();
+
+  // Morning: 08:00–08:05 → Transcend news
+  if (h === 8 && m < 6) {
+    const last = localStorage.getItem('transcend_morning_fetch');
+    if (last !== today) {
+      showToast('🌅 台灣時間 08:00，自動抓取創見新聞...', 'info');
+      fetchAllNews();
+    }
+  }
+
+  // Afternoon: 16:00–16:05 → US market news
+  if (h === 16 && m < 6) {
+    const last = localStorage.getItem('transcend_afternoon_fetch');
+    if (last !== today) {
+      showToast('🌆 台灣時間 16:00，自動抓取美國市場新聞...', 'info');
+      fetchAllNews();
+    }
+  }
+
+  // Update schedule UI
+  const morningDone = localStorage.getItem('transcend_morning_fetch') === today;
+  const afternoonDone = localStorage.getItem('transcend_afternoon_fetch') === today;
+  if (morningDone) document.getElementById('morningStatus').innerHTML = '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">✅ 已更新</span>';
+  if (afternoonDone) document.getElementById('afternoonStatus').innerHTML = '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">✅ 已更新</span>';
+}
+
+// ═══════════════════════════════════════════
+// TOAST & STATUS
+// ═══════════════════════════════════════════
+let toastTimer;
+function showToast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  const colors = { success: 'bg-green-600', error: 'bg-red-600', warning: 'bg-orange-500', info: 'bg-blue-600' };
+  el.className = `fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-2xl text-sm font-medium text-white transition-all duration-300 max-w-xs ${colors[type] || colors.info}`;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add('hidden'), 4000);
+}
+
+function showStatus(msg) {
+  document.getElementById('statusBar').classList.remove('hidden');
+  document.getElementById('statusMsg').textContent = msg;
+}
+function setStatus(msg) { document.getElementById('statusMsg').textContent = msg; }
+function hideStatus() { document.getElementById('statusBar').classList.add('hidden'); }
+
+// ═══════════════════════════════════════════
+// CACHE RESTORE
+// ═══════════════════════════════════════════
+function restoreCache() {
+  try {
+    const cached = localStorage.getItem('transcend_news_cache');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      state.news = parsed.map(n => ({ ...n, pubDate: new Date(n.pubDate), fetchedAt: new Date(n.fetchedAt) }));
+      const lastFetch = localStorage.getItem('transcend_last_fetch');
+      if (lastFetch) {
+        document.getElementById('lastFetchBadge').classList.remove('hidden');
+        document.getElementById('lastFetchTime').textContent = new Date(lastFetch).toLocaleString('zh-TW', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+      }
+      renderAll();
+      showToast(`📦 已從快取載入 ${state.news.length} 則新聞`, 'info');
+    }
+  } catch(e) { console.warn('Cache restore failed:', e); }
+}
+
+// ═══════════════════════════════════════════
+// CLOSE MODALS ON BACKDROP CLICK
+// ═══════════════════════════════════════════
+['settingsModal', 'aiSummaryModal', 'prAdviceModal'].forEach(id => {
+  document.getElementById(id).addEventListener('click', function(e) {
+    if (e.target === this) closeModal(id);
+  });
+});
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+async function init() {
+  loadSettings();
+
+  if (state.settings.fbKey && state.settings.fbProjectId) {
+    initFirebase();
+    // 如果 Firebase 有設定，優先從雲端載入最近 7 天資料
+    if (state.db) {
+      showStatus('從 Firebase 載入新聞資料...');
+      try {
+        const fbNews = await loadFromFirebase(7);
+        if (fbNews.length > 0) {
+          state.news = fbNews;
+          renderAll();
+          const last = fbNews.reduce((a, b) => a.fetchedAt > b.fetchedAt ? a : b);
+          document.getElementById('lastFetchBadge').classList.remove('hidden');
+          document.getElementById('lastFetchTime').textContent = new Date(last.fetchedAt).toLocaleString('zh-TW', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+          showToast(`☁️ 已從 Firebase 載入 ${fbNews.length} 則新聞`, 'success');
+        } else {
+          restoreCache();
+        }
+      } catch(e) {
+        console.warn('Firebase load failed:', e);
+        restoreCache();
+      }
+      hideStatus();
+    }
+  } else {
+    // 沒有 Firebase，從瀏覽器快取還原
+    restoreCache();
+  }
+
+  checkSchedule();
+  setInterval(checkSchedule, 60 * 1000); // Check every minute
+
+  // 首次使用提示
+  if (!state.settings.claudeKey) {
+    setTimeout(() => showToast('💡 請點右上角 ⚙️ 設定，填入 Claude API Key 與 Firebase 設定', 'info'), 1500);
+  }
+
+  // 讀取 status.json（GitHub Actions 執行狀態）
+  fetch('status.json').then(r => r.json()).then(s => {
+    if (s && s.lastFetchTW) {
+      document.getElementById('lastFetchBadge').classList.remove('hidden');
+      document.getElementById('lastFetchTime').textContent = s.lastFetchTW + ' (自動)';
+    }
+  }).catch(() => {}); // 靜默失敗（本機開啟時 status.json 不存在）
+}
+
+init();
+</script>
+</body>
+</html>
