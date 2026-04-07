@@ -1,0 +1,89 @@
+name: 自動抓取新聞
+
+on:
+  # ─── 定時排程（UTC 時間，台灣 = UTC+8）───
+  schedule:
+    # 台灣時間 08:00 → UTC 00:00，抓取創見 + 競品 + 供應商
+    - cron: '0 0 * * *'
+    # 台灣時間 16:00 → UTC 08:00，抓取美國市場 + 競品 + 供應商
+    - cron: '0 8 * * *'
+
+  # ─── 手動觸發（可在 GitHub Actions 頁面手動執行）───
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '抓取模式'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all        # 全部來源
+          - morning    # 創見 + 競品 + 供應商
+          - afternoon  # 美國市場 + 競品 + 供應商
+
+jobs:
+  fetch:
+    name: 抓取並儲存新聞
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # 1. 取得程式碼
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. 設定 Python 環境
+      - name: 設定 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: scripts/requirements.txt
+
+      # 3. 安裝相依套件
+      - name: 安裝套件
+        run: pip install -r scripts/requirements.txt
+
+      # 4. 判斷抓取模式
+      - name: 判斷排程模式
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "FETCH_MODE=${{ github.event.inputs.mode }}" >> $GITHUB_ENV
+          else
+            HOUR=$(date -u +"%H")
+            if [ "$HOUR" = "00" ]; then
+              echo "FETCH_MODE=morning" >> $GITHUB_ENV
+            else
+              echo "FETCH_MODE=afternoon" >> $GITHUB_ENV
+            fi
+          fi
+
+      # 5. 執行新聞抓取
+      - name: 抓取新聞並儲存到 Firebase
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FETCH_MODE: ${{ env.FETCH_MODE }}
+        run: python scripts/fetch_news.py
+
+      # 6. 更新最後執行時間（寫入 status.json 供前端讀取）
+      - name: 更新執行狀態
+        run: |
+          TAIWAN_TIME=$(TZ='Asia/Taipei' date '+%Y-%m-%d %H:%M:%S')
+          cat > status.json << EOF
+          {
+            "lastFetch": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "lastFetchTW": "$TAIWAN_TIME",
+            "mode": "${{ env.FETCH_MODE }}",
+            "status": "success"
+          }
+          EOF
+
+      # 7. 提交 status.json 回 Repository
+      - name: 提交狀態檔案
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: 'status.json'
+          message: '🤖 自動更新新聞 [${{ env.FETCH_MODE }}]'
+          default_author: github_actions
+          push: true
