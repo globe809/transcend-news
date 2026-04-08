@@ -140,26 +140,51 @@ def analyze_sentiment(title, content=''):
     return 'neutral'
 
 
-def get_media_name(entry, link=''):
-    # Try author field first
+def extract_media_from_title(title):
+    """從標題後綴提取媒體名稱（Google News 格式：「標題 - 媒體名稱」）"""
+    import re
+    if not title:
+        return None
+    match = re.search(r'[-–—]\s*([^-–—]{2,40})\s*$', title)
+    if not match:
+        return None
+    candidate = match.group(1).strip()
+    for name in TAIWAN_MEDIA.values():
+        if candidate == name or name in candidate or candidate in name:
+            return name
+    if 2 <= len(candidate) <= 30 and not candidate.isdigit():
+        return candidate
+    return None
+
+
+def get_media_name(entry, link='', title=''):
+    # 1. 優先從標題後綴解析（Google News 格式）
+    from_title = extract_media_from_title(title)
+    if from_title:
+        return from_title
+
+    # 2. 從 author 欄位比對
     author = getattr(entry, 'author', '') or ''
-    if author and len(author) < 30 and '@' not in author:
+    if author and len(author) < 40 and '@' not in author and 'google' not in author.lower():
         for name in TAIWAN_MEDIA.values():
             if name in author or author in name:
                 return name
-        if len(author) > 1:
+        if len(author) >= 2 and not author.startswith('http'):
             return author
 
-    # Try link domain
+    # 3. 從連結 domain 比對（排除 news.google.com）
     try:
         from urllib.parse import urlparse
         domain = urlparse(link).netloc.replace('www.', '')
-        for key, name in TAIWAN_MEDIA.items():
-            if key in domain or domain in key:
-                return name
-        return domain or '未知媒體'
+        if domain and 'google' not in domain:
+            for key, name in TAIWAN_MEDIA.items():
+                if key in domain or domain in key:
+                    return name
+            return domain
     except Exception:
-        return '未知媒體'
+        pass
+
+    return '未知媒體'
 
 
 def make_article_id(link, title):
@@ -218,6 +243,16 @@ def fetch_source(src, retry=2):
                 content = clean_html(getattr(entry, 'summary', '') or getattr(entry, 'description', ''))[:500]
                 pub_date = parse_date(entry)
                 raw_author = (getattr(entry, 'author', '') or '').strip()
+                media_name = get_media_name(entry, link, title)
+
+                # 去除標題後面的「- 媒體名稱」（Google News 格式）
+                import re as _re
+                suffix_match = _re.search(r'\s*[-–—]\s*([^-–—]{2,40})\s*$', title)
+                if suffix_match:
+                    removed = suffix_match.group(1).strip()
+                    if media_name != '未知媒體' and (removed == media_name or media_name in removed or removed in media_name):
+                        title = title[:suffix_match.start()].strip()
+
                 article = {
                     'id': make_article_id(link, title),
                     'title': title,
@@ -228,7 +263,7 @@ def fetch_source(src, retry=2):
                     'cat': src['cat'],
                     'brand': src.get('brand'),
                     'sourceName': src['label'],
-                    'mediaName': get_media_name(entry, link),
+                    'mediaName': media_name,
                     'rawAuthor': raw_author,
                     'fetchedAt': datetime.datetime.now(datetime.timezone.utc),
                     'fetchMode': os.environ.get('FETCH_MODE', 'all'),

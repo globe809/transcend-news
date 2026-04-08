@@ -735,24 +735,48 @@ function analyzeSentiment(title, content = '') {
 // ═══════════════════════════════════════════
 // MEDIA NAME EXTRACTION
 // ═══════════════════════════════════════════
+
+// 從標題後綴提取媒體名稱（Google News 格式：「標題 - 媒體名稱」）
+function extractMediaFromTitle(title) {
+  if (!title) return null;
+  const match = title.match(/[-–—]\s*([^-–—]{2,40})\s*$/);
+  if (!match) return null;
+  const candidate = match[1].trim();
+  // 對照已知媒體
+  for (const [, name] of Object.entries(TAIWAN_MEDIA)) {
+    if (candidate === name || name.includes(candidate) || candidate.includes(name)) return name;
+  }
+  // 不在名單但看起來是媒體名（非純數字、有意義長度）
+  if (candidate.length >= 2 && candidate.length <= 30 && !/^\d+$/.test(candidate)) return candidate;
+  return null;
+}
+
 function getMediaName(item) {
-  // From rss2json, author often contains the media source for Google News
+  // 1. 優先從標題後綴解析（Google News 格式）
+  const fromTitle = extractMediaFromTitle(item.title || '');
+  if (fromTitle) return fromTitle;
+
+  // 2. 從 author 欄位比對
   const author = (item.author || '').trim();
-  if (author && author.length < 30 && !author.includes('@')) {
-    // Check if author matches known Taiwan media
+  if (author && author.length < 40 && !author.includes('@') && !author.includes('google')) {
     for (const [, name] of Object.entries(TAIWAN_MEDIA)) {
       if (author.includes(name) || name.includes(author)) return name;
     }
-    if (author.length > 1) return author;
+    if (author.length >= 2 && !/^https?/.test(author)) return author;
   }
-  // Try link domain
+
+  // 3. 從連結 domain 比對（排除 news.google.com）
   try {
     const domain = new URL(item.link || item.url || '').hostname.replace('www.', '');
-    for (const [key, name] of Object.entries(TAIWAN_MEDIA)) {
-      if (domain.includes(key) || key.includes(domain)) return name;
+    if (!domain.includes('google')) {
+      for (const [key, name] of Object.entries(TAIWAN_MEDIA)) {
+        if (domain.includes(key) || key.includes(domain)) return name;
+      }
+      if (domain && domain !== 'news.google.com') return domain;
     }
-    return domain;
-  } catch { return '未知媒體'; }
+  } catch {}
+
+  return '未知媒體';
 }
 
 // ═══════════════════════════════════════════
@@ -774,17 +798,30 @@ function makeArticle(item, src) {
   const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
   const content = (item.content || item.description || '').replace(/<[^>]*>/g, '').trim();
   const rawAuthor = (item.author || '').trim();
+  const mediaName = getMediaName(item);
+
+  // 去除標題後面的「- 媒體名稱」（Google News 格式）
+  let title = (item.title || '').replace(/<[^>]*>/g, '').trim();
+  const titleSuffix = title.match(/\s*[-–—]\s*[^-–—]{2,40}\s*$/);
+  if (titleSuffix) {
+    const removed = titleSuffix[0].replace(/^\s*[-–—]\s*/, '').trim();
+    // 只有確認是媒體名稱才移除（避免誤刪有 dash 的標題）
+    if (mediaName !== '未知媒體' && (removed === mediaName || mediaName.includes(removed) || removed.includes(mediaName))) {
+      title = title.slice(0, title.length - titleSuffix[0].length).trim();
+    }
+  }
+
   return {
     id,
-    title: (item.title || '').replace(/<[^>]*>/g, '').trim(),
+    title,
     content: content.slice(0, 500),
     link: item.link || item.url || '#',
     pubDate,
-    sentiment: analyzeSentiment(item.title, content),
+    sentiment: analyzeSentiment(title, content),
     cat: src.cat,
     brand: src.brand || null,
     sourceName: src.label,
-    mediaName: getMediaName(item),
+    mediaName,
     rawAuthor,
     fetchedAt: new Date()
   };
