@@ -60,12 +60,12 @@
         <div id="lastFetchBadge" class="hidden text-xs text-blue-200 mr-2">
           上次更新: <span id="lastFetchTime" class="text-white font-medium">-</span>
         </div>
-        <button onclick="fetchAllNews()" id="fetchBtn"
+        <button onclick="reloadFromFirebase()" id="fetchBtn"
           class="px-3.5 py-1.5 bg-white bg-opacity-20 hover:bg-opacity-30 text-white border border-white border-opacity-30 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-all">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
           </svg>
-          抓取新聞
+          重新整理
         </button>
         <button onclick="openAISummary()"
           class="px-3.5 py-1.5 bg-purple-500 hover:bg-purple-400 text-white rounded-lg text-sm font-medium flex items-center gap-1.5 transition-all shadow-md">
@@ -142,11 +142,14 @@
       <button onclick="switchTab('transcend')" class="main-tab tab-active px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="transcend">
         🏢 創見資訊
       </button>
+      <button onclick="switchTab('competitor')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="competitor">
+        🥊 競品
+      </button>
+      <button onclick="switchTab('supplier')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="supplier">
+        🏭 供應商
+      </button>
       <button onclick="switchTab('usMarket')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="usMarket">
         🇺🇸 美國市場
-      </button>
-      <button onclick="switchTab('competitors')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="competitors">
-        🥊 競品 &amp; 供應商
       </button>
       <button onclick="switchTab('media')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="media">
         📊 媒體曝光統計
@@ -192,6 +195,28 @@
         </div>
       </div>
 
+      <!-- Competitor Tab -->
+      <div id="tab-competitor" class="tab-panel hidden">
+        <div id="competitorGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div class="col-span-3 text-center py-12 text-gray-400">
+            <div class="text-5xl mb-3">🥊</div>
+            <div class="font-semibold text-gray-500">競品新聞監控</div>
+            <div class="text-sm mt-1">ADATA、Innodisk、Apacer、Kingston、Lexar、Silicon Power、PNY</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Supplier Tab -->
+      <div id="tab-supplier" class="tab-panel hidden">
+        <div id="supplierGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div class="col-span-3 text-center py-12 text-gray-400">
+            <div class="text-5xl mb-3">🏭</div>
+            <div class="font-semibold text-gray-500">上游供應商新聞監控</div>
+            <div class="text-sm mt-1">Samsung、Micron、SK Hynix、Kioxia、SanDisk/WD、SMI、Phison</div>
+          </div>
+        </div>
+      </div>
+
       <!-- US Market Tab -->
       <div id="tab-usMarket" class="tab-panel hidden">
         <div id="usMarketGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -204,28 +229,6 @@
               <span class="text-xs bg-orange-50 text-orange-600 px-3 py-1 rounded-full">NAND Flash</span>
               <span class="text-xs bg-orange-50 text-orange-600 px-3 py-1 rounded-full">Memory Market</span>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Competitors Tab -->
-      <div id="tab-competitors" class="tab-panel hidden">
-        <div class="flex gap-2 mb-4">
-          <button onclick="switchSubTab('competitor')" class="sub-tab sub-tab-active px-4 py-1.5 rounded-lg text-sm font-medium transition-all" data-st="competitor">🥊 競品</button>
-          <button onclick="switchSubTab('supplier')" class="sub-tab px-4 py-1.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-st="supplier">🏭 上游供應商</button>
-        </div>
-        <div id="competitorGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <div class="col-span-3 text-center py-12 text-gray-400">
-            <div class="text-5xl mb-3">🥊</div>
-            <div class="font-semibold text-gray-500">競品新聞監控</div>
-            <div class="text-sm mt-1">Kingston、ADATA、SanDisk、PNY、Corsair</div>
-          </div>
-        </div>
-        <div id="supplierGrid" class="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <div class="col-span-3 text-center py-12 text-gray-400">
-            <div class="text-5xl mb-3">🏭</div>
-            <div class="font-semibold text-gray-500">上游供應商新聞監控</div>
-            <div class="text-sm mt-1">Micron、Samsung、SK Hynix、Kioxia、Western Digital</div>
           </div>
         </div>
       </div>
@@ -518,46 +521,45 @@ const SOURCES = {
     { label: 'Flash Storage', url: 'https://news.google.com/rss/search?q=flash+storage+industry+supply&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
   ],
   competitors: [
-    // ─── 競品：英文新聞 ───
-    { label: 'ADATA EN',           url: 'https://news.google.com/rss/search?q=ADATA+memory+storage&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'ADATA' },
-    { label: 'Innodisk EN',        url: 'https://news.google.com/rss/search?q=Innodisk+industrial+flash+storage&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'Innodisk' },
-    { label: 'Apacer EN',          url: 'https://news.google.com/rss/search?q=Apacer+memory+flash+storage&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'Apacer' },
-    { label: 'Silicon Power EN',   url: 'https://news.google.com/rss/search?q=Silicon+Power+memory+flash&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'Silicon Power' },
-    { label: 'Kingston EN',        url: 'https://news.google.com/rss/search?q=Kingston+Technology+memory+flash&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'Kingston' },
-    { label: 'Lexar EN',           url: 'https://news.google.com/rss/search?q=Lexar+memory+card+flash+storage&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'Lexar' },
-    { label: 'PNY EN',             url: 'https://news.google.com/rss/search?q=PNY+Technologies+flash+memory&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'PNY' },
-    // ─── 競品：中文新聞 ───
-    { label: 'ADATA 威剛 TW',      url: 'https://news.google.com/rss/search?q=ADATA+威剛&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'ADATA' },
-    { label: 'Innodisk 宜鼎 TW',   url: 'https://news.google.com/rss/search?q=Innodisk+宜鼎&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Innodisk' },
-    { label: 'Apacer 宇瞻 TW',     url: 'https://news.google.com/rss/search?q=Apacer+宇瞻&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Apacer' },
+    // ─── 競品：英文（品牌為主，涵蓋營收/新品/展覽/品牌）───
+    { label: 'ADATA EN',              url: 'https://news.google.com/rss/search?q=ADATA+Technology&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'ADATA' },
+    { label: 'Innodisk EN',           url: 'https://news.google.com/rss/search?q=Innodisk&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'Innodisk' },
+    { label: 'Apacer EN',             url: 'https://news.google.com/rss/search?q=Apacer+Technology&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'Apacer' },
+    { label: 'Silicon Power EN',      url: 'https://news.google.com/rss/search?q="Silicon+Power"&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'Silicon Power' },
+    { label: 'Kingston EN',           url: 'https://news.google.com/rss/search?q=Kingston+Technology&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'Kingston' },
+    { label: 'Lexar EN',              url: 'https://news.google.com/rss/search?q=Lexar&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'Lexar' },
+    { label: 'PNY EN',                url: 'https://news.google.com/rss/search?q=PNY+Technologies&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'PNY' },
+    // ─── 競品：中文（品牌為主，涵蓋營收/新品/展覽/品牌）───
+    { label: 'ADATA 威剛 TW',         url: 'https://news.google.com/rss/search?q=威剛+ADATA&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'ADATA' },
+    { label: 'Innodisk 宜鼎 TW',      url: 'https://news.google.com/rss/search?q=宜鼎+Innodisk&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Innodisk' },
+    { label: 'Apacer 宇瞻 TW',        url: 'https://news.google.com/rss/search?q=宇瞻+Apacer&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Apacer' },
     { label: 'Silicon Power 廣穎 TW', url: 'https://news.google.com/rss/search?q=廣穎+Silicon+Power&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Silicon Power' },
-    { label: 'Kingston 金士頓 TW',  url: 'https://news.google.com/rss/search?q=金士頓+Kingston&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Kingston' },
-    { label: 'Lexar TW',           url: 'https://news.google.com/rss/search?q=Lexar+記憶卡+隨身碟&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Lexar' },
+    { label: 'Kingston 金士頓 TW',    url: 'https://news.google.com/rss/search?q=金士頓+Kingston&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Kingston' },
+    { label: 'Lexar TW',              url: 'https://news.google.com/rss/search?q=Lexar+雷克沙&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Lexar' },
+    { label: 'PNY TW',                url: 'https://news.google.com/rss/search?q=PNY+必恩威&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'PNY' },
   ],
   suppliers: [
-    // ─── DRAM 上游：英文新聞 ───
-    { label: 'Samsung DRAM EN',    url: 'https://news.google.com/rss/search?q=Samsung+DRAM+memory+DDR5&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'Samsung' },
-    { label: 'Micron DRAM EN',     url: 'https://news.google.com/rss/search?q=Micron+Technology+DRAM+memory&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'Micron' },
-    { label: 'SK Hynix EN',        url: 'https://news.google.com/rss/search?q=SK+Hynix+DRAM+HBM+memory&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'SK Hynix' },
-    // ─── DRAM 上游：中文新聞 ───
-    { label: 'Samsung 三星 TW',    url: 'https://news.google.com/rss/search?q=三星+Samsung+DRAM+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Samsung' },
-    { label: 'Micron 美光 TW',     url: 'https://news.google.com/rss/search?q=美光+Micron+DRAM&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Micron' },
-    { label: 'SK Hynix TW',        url: 'https://news.google.com/rss/search?q=SK+海力士+Hynix+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'SK Hynix' },
-    // ─── NAND Flash 上游：英文新聞 ───
-    { label: 'SanDisk NAND EN',    url: 'https://news.google.com/rss/search?q=SanDisk+Western+Digital+NAND+Flash&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'SanDisk/WD' },
-    { label: 'Samsung NAND EN',    url: 'https://news.google.com/rss/search?q=Samsung+NAND+Flash+V-NAND&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'Samsung' },
-    { label: 'Kioxia EN',          url: 'https://news.google.com/rss/search?q=Kioxia+NAND+Flash+BiCS&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'Kioxia' },
-    { label: 'Micron NAND EN',     url: 'https://news.google.com/rss/search?q=Micron+NAND+Flash+QLC+TLC&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'Micron' },
-    // ─── NAND Flash 上游：中文新聞 ───
-    { label: 'SanDisk WD TW',      url: 'https://news.google.com/rss/search?q=SanDisk+威騰+NAND+Flash&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'SanDisk/WD' },
-    { label: 'Samsung NAND TW',    url: 'https://news.google.com/rss/search?q=三星+NAND+Flash+快閃記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Samsung' },
-    { label: 'Kioxia TW',          url: 'https://news.google.com/rss/search?q=Kioxia+鎧俠+NAND+Flash&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Kioxia' },
-    // ─── NAND Controller（主控晶片）───
-    { label: 'SMI 慧榮',           url: 'https://news.google.com/rss/search?q=SMI+Silicon+Motion+慧榮&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'SMI' },
-    { label: 'Phison 群聯',        url: 'https://news.google.com/rss/search?q=Phison+群聯+主控&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Phison' },
-    { label: 'Realtek 瑞昱',       url: 'https://news.google.com/rss/search?q=Realtek+瑞昱&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Realtek' },
-    { label: 'SMI EN',             url: 'https://news.google.com/rss/search?q=Silicon+Motion+SMI+NAND+controller&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'SMI' },
-    { label: 'Phison EN',          url: 'https://news.google.com/rss/search?q=Phison+Electronics+NAND+controller&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'Phison' },
+    // ─── Samsung（記憶體/半導體，不限規格）───
+    { label: 'Samsung EN',     url: 'https://news.google.com/rss/search?q=Samsung+semiconductor+memory&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'Samsung' },
+    { label: 'Samsung TW',     url: 'https://news.google.com/rss/search?q=三星+Samsung+半導體+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Samsung' },
+    // ─── Micron ───
+    { label: 'Micron EN',      url: 'https://news.google.com/rss/search?q=Micron+Technology+memory&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'Micron' },
+    { label: 'Micron TW',      url: 'https://news.google.com/rss/search?q=美光+Micron+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Micron' },
+    // ─── SK Hynix ───
+    { label: 'SK Hynix EN',    url: 'https://news.google.com/rss/search?q=SK+Hynix+memory+semiconductor&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'SK Hynix' },
+    { label: 'SK Hynix TW',    url: 'https://news.google.com/rss/search?q=SK+海力士+Hynix+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'SK Hynix' },
+    // ─── Kioxia ───
+    { label: 'Kioxia EN',      url: 'https://news.google.com/rss/search?q=Kioxia+flash+storage&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'Kioxia' },
+    { label: 'Kioxia TW',      url: 'https://news.google.com/rss/search?q=Kioxia+鎧俠+快閃+儲存&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Kioxia' },
+    // ─── SanDisk / WD ───
+    { label: 'SanDisk WD EN',  url: 'https://news.google.com/rss/search?q=SanDisk+OR+"Western+Digital"+flash+storage&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'SanDisk/WD' },
+    { label: 'SanDisk WD TW',  url: 'https://news.google.com/rss/search?q=SanDisk+威騰+儲存&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'SanDisk/WD' },
+    // ─── 主控晶片廠 ───
+    { label: 'SMI 慧榮 EN',    url: 'https://news.google.com/rss/search?q="Silicon+Motion"+SMI&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'SMI' },
+    { label: 'SMI 慧榮 TW',    url: 'https://news.google.com/rss/search?q=慧榮+Silicon+Motion&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'SMI' },
+    { label: 'Phison 群聯 EN', url: 'https://news.google.com/rss/search?q=Phison+Electronics&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'Phison' },
+    { label: 'Phison 群聯 TW', url: 'https://news.google.com/rss/search?q=群聯+Phison&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Phison' },
+    { label: 'Realtek 瑞昱 TW', url: 'https://news.google.com/rss/search?q=瑞昱+Realtek&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Realtek' },
   ]
 };
 
@@ -598,7 +600,6 @@ let state = {
   news: [],
   settings: { claudeKey: '', claudeModel: 'claude-sonnet-4-6', fbKey: '', fbProjectId: '', fbAuthDomain: '', fbBucket: '', fbSenderId: '', fbAppId: '', rssKey: '' },
   currentTab: 'transcend',
-  currentSubTab: 'competitor',
   currentFilter: 'today',
   db: null,
   chart: null,
@@ -713,9 +714,20 @@ async function loadFromFirebase(days = 1) {
     .orderBy('pubDate', 'desc')
     .limit(500)
     .get();
-  return snap.docs.map(d => {
+  const raw = snap.docs.map(d => {
     const data = d.data();
     return { ...data, pubDate: data.pubDate?.toDate?.() || new Date(data.pubDate), id: d.id };
+  });
+  // 標題去重複（同一篇新聞可能從不同 RSS 來源重複存入）
+  const seenTitles = new Set();
+  const seenLinks = new Set();
+  return raw.filter(a => {
+    const normTitle = (a.title || '').replace(/[\s\W]+/g, '').toLowerCase().slice(0, 30);
+    if (normTitle && seenTitles.has(normTitle)) return false;
+    if (a.link && seenLinks.has(a.link)) return false;
+    seenTitles.add(normTitle);
+    if (a.link) seenLinks.add(a.link);
+    return true;
   });
 }
 
@@ -735,24 +747,48 @@ function analyzeSentiment(title, content = '') {
 // ═══════════════════════════════════════════
 // MEDIA NAME EXTRACTION
 // ═══════════════════════════════════════════
+
+// 從標題後綴提取媒體名稱（Google News 格式：「標題 - 媒體名稱」）
+function extractMediaFromTitle(title) {
+  if (!title) return null;
+  const match = title.match(/[-–—]\s*([^-–—]{2,40})\s*$/);
+  if (!match) return null;
+  const candidate = match[1].trim();
+  // 對照已知媒體
+  for (const [, name] of Object.entries(TAIWAN_MEDIA)) {
+    if (candidate === name || name.includes(candidate) || candidate.includes(name)) return name;
+  }
+  // 不在名單但看起來是媒體名（非純數字、有意義長度）
+  if (candidate.length >= 2 && candidate.length <= 30 && !/^\d+$/.test(candidate)) return candidate;
+  return null;
+}
+
 function getMediaName(item) {
-  // From rss2json, author often contains the media source for Google News
+  // 1. 優先從標題後綴解析（Google News 格式）
+  const fromTitle = extractMediaFromTitle(item.title || '');
+  if (fromTitle) return fromTitle;
+
+  // 2. 從 author 欄位比對
   const author = (item.author || '').trim();
-  if (author && author.length < 30 && !author.includes('@')) {
-    // Check if author matches known Taiwan media
+  if (author && author.length < 40 && !author.includes('@') && !author.includes('google')) {
     for (const [, name] of Object.entries(TAIWAN_MEDIA)) {
       if (author.includes(name) || name.includes(author)) return name;
     }
-    if (author.length > 1) return author;
+    if (author.length >= 2 && !/^https?/.test(author)) return author;
   }
-  // Try link domain
+
+  // 3. 從連結 domain 比對（排除 news.google.com）
   try {
     const domain = new URL(item.link || item.url || '').hostname.replace('www.', '');
-    for (const [key, name] of Object.entries(TAIWAN_MEDIA)) {
-      if (domain.includes(key) || key.includes(domain)) return name;
+    if (!domain.includes('google')) {
+      for (const [key, name] of Object.entries(TAIWAN_MEDIA)) {
+        if (domain.includes(key) || key.includes(domain)) return name;
+      }
+      if (domain && domain !== 'news.google.com') return domain;
     }
-    return domain;
-  } catch { return '未知媒體'; }
+  } catch {}
+
+  return '未知媒體';
 }
 
 // ═══════════════════════════════════════════
@@ -774,17 +810,30 @@ function makeArticle(item, src) {
   const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
   const content = (item.content || item.description || '').replace(/<[^>]*>/g, '').trim();
   const rawAuthor = (item.author || '').trim();
+  const mediaName = getMediaName(item);
+
+  // 去除標題後面的「- 媒體名稱」（Google News 格式）
+  let title = (item.title || '').replace(/<[^>]*>/g, '').trim();
+  const titleSuffix = title.match(/\s*[-–—]\s*[^-–—]{2,40}\s*$/);
+  if (titleSuffix) {
+    const removed = titleSuffix[0].replace(/^\s*[-–—]\s*/, '').trim();
+    // 只有確認是媒體名稱才移除（避免誤刪有 dash 的標題）
+    if (mediaName !== '未知媒體' && (removed === mediaName || mediaName.includes(removed) || removed.includes(mediaName))) {
+      title = title.slice(0, title.length - titleSuffix[0].length).trim();
+    }
+  }
+
   return {
     id,
-    title: (item.title || '').replace(/<[^>]*>/g, '').trim(),
+    title,
     content: content.slice(0, 500),
     link: item.link || item.url || '#',
     pubDate,
-    sentiment: analyzeSentiment(item.title, content),
+    sentiment: analyzeSentiment(title, content),
     cat: src.cat,
     brand: src.brand || null,
     sourceName: src.label,
-    mediaName: getMediaName(item),
+    mediaName,
     rawAuthor,
     fetchedAt: new Date()
   };
@@ -823,6 +872,39 @@ async function fetchCompetitorNews() {
   return articles;
 }
 
+async function reloadFromFirebase() {
+  const btn = document.getElementById('fetchBtn');
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spin">⚙️</span> 載入中...`;
+  try {
+    if (!state.db) {
+      showToast('⚠️ Firebase 未連線，請檢查設定', 'warning');
+      return;
+    }
+    showStatus('從 Firebase 載入最新新聞...');
+    const fbNews = await loadFromFirebase(7);
+    if (fbNews.length > 0) {
+      state.news = fbNews;
+      renderAll();
+      updateStats();
+      renderMediaStats();
+      const last = fbNews.reduce((a, b) => a.fetchedAt > b.fetchedAt ? a : b);
+      document.getElementById('lastFetchBadge').classList.remove('hidden');
+      document.getElementById('lastFetchTime').textContent = new Date(last.fetchedAt).toLocaleString('zh-TW', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      showToast(`☁️ 已載入 ${fbNews.length} 則新聞`, 'success');
+    } else {
+      showToast('⚠️ Firebase 目前沒有資料，請等待每日自動抓取', 'warning');
+    }
+  } catch(e) {
+    showToast('❌ 載入失敗：' + e.message, 'error');
+    console.error(e);
+  } finally {
+    hideStatus();
+    btn.disabled = false;
+    btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> 重新整理`;
+  }
+}
+
 async function fetchAllNews() {
   if (state.isFetching) return;
   state.isFetching = true;
@@ -842,11 +924,15 @@ async function fetchAllNews() {
     const c = await fetchCompetitorNews();
 
     const all = [...t, ...u, ...c];
-    // Deduplicate by link
-    const seen = new Set();
+    // 以標題正規化去重複（移除空白/標點，避免同一新聞從不同來源重複出現）
+    const seenTitles = new Set();
+    const seenLinks = new Set();
     const unique = all.filter(a => {
-      if (!a.link || seen.has(a.link)) return false;
-      seen.add(a.link);
+      const normTitle = (a.title || '').replace(/[\s\W]+/g, '').toLowerCase().slice(0, 30);
+      if (seenTitles.has(normTitle)) return false;
+      if (a.link && seenLinks.has(a.link)) return false;
+      seenTitles.add(normTitle);
+      if (a.link) seenLinks.add(a.link);
       return true;
     });
 
@@ -1000,16 +1086,10 @@ function openArticle(encodedUrl) {
 // RENDER ALL
 // ═══════════════════════════════════════════
 function renderAll() {
-  const transcend = getFilteredNews('transcend');
-  const usMarket = getFilteredNews('usMarket');
-  const competitor = getFilteredNews(null, 'competitor');
-  const supplier = getFilteredNews(null, 'supplier');
-
-  renderCards('transcendGrid', transcend);
-  renderCards('usMarketGrid', usMarket);
-  renderCards('competitorGrid', competitor);
-  renderCards('supplierGrid', supplier);
-
+  renderCards('transcendGrid', getFilteredNews('transcend'));
+  renderCards('competitorGrid', getFilteredNews(null, 'competitor'));
+  renderCards('supplierGrid', getFilteredNews(null, 'supplier'));
+  renderCards('usMarketGrid', getFilteredNews('usMarket'));
   updateStats();
   renderMediaStats();
 }
@@ -1018,15 +1098,20 @@ function renderAll() {
 // STATS
 // ═══════════════════════════════════════════
 function updateStats() {
-  const all = state.news.filter(n => isInPeriod(n.pubDate, state.currentFilter));
-  const pos = all.filter(n => n.sentiment === 'positive').length;
-  const neg = all.filter(n => n.sentiment === 'negative').length;
-  const mediaSrc = new Set(all.map(n => n.mediaName)).size;
+  // 根據目前分頁篩選對應的新聞
+  const catMap = { transcend: 'transcend', competitor: 'competitor', supplier: 'supplier', usMarket: 'usMarket' };
+  const currentCat = catMap[state.currentTab];
+  let periodNews = state.news.filter(n => isInPeriod(n.pubDate, state.currentFilter));
+  const tabNews = currentCat ? periodNews.filter(n => n.cat === currentCat) : periodNews;
 
-  document.getElementById('statTotal').textContent = all.length;
+  const pos = tabNews.filter(n => n.sentiment === 'positive').length;
+  const neg = tabNews.filter(n => n.sentiment === 'negative').length;
+  const mediaSrc = new Set(tabNews.map(n => n.mediaName).filter(Boolean)).size;
+
+  document.getElementById('statTotal').textContent = tabNews.length;
   document.getElementById('statPos').textContent = pos;
   document.getElementById('statNeg').textContent = neg;
-  document.getElementById('statMediaCnt').textContent = all.length;
+  document.getElementById('statMediaCnt').textContent = tabNews.length;
   document.getElementById('statMediaSrc').textContent = `來自 ${mediaSrc} 個媒體`;
 
   const labels = { today:'今日', week:'本週', month:'本月', year:'本年' };
@@ -1287,17 +1372,8 @@ function switchTab(tab) {
     if (mt === 'compare') renderCompareChart();
     if (mt === 'reporter') renderReporterStats();
   }
-}
-
-function switchSubTab(st) {
-  state.currentSubTab = st;
-  document.querySelectorAll('.sub-tab').forEach(t => {
-    t.classList.remove('sub-tab-active');
-    t.classList.add('text-gray-600', 'bg-gray-100');
-  });
-  document.querySelector(`[data-st="${st}"]`).classList.add('sub-tab-active');
-  document.getElementById('competitorGrid').classList.toggle('hidden', st !== 'competitor');
-  document.getElementById('supplierGrid').classList.toggle('hidden', st !== 'supplier');
+  // 切換 tab 時更新 stats 數字
+  updateStats();
 }
 
 function setFilter(f) {
