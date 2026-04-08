@@ -473,6 +473,20 @@
 <!-- ─────────────── JAVASCRIPT ─────────────── -->
 <script>
 // ═══════════════════════════════════════════
+// ★★★ 在這裡填入你的 Firebase 設定 ★★★
+// 填完後 push 到 GitHub，任何電腦打開都能自動連線
+// ═══════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey:            "填入你的 apiKey",
+  authDomain:        "填入你的 authDomain",
+  projectId:         "填入你的 projectId",
+  storageBucket:     "填入你的 storageBucket",
+  messagingSenderId: "填入你的 messagingSenderId",
+  appId:             "填入你的 appId"
+};
+// ═══════════════════════════════════════════
+
+// ═══════════════════════════════════════════
 // CONSTANTS & CONFIG
 // ═══════════════════════════════════════════
 
@@ -624,14 +638,23 @@ async function testClaudeKey() {
 // ═══════════════════════════════════════════
 function initFirebase() {
   try {
-    const cfg = {
-      apiKey: state.settings.fbKey,
-      authDomain: state.settings.fbAuthDomain,
-      projectId: state.settings.fbProjectId,
-      storageBucket: state.settings.fbBucket,
-      messagingSenderId: state.settings.fbSenderId,
-      appId: state.settings.fbAppId
-    };
+    // 優先使用 localStorage 設定，否則用 HTML 裡的硬寫設定
+    const s = state.settings;
+    const cfg = (s.fbKey && s.fbProjectId) ? {
+      apiKey: s.fbKey,
+      authDomain: s.fbAuthDomain,
+      projectId: s.fbProjectId,
+      storageBucket: s.fbBucket,
+      messagingSenderId: s.fbSenderId,
+      appId: s.fbAppId
+    } : FIREBASE_CONFIG;
+
+    // 如果硬寫設定還沒填（仍是預設佔位符），不嘗試連線
+    if (!cfg.projectId || cfg.projectId.includes('填入')) {
+      console.warn('Firebase config not set. Please fill FIREBASE_CONFIG in index.html');
+      return;
+    }
+
     if (!firebase.apps.length) firebase.initializeApp(cfg);
     else firebase.app();
     state.db = firebase.firestore();
@@ -1502,31 +1525,30 @@ function restoreCache() {
 async function init() {
   loadSettings();
 
-  if (state.settings.fbKey && state.settings.fbProjectId) {
-    initFirebase();
-    // 如果 Firebase 有設定，優先從雲端載入最近 7 天資料
-    if (state.db) {
-      showStatus('從 Firebase 載入新聞資料...');
-      try {
-        const fbNews = await loadFromFirebase(7);
-        if (fbNews.length > 0) {
-          state.news = fbNews;
-          renderAll();
-          const last = fbNews.reduce((a, b) => a.fetchedAt > b.fetchedAt ? a : b);
-          document.getElementById('lastFetchBadge').classList.remove('hidden');
-          document.getElementById('lastFetchTime').textContent = new Date(last.fetchedAt).toLocaleString('zh-TW', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-          showToast(`☁️ 已從 Firebase 載入 ${fbNews.length} 則新聞`, 'success');
-        } else {
-          restoreCache();
-        }
-      } catch(e) {
-        console.warn('Firebase load failed:', e);
+  // 永遠嘗試 Firebase（FIREBASE_CONFIG 硬寫在 HTML 裡，不依賴 localStorage）
+  initFirebase();
+
+  if (state.db) {
+    showStatus('從 Firebase 載入新聞資料...');
+    try {
+      const fbNews = await loadFromFirebase(7);
+      if (fbNews.length > 0) {
+        state.news = fbNews;
+        renderAll();
+        const last = fbNews.reduce((a, b) => a.fetchedAt > b.fetchedAt ? a : b);
+        document.getElementById('lastFetchBadge').classList.remove('hidden');
+        document.getElementById('lastFetchTime').textContent = new Date(last.fetchedAt).toLocaleString('zh-TW', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+        showToast(`☁️ 已從 Firebase 載入 ${fbNews.length} 則新聞`, 'success');
+      } else {
         restoreCache();
       }
-      hideStatus();
+    } catch(e) {
+      console.warn('Firebase load failed:', e);
+      restoreCache();
     }
+    hideStatus();
   } else {
-    // 沒有 Firebase，從瀏覽器快取還原
+    // Firebase 未設定，從瀏覽器快取還原
     restoreCache();
   }
 
