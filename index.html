@@ -507,6 +507,13 @@ const SOURCES = {
     { label: '遠見-創見', url: 'https://www.gvm.com.tw/rss', cat: 'transcend', filter: '創見' },
     { label: '壹蘋-創見', url: 'https://tw.nextapple.com/rss.xml', cat: 'transcend', filter: '創見' },
     { label: 'TrendForce-創見', url: 'https://www.trendforce.com/rss', cat: 'transcend', filter: 'Transcend' },
+    // ─── 指定媒體搜尋 ───
+    { label: 'Google News-經濟日報', url: 'https://news.google.com/rss/search?q=創見+site:money.udn.com&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
+    { label: 'Google News-鉅亨網', url: 'https://news.google.com/rss/search?q=創見+site:cnyes.com&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
+    { label: 'Google News-中時新聞', url: 'https://news.google.com/rss/search?q=創見+site:chinatimes.com&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
+    { label: 'Google News-工商時報', url: 'https://news.google.com/rss/search?q=創見+site:ctee.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
+    { label: 'Google News-科技新報', url: 'https://news.google.com/rss/search?q=創見+site:technews.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
+    { label: 'Google News-ETtoday', url: 'https://news.google.com/rss/search?q=創見+site:ettoday.net&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
     { label: 'Google News-財訊', url: 'https://news.google.com/rss/search?q=創見+site:wealth.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
     { label: 'Google News-中央社', url: 'https://news.google.com/rss/search?q=創見+site:cna.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
     { label: 'Google News-電子時報', url: 'https://news.google.com/rss/search?q=創見+site:digitimes.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
@@ -515,51 +522,42 @@ const SOURCES = {
     { label: 'Google News-TrendForce', url: 'https://news.google.com/rss/search?q=Transcend+site:trendforce.com&hl=en&gl=US&ceid=US:en', cat: 'transcend' },
   ],
   usMarket: [
-    { label: 'DRAM Market', url: 'https://news.google.com/rss/search?q=DRAM+memory+market+2025&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
-    { label: 'NAND Flash', url: 'https://news.google.com/rss/search?q=NAND+Flash+storage+market&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
-    { label: 'Memory Chip', url: 'https://news.google.com/rss/search?q=memory+chip+semiconductor+market&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
-    { label: 'Flash Storage', url: 'https://news.google.com/rss/search?q=flash+storage+industry+supply&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
+    // ─── 上游供應商（英文）───
+    { label: 'Samsung Memory EN',  url: 'https://news.google.com/rss/search?q=Samsung+memory+semiconductor&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
+    { label: 'Micron EN',          url: 'https://news.google.com/rss/search?q=Micron+Technology+memory&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
+    { label: 'SK Hynix EN',        url: 'https://news.google.com/rss/search?q=SK+Hynix+memory+semiconductor&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
+    { label: 'Kioxia EN',          url: 'https://news.google.com/rss/search?q=Kioxia+flash+storage&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
+    { label: 'SanDisk WD EN',      url: 'https://news.google.com/rss/search?q=SanDisk+OR+"Western+Digital"+NAND+flash&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
+    // ─── DRAM 市場趨勢 ───
+    { label: 'DRAM Market Trend',  url: 'https://news.google.com/rss/search?q=DRAM+market+trend+price+supply&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
+    { label: 'DRAM Industry',      url: 'https://news.google.com/rss/search?q=DRAM+industry+demand+outlook&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
+    // ─── Flash 市場趨勢 ───
+    { label: 'NAND Flash Trend',   url: 'https://news.google.com/rss/search?q=NAND+Flash+market+trend+price&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
+    { label: 'Flash Storage Market', url: 'https://news.google.com/rss/search?q=flash+storage+market+outlook+supply&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
+    // ─── Transcend Information ───
+    { label: 'Transcend Info EN',  url: 'https://news.google.com/rss/search?q="Transcend+Information"&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
+    { label: 'Transcend Memory EN', url: 'https://news.google.com/rss/search?q=Transcend+memory+storage+flash&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
   ],
   competitors: [
-    // ─── 競品：英文（品牌為主，涵蓋營收/新品/展覽/品牌）───
-    { label: 'ADATA EN',              url: 'https://news.google.com/rss/search?q=ADATA+Technology&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'ADATA' },
-    { label: 'Innodisk EN',           url: 'https://news.google.com/rss/search?q=Innodisk&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'Innodisk' },
-    { label: 'Apacer EN',             url: 'https://news.google.com/rss/search?q=Apacer+Technology&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'Apacer' },
-    { label: 'Silicon Power EN',      url: 'https://news.google.com/rss/search?q="Silicon+Power"&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'Silicon Power' },
-    { label: 'Kingston EN',           url: 'https://news.google.com/rss/search?q=Kingston+Technology&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'Kingston' },
-    { label: 'Lexar EN',              url: 'https://news.google.com/rss/search?q=Lexar&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'Lexar' },
-    { label: 'PNY EN',                url: 'https://news.google.com/rss/search?q=PNY+Technologies&hl=en&gl=US&ceid=US:en', cat: 'competitor', brand: 'PNY' },
-    // ─── 競品：中文（品牌為主，涵蓋營收/新品/展覽/品牌）───
-    { label: 'ADATA 威剛 TW',         url: 'https://news.google.com/rss/search?q=威剛+ADATA&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'ADATA' },
-    { label: 'Innodisk 宜鼎 TW',      url: 'https://news.google.com/rss/search?q=宜鼎+Innodisk&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Innodisk' },
-    { label: 'Apacer 宇瞻 TW',        url: 'https://news.google.com/rss/search?q=宇瞻+Apacer&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Apacer' },
-    { label: 'Silicon Power 廣穎 TW', url: 'https://news.google.com/rss/search?q=廣穎+Silicon+Power&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Silicon Power' },
-    { label: 'Kingston 金士頓 TW',    url: 'https://news.google.com/rss/search?q=金士頓+Kingston&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Kingston' },
-    { label: 'Lexar TW',              url: 'https://news.google.com/rss/search?q=Lexar+雷克沙&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Lexar' },
-    { label: 'PNY TW',                url: 'https://news.google.com/rss/search?q=PNY+必恩威&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'PNY' },
+    // ─── 競品：僅中文 ───
+    { label: 'ADATA 威剛',         url: 'https://news.google.com/rss/search?q=威剛+ADATA&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'ADATA' },
+    { label: 'Innodisk 宜鼎',      url: 'https://news.google.com/rss/search?q=宜鼎+Innodisk&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Innodisk' },
+    { label: 'Apacer 宇瞻',        url: 'https://news.google.com/rss/search?q=宇瞻+Apacer&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Apacer' },
+    { label: 'Silicon Power 廣穎', url: 'https://news.google.com/rss/search?q=廣穎+Silicon+Power&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Silicon Power' },
+    { label: 'Kingston 金士頓',    url: 'https://news.google.com/rss/search?q=金士頓+Kingston&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Kingston' },
+    { label: 'Lexar 雷克沙',       url: 'https://news.google.com/rss/search?q=Lexar+雷克沙&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Lexar' },
+    { label: 'PNY 必恩威',         url: 'https://news.google.com/rss/search?q=PNY+必恩威&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'PNY' },
   ],
   suppliers: [
-    // ─── Samsung（記憶體/半導體，不限規格）───
-    { label: 'Samsung EN',     url: 'https://news.google.com/rss/search?q=Samsung+semiconductor+memory&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'Samsung' },
-    { label: 'Samsung TW',     url: 'https://news.google.com/rss/search?q=三星+Samsung+半導體+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Samsung' },
-    // ─── Micron ───
-    { label: 'Micron EN',      url: 'https://news.google.com/rss/search?q=Micron+Technology+memory&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'Micron' },
-    { label: 'Micron TW',      url: 'https://news.google.com/rss/search?q=美光+Micron+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Micron' },
-    // ─── SK Hynix ───
-    { label: 'SK Hynix EN',    url: 'https://news.google.com/rss/search?q=SK+Hynix+memory+semiconductor&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'SK Hynix' },
-    { label: 'SK Hynix TW',    url: 'https://news.google.com/rss/search?q=SK+海力士+Hynix+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'SK Hynix' },
-    // ─── Kioxia ───
-    { label: 'Kioxia EN',      url: 'https://news.google.com/rss/search?q=Kioxia+flash+storage&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'Kioxia' },
-    { label: 'Kioxia TW',      url: 'https://news.google.com/rss/search?q=Kioxia+鎧俠+快閃+儲存&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Kioxia' },
-    // ─── SanDisk / WD ───
-    { label: 'SanDisk WD EN',  url: 'https://news.google.com/rss/search?q=SanDisk+OR+"Western+Digital"+flash+storage&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'SanDisk/WD' },
-    { label: 'SanDisk WD TW',  url: 'https://news.google.com/rss/search?q=SanDisk+威騰+儲存&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'SanDisk/WD' },
-    // ─── 主控晶片廠 ───
-    { label: 'SMI 慧榮 EN',    url: 'https://news.google.com/rss/search?q="Silicon+Motion"+SMI&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'SMI' },
-    { label: 'SMI 慧榮 TW',    url: 'https://news.google.com/rss/search?q=慧榮+Silicon+Motion&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'SMI' },
-    { label: 'Phison 群聯 EN', url: 'https://news.google.com/rss/search?q=Phison+Electronics&hl=en&gl=US&ceid=US:en', cat: 'supplier', brand: 'Phison' },
-    { label: 'Phison 群聯 TW', url: 'https://news.google.com/rss/search?q=群聯+Phison&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Phison' },
-    { label: 'Realtek 瑞昱 TW', url: 'https://news.google.com/rss/search?q=瑞昱+Realtek&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Realtek' },
+    // ─── 供應商：僅中文 ───
+    { label: '三星 Samsung',    url: 'https://news.google.com/rss/search?q=三星+Samsung+半導體+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Samsung' },
+    { label: '美光 Micron',     url: 'https://news.google.com/rss/search?q=美光+Micron+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Micron' },
+    { label: 'SK 海力士',       url: 'https://news.google.com/rss/search?q=SK+海力士+Hynix+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'SK Hynix' },
+    { label: 'Kioxia 鎧俠',     url: 'https://news.google.com/rss/search?q=Kioxia+鎧俠+快閃+儲存&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Kioxia' },
+    { label: 'SanDisk 威騰',    url: 'https://news.google.com/rss/search?q=SanDisk+威騰+儲存&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'SanDisk/WD' },
+    { label: '慧榮 SMI',        url: 'https://news.google.com/rss/search?q=慧榮+Silicon+Motion&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'SMI' },
+    { label: '群聯 Phison',     url: 'https://news.google.com/rss/search?q=群聯+Phison&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Phison' },
+    { label: '瑞昱 Realtek',    url: 'https://news.google.com/rss/search?q=瑞昱+Realtek&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Realtek' },
   ]
 };
 
