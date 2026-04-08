@@ -79,45 +79,46 @@ def get_sources(mode):
         {'label': 'Flash Storage', 'url': 'https://news.google.com/rss/search?q=flash+storage+industry+supply&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
     ]
     competitors = [
-        # ─── 競品：英文（品牌為主，涵蓋營收/新品/展覽/品牌）───
-        {'label': 'ADATA EN',              'url': 'https://news.google.com/rss/search?q=ADATA+Technology&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'ADATA'},
-        {'label': 'Innodisk EN',           'url': 'https://news.google.com/rss/search?q=Innodisk&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Innodisk'},
-        {'label': 'Apacer EN',             'url': 'https://news.google.com/rss/search?q=Apacer+Technology&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Apacer'},
-        {'label': 'Silicon Power EN',      'url': 'https://news.google.com/rss/search?q="Silicon+Power"&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Silicon Power'},
-        {'label': 'Kingston EN',           'url': 'https://news.google.com/rss/search?q=Kingston+Technology&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Kingston'},
-        {'label': 'Lexar EN',              'url': 'https://news.google.com/rss/search?q=Lexar&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Lexar'},
-        {'label': 'PNY EN',                'url': 'https://news.google.com/rss/search?q=PNY+Technologies&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'PNY'},
-        # ─── 競品：中文（品牌為主，涵蓋營收/新品/展覽/品牌）───
-        {'label': 'ADATA 威剛 TW',         'url': 'https://news.google.com/rss/search?q=威剛+ADATA&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'ADATA'},
-        {'label': 'Innodisk 宜鼎 TW',      'url': 'https://news.google.com/rss/search?q=宜鼎+Innodisk&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Innodisk'},
-        {'label': 'Apacer 宇瞻 TW',        'url': 'https://news.google.com/rss/search?q=宇瞻+Apacer&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Apacer'},
+        # ─── 競品：英文新聞 ───
+        {'label': 'ADATA EN',          'url': 'https://news.google.com/rss/search?q=ADATA+memory+storage&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'ADATA'},
+        {'label': 'Innodisk EN',       'url': 'https://news.google.com/rss/search?q=Innodisk+industrial+flash+storage&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Innodisk'},
+        {'label': 'Apacer EN',         'url': 'https://news.google.com/rss/search?q=Apacer+memory+flash+storage&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Apacer'},
+        {'label': 'Silicon Power EN',  'url': 'https://news.google.com/rss/search?q=Silicon+Power+memory+flash&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Silicon Power'},
+        {'label': 'Kingston EN',       'url': 'https://news.google.com/rss/search?q=Kingston+Technology+memory+flash&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Kingston'},
+        {'label': 'Lexar EN',          'url': 'https://news.google.com/rss/search?q=Lexar+memory+card+flash+storage&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Lexar'},
+        {'label': 'PNY EN',            'url': 'https://news.google.com/rss/search?q=PNY+Technologies+flash+memory&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'PNY'},
+        # ─── 競品：中文新聞 ───
+        {'label': 'ADATA 威剛 TW',     'url': 'https://news.google.com/rss/search?q=ADATA+威剛&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'ADATA'},
+        {'label': 'Innodisk 宜鼎 TW',  'url': 'https://news.google.com/rss/search?q=Innodisk+宜鼎&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Innodisk'},
+        {'label': 'Apacer 宇瞻 TW',    'url': 'https://news.google.com/rss/search?q=Apacer+宇瞻&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Apacer'},
         {'label': 'Silicon Power 廣穎 TW', 'url': 'https://news.google.com/rss/search?q=廣穎+Silicon+Power&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Silicon Power'},
-        {'label': 'Kingston 金士頓 TW',    'url': 'https://news.google.com/rss/search?q=金士頓+Kingston&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Kingston'},
-        {'label': 'Lexar TW',              'url': 'https://news.google.com/rss/search?q=Lexar+雷克沙&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Lexar'},
-        {'label': 'PNY TW',                'url': 'https://news.google.com/rss/search?q=PNY+必恩威&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'PNY'},
+        {'label': 'Kingston 金士頓 TW', 'url': 'https://news.google.com/rss/search?q=金士頓+Kingston&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Kingston'},
+        {'label': 'Lexar TW',          'url': 'https://news.google.com/rss/search?q=Lexar+記憶卡+隨身碟&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Lexar'},
     ]
     suppliers = [
-        # ─── Samsung ───
-        {'label': 'Samsung EN',      'url': 'https://news.google.com/rss/search?q=Samsung+semiconductor+memory&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Samsung'},
-        {'label': 'Samsung TW',      'url': 'https://news.google.com/rss/search?q=三星+Samsung+半導體+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Samsung'},
-        # ─── Micron ───
-        {'label': 'Micron EN',       'url': 'https://news.google.com/rss/search?q=Micron+Technology+memory&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Micron'},
-        {'label': 'Micron TW',       'url': 'https://news.google.com/rss/search?q=美光+Micron+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Micron'},
-        # ─── SK Hynix ───
-        {'label': 'SK Hynix EN',     'url': 'https://news.google.com/rss/search?q=SK+Hynix+memory+semiconductor&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'SK Hynix'},
-        {'label': 'SK Hynix TW',     'url': 'https://news.google.com/rss/search?q=SK+海力士+Hynix+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'SK Hynix'},
-        # ─── Kioxia ───
-        {'label': 'Kioxia EN',       'url': 'https://news.google.com/rss/search?q=Kioxia+flash+storage&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Kioxia'},
-        {'label': 'Kioxia TW',       'url': 'https://news.google.com/rss/search?q=Kioxia+鎧俠+快閃+儲存&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Kioxia'},
-        # ─── SanDisk / WD ───
-        {'label': 'SanDisk WD EN',   'url': 'https://news.google.com/rss/search?q=SanDisk+OR+Western+Digital+flash+storage&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'SanDisk/WD'},
-        {'label': 'SanDisk WD TW',   'url': 'https://news.google.com/rss/search?q=SanDisk+威騰+儲存&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'SanDisk/WD'},
-        # ─── 主控晶片廠 ───
-        {'label': 'SMI 慧榮 EN',     'url': 'https://news.google.com/rss/search?q=Silicon+Motion+SMI&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'SMI'},
-        {'label': 'SMI 慧榮 TW',     'url': 'https://news.google.com/rss/search?q=慧榮+Silicon+Motion&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'SMI'},
-        {'label': 'Phison 群聯 EN',  'url': 'https://news.google.com/rss/search?q=Phison+Electronics&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Phison'},
-        {'label': 'Phison 群聯 TW',  'url': 'https://news.google.com/rss/search?q=群聯+Phison&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Phison'},
-        {'label': 'Realtek 瑞昱 TW', 'url': 'https://news.google.com/rss/search?q=瑞昱+Realtek&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Realtek'},
+        # ─── DRAM 上游：英文新聞 ───
+        {'label': 'Samsung DRAM EN',   'url': 'https://news.google.com/rss/search?q=Samsung+DRAM+memory+DDR5&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Samsung'},
+        {'label': 'Micron DRAM EN',    'url': 'https://news.google.com/rss/search?q=Micron+Technology+DRAM+memory&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Micron'},
+        {'label': 'SK Hynix EN',       'url': 'https://news.google.com/rss/search?q=SK+Hynix+DRAM+HBM+memory&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'SK Hynix'},
+        # ─── DRAM 上游：中文新聞 ───
+        {'label': 'Samsung 三星 TW',   'url': 'https://news.google.com/rss/search?q=三星+Samsung+DRAM+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Samsung'},
+        {'label': 'Micron 美光 TW',    'url': 'https://news.google.com/rss/search?q=美光+Micron+DRAM&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Micron'},
+        {'label': 'SK Hynix TW',       'url': 'https://news.google.com/rss/search?q=SK+海力士+Hynix+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'SK Hynix'},
+        # ─── NAND Flash 上游：英文新聞 ───
+        {'label': 'SanDisk NAND EN',   'url': 'https://news.google.com/rss/search?q=SanDisk+Western+Digital+NAND+Flash&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'SanDisk/WD'},
+        {'label': 'Samsung NAND EN',   'url': 'https://news.google.com/rss/search?q=Samsung+NAND+Flash+V-NAND&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Samsung'},
+        {'label': 'Kioxia EN',         'url': 'https://news.google.com/rss/search?q=Kioxia+NAND+Flash+BiCS&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Kioxia'},
+        {'label': 'Micron NAND EN',    'url': 'https://news.google.com/rss/search?q=Micron+NAND+Flash+QLC+TLC&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Micron'},
+        # ─── NAND Flash 上游：中文新聞 ───
+        {'label': 'SanDisk WD TW',     'url': 'https://news.google.com/rss/search?q=SanDisk+威騰+NAND+Flash&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'SanDisk/WD'},
+        {'label': 'Samsung NAND TW',   'url': 'https://news.google.com/rss/search?q=三星+NAND+Flash+快閃記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Samsung'},
+        {'label': 'Kioxia TW',         'url': 'https://news.google.com/rss/search?q=Kioxia+鎧俠+NAND+Flash&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Kioxia'},
+        # ─── NAND Controller（主控晶片）───
+        {'label': 'SMI 慧榮',          'url': 'https://news.google.com/rss/search?q=SMI+Silicon+Motion+慧榮&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'SMI'},
+        {'label': 'Phison 群聯',       'url': 'https://news.google.com/rss/search?q=Phison+群聯+主控&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Phison'},
+        {'label': 'Realtek 瑞昱',      'url': 'https://news.google.com/rss/search?q=Realtek+瑞昱&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Realtek'},
+        {'label': 'SMI EN',            'url': 'https://news.google.com/rss/search?q=Silicon+Motion+SMI+NAND+controller&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'SMI'},
+        {'label': 'Phison EN',         'url': 'https://news.google.com/rss/search?q=Phison+Electronics+NAND+controller&hl=en&gl=US&ceid=US:en', 'cat': 'supplier', 'brand': 'Phison'},
     ]
 
     if mode == 'morning':
@@ -139,51 +140,26 @@ def analyze_sentiment(title, content=''):
     return 'neutral'
 
 
-def extract_media_from_title(title):
-    """從標題後綴提取媒體名稱（Google News 格式：「標題 - 媒體名稱」）"""
-    import re
-    if not title:
-        return None
-    match = re.search(r'[-–—]\s*([^-–—]{2,40})\s*$', title)
-    if not match:
-        return None
-    candidate = match.group(1).strip()
-    for name in TAIWAN_MEDIA.values():
-        if candidate == name or name in candidate or candidate in name:
-            return name
-    if 2 <= len(candidate) <= 30 and not candidate.isdigit():
-        return candidate
-    return None
-
-
-def get_media_name(entry, link='', title=''):
-    # 1. 優先從標題後綴解析（Google News 格式）
-    from_title = extract_media_from_title(title)
-    if from_title:
-        return from_title
-
-    # 2. 從 author 欄位比對
+def get_media_name(entry, link=''):
+    # Try author field first
     author = getattr(entry, 'author', '') or ''
-    if author and len(author) < 40 and '@' not in author and 'google' not in author.lower():
+    if author and len(author) < 30 and '@' not in author:
         for name in TAIWAN_MEDIA.values():
             if name in author or author in name:
                 return name
-        if len(author) >= 2 and not author.startswith('http'):
+        if len(author) > 1:
             return author
 
-    # 3. 從連結 domain 比對（排除 news.google.com）
+    # Try link domain
     try:
         from urllib.parse import urlparse
         domain = urlparse(link).netloc.replace('www.', '')
-        if domain and 'google' not in domain:
-            for key, name in TAIWAN_MEDIA.items():
-                if key in domain or domain in key:
-                    return name
-            return domain
+        for key, name in TAIWAN_MEDIA.items():
+            if key in domain or domain in key:
+                return name
+        return domain or '未知媒體'
     except Exception:
-        pass
-
-    return '未知媒體'
+        return '未知媒體'
 
 
 def make_article_id(link, title):
@@ -242,16 +218,6 @@ def fetch_source(src, retry=2):
                 content = clean_html(getattr(entry, 'summary', '') or getattr(entry, 'description', ''))[:500]
                 pub_date = parse_date(entry)
                 raw_author = (getattr(entry, 'author', '') or '').strip()
-                media_name = get_media_name(entry, link, title)
-
-                # 去除標題後面的「- 媒體名稱」（Google News 格式）
-                import re as _re
-                suffix_match = _re.search(r'\s*[-–—]\s*([^-–—]{2,40})\s*$', title)
-                if suffix_match:
-                    removed = suffix_match.group(1).strip()
-                    if media_name != '未知媒體' and (removed == media_name or media_name in removed or removed in media_name):
-                        title = title[:suffix_match.start()].strip()
-
                 article = {
                     'id': make_article_id(link, title),
                     'title': title,
@@ -262,7 +228,7 @@ def fetch_source(src, retry=2):
                     'cat': src['cat'],
                     'brand': src.get('brand'),
                     'sourceName': src['label'],
-                    'mediaName': media_name,
+                    'mediaName': get_media_name(entry, link),
                     'rawAuthor': raw_author,
                     'fetchedAt': datetime.datetime.now(datetime.timezone.utc),
                     'fetchMode': os.environ.get('FETCH_MODE', 'all'),
@@ -341,19 +307,12 @@ def main():
     all_articles = []
     seen_links = set()
 
-    seen_titles = set()
     for src in sources:
         articles = fetch_source(src)
         for a in articles:
-            import re as _re
-            norm_title = _re.sub(r'[\s\W]+', '', (a.get('title') or '')).lower()[:30]
-            if norm_title and norm_title in seen_titles:
-                continue
-            if a['link'] and a['link'] in seen_links:
-                continue
-            seen_titles.add(norm_title)
-            seen_links.add(a['link'])
-            all_articles.append(a)
+            if a['link'] not in seen_links:
+                seen_links.add(a['link'])
+                all_articles.append(a)
 
     print(f"\n📊 共抓取 {len(all_articles)} 則不重複新聞")
 
