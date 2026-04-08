@@ -499,6 +499,17 @@ const SOURCES = {
     { label: '2451 股票', url: 'https://news.google.com/rss/search?q=2451+創見+股票&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
     { label: '聯合報-創見', url: 'https://udn.com/rssfeed/news/2/6644?ch=news', cat: 'transcend', filter: '創見' },
     { label: '科技新報-創見', url: 'https://technews.tw/feed/', cat: 'transcend', filter: '創見' },
+    { label: '中央社-創見', url: 'https://www.cna.com.tw/rss/aall.aspx', cat: 'transcend', filter: '創見' },
+    { label: '財訊-創見', url: 'https://www.wealth.com.tw/rss/all', cat: 'transcend', filter: '創見' },
+    { label: '遠見-創見', url: 'https://www.gvm.com.tw/rss', cat: 'transcend', filter: '創見' },
+    { label: '壹蘋-創見', url: 'https://tw.nextapple.com/rss.xml', cat: 'transcend', filter: '創見' },
+    { label: 'TrendForce-創見', url: 'https://www.trendforce.com/rss', cat: 'transcend', filter: 'Transcend' },
+    { label: 'Google News-財訊', url: 'https://news.google.com/rss/search?q=創見+site:wealth.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
+    { label: 'Google News-中央社', url: 'https://news.google.com/rss/search?q=創見+site:cna.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
+    { label: 'Google News-電子時報', url: 'https://news.google.com/rss/search?q=創見+site:digitimes.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
+    { label: 'Google News-非凡', url: 'https://news.google.com/rss/search?q=創見+非凡財經&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
+    { label: 'Google News-PC DIY', url: 'https://news.google.com/rss/search?q=Transcend+site:pcdiy.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
+    { label: 'Google News-TrendForce', url: 'https://news.google.com/rss/search?q=Transcend+site:trendforce.com&hl=en&gl=US&ceid=US:en', cat: 'transcend' },
   ],
   usMarket: [
     { label: 'DRAM Market', url: 'https://news.google.com/rss/search?q=DRAM+memory+market+2025&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
@@ -555,16 +566,29 @@ const NEG_KW = ['崩盤','瑕疵','虧損','下滑','召回','訴訟','罰款','
 
 const TAIWAN_MEDIA = {
   'udn.com': '聯合報', 'money.udn.com': '經濟日報', 'ctee.com.tw': '工商時報',
-  'chinatimes.com': '中時電子報', 'technews.tw': '科技新報', 'ithome.com.tw': 'iThome',
-  'digitimes.com.tw': 'Digitimes', 'digitimes.com': 'Digitimes',
-  'eettaiwan.com': 'EE Times Taiwan', 'anue.com.tw': '鉅亨網',
+  'chinatimes.com': '中時新聞網', 'technews.tw': '科技新報', 'ithome.com.tw': 'iThome',
+  'digitimes.com.tw': '電子時報', 'digitimes.com': '電子時報',
+  'eettaiwan.com': 'EE Times Taiwan', 'eetimes.com': 'EE Times',
+  'anue.com.tw': '鉅亨網', 'cnyes.com': '鉅亨網',
   'ltn.com.tw': '自由時報', 'setn.com': '三立新聞', 'tvbs.com.tw': 'TVBS',
   'ettoday.net': 'ETtoday', 'storm.mg': '風傳媒', 'businessweekly.com.tw': '商業週刊',
   'cw.com.tw': '天下雜誌', 'bnext.com.tw': 'Meet 創業小聚', 'inside.com.tw': 'INSIDE',
-  'tw.stock.yahoo.com': 'Yahoo 財經', 'cnyes.com': '鉅亨網', 'moneydj.com': 'MoneyDJ',
-  'stockfeel.com.tw': '股感', 'ptt.cc': 'PTT', 'nownews.com': 'NOWnews',
+  'tw.stock.yahoo.com': 'Yahoo 財經', 'moneydj.com': '精實財經(MoneyDJ)',
+  'stockfeel.com.tw': '股感', 'nownews.com': 'NOWnews',
   'ctinews.com': '中天新聞', 'ftv.com.tw': '民視新聞', 'pts.org.tw': '公視',
-  'mirrormedia.mg': '鏡週刊'
+  'mirrormedia.mg': '鏡週刊',
+  // 新增媒體
+  'cna.com.tw': '中央社',
+  'wealth.com.tw': '財訊雙周刊',
+  'nextapple.com': '壹蘋新聞網',
+  'gvm.com.tw': '遠見',
+  'ustv.com.tw': '非凡財經',
+  'trendforce.com': '集邦科技(TrendForce)',
+  'pcdiy.com.tw': 'PC DIY',
+  'imageinfo.com.tw': 'Image Media',
+  'ioiotimes.com': 'ioio Times',
+  'chinatimes.com/stock': '時報資訊',
+  'ctee.com.tw': '工商時報',
 };
 
 // ═══════════════════════════════════════════
@@ -946,15 +970,22 @@ function renderCards(containerId, articles) {
   }
   el.innerHTML = articles.slice(0, 60).map(a => {
     const clean = a.content.replace(/<[^>]*>/g, '').slice(0, 120);
+    const media = a.mediaName || '未知媒體';
     return `<div class="news-card fade-in bg-white border border-gray-200 rounded-xl p-4 cursor-pointer" onclick="openArticle('${encodeURIComponent(a.link)}')">
-      <div class="flex items-center justify-between gap-2 mb-2">
-        ${sentimentBadge(a.sentiment)}
-        <span class="text-xs text-gray-400">${formatDate(a.pubDate)}</span>
+      <!-- 媒體來源列 -->
+      <div class="flex items-center justify-between gap-2 mb-2.5">
+        <span class="flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-full truncate max-w-[160px]">
+          <svg class="w-3 h-3 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 12h6"/></svg>
+          ${media}
+        </span>
+        <span class="text-xs text-gray-400 shrink-0">${formatDate(a.pubDate)}</span>
       </div>
+      <!-- 標題 -->
       <h3 class="text-sm font-semibold text-gray-900 mb-2 line-clamp-2 leading-snug">${a.title}</h3>
       ${clean ? `<p class="text-xs text-gray-500 line-clamp-2 mb-3">${clean}</p>` : ''}
+      <!-- 底部：情緒 + 品牌 -->
       <div class="flex items-center justify-between gap-2 mt-auto">
-        <span class="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full truncate max-w-[120px]">${a.mediaName}</span>
+        ${sentimentBadge(a.sentiment)}
         ${a.brand ? `<span class="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">${a.brand}</span>` : ''}
       </div>
     </div>`;

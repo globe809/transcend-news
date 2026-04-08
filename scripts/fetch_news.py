@@ -27,14 +27,25 @@ NEG_KW = ['崩盤','瑕疵','虧損','下滑','召回','訴訟','罰款','跌','
 # ─── 台灣媒體對照表 ───
 TAIWAN_MEDIA = {
     'udn.com': '聯合報', 'money.udn.com': '經濟日報', 'ctee.com.tw': '工商時報',
-    'chinatimes.com': '中時電子報', 'technews.tw': '科技新報', 'ithome.com.tw': 'iThome',
-    'digitimes.com.tw': 'Digitimes', 'digitimes.com': 'Digitimes',
-    'eettaiwan.com': 'EE Times Taiwan', 'anue.com.tw': '鉅亨網',
+    'chinatimes.com': '中時新聞網', 'technews.tw': '科技新報', 'ithome.com.tw': 'iThome',
+    'digitimes.com.tw': '電子時報', 'digitimes.com': '電子時報',
+    'eettaiwan.com': 'EE Times Taiwan', 'eetimes.com': 'EE Times',
+    'anue.com.tw': '鉅亨網', 'cnyes.com': '鉅亨網',
     'ltn.com.tw': '自由時報', 'setn.com': '三立新聞', 'tvbs.com.tw': 'TVBS',
     'ettoday.net': 'ETtoday', 'storm.mg': '風傳媒', 'businessweekly.com.tw': '商業週刊',
     'cw.com.tw': '天下雜誌', 'bnext.com.tw': 'Meet 創業小聚', 'inside.com.tw': 'INSIDE',
-    'cnyes.com': '鉅亨網', 'moneydj.com': 'MoneyDJ', 'stockfeel.com.tw': '股感',
+    'moneydj.com': '精實財經(MoneyDJ)', 'stockfeel.com.tw': '股感',
     'nownews.com': 'NOWnews', 'mirrormedia.mg': '鏡週刊', 'ctinews.com': '中天新聞',
+    # 新增媒體
+    'cna.com.tw': '中央社',
+    'wealth.com.tw': '財訊雙周刊',
+    'nextapple.com': '壹蘋新聞網',
+    'gvm.com.tw': '遠見',
+    'ustv.com.tw': '非凡財經',
+    'trendforce.com': '集邦科技(TrendForce)',
+    'pcdiy.com.tw': 'PC DIY',
+    'imageinfo.com.tw': 'Image Media',
+    'ioiotimes.com': 'ioio Times',
 }
 
 # ─── RSS 新聞來源 ───
@@ -49,6 +60,17 @@ def get_sources(mode):
         {'label': 'Transcend Info', 'url': 'https://news.google.com/rss/search?q=Transcend+Information+memory&hl=en&gl=TW&ceid=TW:zh-Hant', 'cat': 'transcend'},
         {'label': '2451 股票', 'url': 'https://news.google.com/rss/search?q=2451+創見+股票&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'transcend'},
         {'label': '聯合報科技', 'url': 'https://udn.com/rssfeed/news/2/6644?ch=news', 'cat': 'transcend', 'filter': '創見'},
+        {'label': '中央社', 'url': 'https://www.cna.com.tw/rss/aall.aspx', 'cat': 'transcend', 'filter': '創見'},
+        {'label': '財訊', 'url': 'https://www.wealth.com.tw/rss/all', 'cat': 'transcend', 'filter': '創見'},
+        {'label': '遠見', 'url': 'https://www.gvm.com.tw/rss', 'cat': 'transcend', 'filter': '創見'},
+        {'label': '壹蘋新聞', 'url': 'https://tw.nextapple.com/rss.xml', 'cat': 'transcend', 'filter': '創見'},
+        {'label': 'TrendForce', 'url': 'https://www.trendforce.com/rss', 'cat': 'transcend', 'filter': 'Transcend'},
+        {'label': 'Google-財訊創見', 'url': 'https://news.google.com/rss/search?q=創見+site:wealth.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'transcend'},
+        {'label': 'Google-中央社創見', 'url': 'https://news.google.com/rss/search?q=創見+site:cna.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'transcend'},
+        {'label': 'Google-電子時報創見', 'url': 'https://news.google.com/rss/search?q=創見+site:digitimes.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'transcend'},
+        {'label': 'Google-非凡創見', 'url': 'https://news.google.com/rss/search?q=創見+非凡財經&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'transcend'},
+        {'label': 'Google-PC DIY', 'url': 'https://news.google.com/rss/search?q=Transcend+site:pcdiy.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'transcend'},
+        {'label': 'Google-TrendForce', 'url': 'https://news.google.com/rss/search?q=Transcend+site:trendforce.com&hl=en&gl=US&ceid=US:en', 'cat': 'transcend'},
     ]
     us_market = [
         {'label': 'DRAM Market', 'url': 'https://news.google.com/rss/search?q=DRAM+memory+market&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
