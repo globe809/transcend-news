@@ -705,8 +705,8 @@ async function saveToFirebase(articles) {
 
 async function loadFromFirebase(days = 1) {
   if (!state.db) return [];
-  const since = new Date();
-  since.setDate(since.getDate() - days);
+  // 固定從 2026/1/1 開始載入（忽略 days 參數）
+  const since = new Date('2026-01-01T00:00:00+08:00');
   const snap = await state.db.collection('news')
     .where('pubDate', '>=', firebase.firestore.Timestamp.fromDate(since))
     .orderBy('pubDate', 'desc')
@@ -1010,6 +1010,8 @@ function isInPeriod(date, period) {
 function getFilteredNews(cat, brand) {
   const search = document.getElementById('searchInput').value.toLowerCase();
   const sentFilter = document.getElementById('sentFilter').value;
+  // 競品 / 供應商 Tab 只顯示含中文字的新聞（過濾掉英文舊資料）
+  const chineseOnly = (brand === 'competitor' || brand === 'supplier');
   return state.news.filter(n => {
     if (cat && n.cat !== cat) return false;
     if (brand) {
@@ -1017,6 +1019,8 @@ function getFilteredNews(cat, brand) {
       if (brand === 'competitor' && n.cat !== 'competitor') return false;
       if (brand === 'supplier' && n.cat !== 'supplier') return false;
     }
+    // 前端中文過濾：競品和供應商 Tab 只保留含有中文字的標題
+    if (chineseOnly && !/[\u4e00-\u9fa5]/.test(n.title || '')) return false;
     if (!isInPeriod(n.pubDate, state.currentFilter)) return false;
     if (sentFilter !== 'all' && n.sentiment !== sentFilter) return false;
     if (search && !n.title.toLowerCase().includes(search) && !n.content.toLowerCase().includes(search)) return false;
