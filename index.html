@@ -142,11 +142,14 @@
       <button onclick="switchTab('transcend')" class="main-tab tab-active px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="transcend">
         🏢 創見資訊
       </button>
+      <button onclick="switchTab('competitor')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="competitor">
+        🥊 競品
+      </button>
+      <button onclick="switchTab('supplier')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="supplier">
+        🏭 供應商
+      </button>
       <button onclick="switchTab('usMarket')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="usMarket">
         🇺🇸 美國市場
-      </button>
-      <button onclick="switchTab('competitors')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="competitors">
-        🥊 競品 &amp; 供應商
       </button>
       <button onclick="switchTab('media')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="media">
         📊 媒體曝光統計
@@ -192,6 +195,28 @@
         </div>
       </div>
 
+      <!-- Competitor Tab -->
+      <div id="tab-competitor" class="tab-panel hidden">
+        <div id="competitorGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div class="col-span-3 text-center py-12 text-gray-400">
+            <div class="text-5xl mb-3">🥊</div>
+            <div class="font-semibold text-gray-500">競品新聞監控</div>
+            <div class="text-sm mt-1">ADATA、Innodisk、Apacer、Kingston、Lexar、Silicon Power、PNY</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Supplier Tab -->
+      <div id="tab-supplier" class="tab-panel hidden">
+        <div id="supplierGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div class="col-span-3 text-center py-12 text-gray-400">
+            <div class="text-5xl mb-3">🏭</div>
+            <div class="font-semibold text-gray-500">上游供應商新聞監控</div>
+            <div class="text-sm mt-1">Samsung、Micron、SK Hynix、Kioxia、SanDisk/WD、SMI、Phison</div>
+          </div>
+        </div>
+      </div>
+
       <!-- US Market Tab -->
       <div id="tab-usMarket" class="tab-panel hidden">
         <div id="usMarketGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -204,28 +229,6 @@
               <span class="text-xs bg-orange-50 text-orange-600 px-3 py-1 rounded-full">NAND Flash</span>
               <span class="text-xs bg-orange-50 text-orange-600 px-3 py-1 rounded-full">Memory Market</span>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Competitors Tab -->
-      <div id="tab-competitors" class="tab-panel hidden">
-        <div class="flex gap-2 mb-4">
-          <button onclick="switchSubTab('competitor')" class="sub-tab sub-tab-active px-4 py-1.5 rounded-lg text-sm font-medium transition-all" data-st="competitor">🥊 競品</button>
-          <button onclick="switchSubTab('supplier')" class="sub-tab px-4 py-1.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-st="supplier">🏭 上游供應商</button>
-        </div>
-        <div id="competitorGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <div class="col-span-3 text-center py-12 text-gray-400">
-            <div class="text-5xl mb-3">🥊</div>
-            <div class="font-semibold text-gray-500">競品新聞監控</div>
-            <div class="text-sm mt-1">Kingston、ADATA、SanDisk、PNY、Corsair</div>
-          </div>
-        </div>
-        <div id="supplierGrid" class="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <div class="col-span-3 text-center py-12 text-gray-400">
-            <div class="text-5xl mb-3">🏭</div>
-            <div class="font-semibold text-gray-500">上游供應商新聞監控</div>
-            <div class="text-sm mt-1">Micron、Samsung、SK Hynix、Kioxia、Western Digital</div>
           </div>
         </div>
       </div>
@@ -597,7 +600,6 @@ let state = {
   news: [],
   settings: { claudeKey: '', claudeModel: 'claude-sonnet-4-6', fbKey: '', fbProjectId: '', fbAuthDomain: '', fbBucket: '', fbSenderId: '', fbAppId: '', rssKey: '' },
   currentTab: 'transcend',
-  currentSubTab: 'competitor',
   currentFilter: 'today',
   db: null,
   chart: null,
@@ -712,9 +714,20 @@ async function loadFromFirebase(days = 1) {
     .orderBy('pubDate', 'desc')
     .limit(500)
     .get();
-  return snap.docs.map(d => {
+  const raw = snap.docs.map(d => {
     const data = d.data();
     return { ...data, pubDate: data.pubDate?.toDate?.() || new Date(data.pubDate), id: d.id };
+  });
+  // 標題去重複（同一篇新聞可能從不同 RSS 來源重複存入）
+  const seenTitles = new Set();
+  const seenLinks = new Set();
+  return raw.filter(a => {
+    const normTitle = (a.title || '').replace(/[\s\W]+/g, '').toLowerCase().slice(0, 30);
+    if (normTitle && seenTitles.has(normTitle)) return false;
+    if (a.link && seenLinks.has(a.link)) return false;
+    seenTitles.add(normTitle);
+    if (a.link) seenLinks.add(a.link);
+    return true;
   });
 }
 
@@ -1073,16 +1086,10 @@ function openArticle(encodedUrl) {
 // RENDER ALL
 // ═══════════════════════════════════════════
 function renderAll() {
-  const transcend = getFilteredNews('transcend');
-  const usMarket = getFilteredNews('usMarket');
-  const competitor = getFilteredNews(null, 'competitor');
-  const supplier = getFilteredNews(null, 'supplier');
-
-  renderCards('transcendGrid', transcend);
-  renderCards('usMarketGrid', usMarket);
-  renderCards('competitorGrid', competitor);
-  renderCards('supplierGrid', supplier);
-
+  renderCards('transcendGrid', getFilteredNews('transcend'));
+  renderCards('competitorGrid', getFilteredNews(null, 'competitor'));
+  renderCards('supplierGrid', getFilteredNews(null, 'supplier'));
+  renderCards('usMarketGrid', getFilteredNews('usMarket'));
   updateStats();
   renderMediaStats();
 }
@@ -1091,15 +1098,20 @@ function renderAll() {
 // STATS
 // ═══════════════════════════════════════════
 function updateStats() {
-  const all = state.news.filter(n => isInPeriod(n.pubDate, state.currentFilter));
-  const pos = all.filter(n => n.sentiment === 'positive').length;
-  const neg = all.filter(n => n.sentiment === 'negative').length;
-  const mediaSrc = new Set(all.map(n => n.mediaName)).size;
+  // 根據目前分頁篩選對應的新聞
+  const catMap = { transcend: 'transcend', competitor: 'competitor', supplier: 'supplier', usMarket: 'usMarket' };
+  const currentCat = catMap[state.currentTab];
+  let periodNews = state.news.filter(n => isInPeriod(n.pubDate, state.currentFilter));
+  const tabNews = currentCat ? periodNews.filter(n => n.cat === currentCat) : periodNews;
 
-  document.getElementById('statTotal').textContent = all.length;
+  const pos = tabNews.filter(n => n.sentiment === 'positive').length;
+  const neg = tabNews.filter(n => n.sentiment === 'negative').length;
+  const mediaSrc = new Set(tabNews.map(n => n.mediaName).filter(Boolean)).size;
+
+  document.getElementById('statTotal').textContent = tabNews.length;
   document.getElementById('statPos').textContent = pos;
   document.getElementById('statNeg').textContent = neg;
-  document.getElementById('statMediaCnt').textContent = all.length;
+  document.getElementById('statMediaCnt').textContent = tabNews.length;
   document.getElementById('statMediaSrc').textContent = `來自 ${mediaSrc} 個媒體`;
 
   const labels = { today:'今日', week:'本週', month:'本月', year:'本年' };
@@ -1360,17 +1372,8 @@ function switchTab(tab) {
     if (mt === 'compare') renderCompareChart();
     if (mt === 'reporter') renderReporterStats();
   }
-}
-
-function switchSubTab(st) {
-  state.currentSubTab = st;
-  document.querySelectorAll('.sub-tab').forEach(t => {
-    t.classList.remove('sub-tab-active');
-    t.classList.add('text-gray-600', 'bg-gray-100');
-  });
-  document.querySelector(`[data-st="${st}"]`).classList.add('sub-tab-active');
-  document.getElementById('competitorGrid').classList.toggle('hidden', st !== 'competitor');
-  document.getElementById('supplierGrid').classList.toggle('hidden', st !== 'supplier');
+  // 切換 tab 時更新 stats 數字
+  updateStats();
 }
 
 function setFilter(f) {
