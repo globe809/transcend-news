@@ -1,12 +1,9 @@
 name: 自動抓取新聞
 
 on:
-  # ─── 定時排程（UTC 時間，台灣 = UTC+8）───
+  # ─── 定時排程：每 30 分鐘抓一次，全天 24 小時 ───
   schedule:
-    # 台灣時間 08:00 → UTC 00:00，抓取創見 + 競品 + 供應商
-    - cron: '0 0 * * *'
-    # 台灣時間 16:00 → UTC 08:00，抓取美國市場 + 競品 + 供應商
-    - cron: '0 8 * * *'
+    - cron: '*/30 * * * *'
 
   # ─── 手動觸發（可在 GitHub Actions 頁面手動執行）───
   workflow_dispatch:
@@ -44,19 +41,14 @@ jobs:
       - name: 安裝套件
         run: pip install -r scripts/requirements.txt
 
-      # 4. 判斷抓取模式
+      # 4. 判斷抓取模式（手動可選，排程固定抓全部）
       - name: 判斷排程模式
         id: mode
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "FETCH_MODE=${{ github.event.inputs.mode }}" >> $GITHUB_ENV
           else
-            HOUR=$(date -u +"%H")
-            if [ "$HOUR" = "00" ]; then
-              echo "FETCH_MODE=morning" >> $GITHUB_ENV
-            else
-              echo "FETCH_MODE=afternoon" >> $GITHUB_ENV
-            fi
+            echo "FETCH_MODE=all" >> $GITHUB_ENV
           fi
 
       # 5. 執行新聞抓取
@@ -84,6 +76,6 @@ jobs:
         uses: EndBug/add-and-commit@v9
         with:
           add: 'status.json'
-          message: '🤖 自動更新新聞 [${{ env.FETCH_MODE }}]'
+          message: '🤖 自動更新新聞 [${{ env.FETCH_MODE }}] ${{ env.FETCH_MODE }}'
           default_author: github_actions
           push: true
