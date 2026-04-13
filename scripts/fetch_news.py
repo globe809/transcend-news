@@ -298,6 +298,49 @@ def save_to_firestore(db, articles):
     return saved
 
 
+def fetch_stock_prices(db):
+    """抓取台股行情並存入 Firebase stocks/latest"""
+    try:
+        import yfinance as yf
+    except ImportError:
+        print("⚠ yfinance 未安裝，略過股價抓取")
+        return
+
+    stocks = {
+        '2451': '創見資訊',
+        '3260': '威剛科技',
+        '6248': '廣穎電通',
+        '5483': '宜鼎國際',
+    }
+    stock_data = {}
+    print("\n📈 抓取台股行情...")
+    for code, name in stocks.items():
+        try:
+            ticker = yf.Ticker(f"{code}.TW")
+            info = ticker.fast_info
+            price = float(info.last_price) if info.last_price else 0
+            prev  = float(info.previous_close) if info.previous_close else price
+            change = price - prev
+            pct    = (change / prev * 100) if prev else 0
+            vol    = int(info.three_month_average_volume) if info.three_month_average_volume else 0
+            stock_data[code] = {
+                'name': name,
+                'price': round(price, 2),
+                'change': round(change, 2),
+                'changePct': round(pct, 2),
+                'volume': vol,
+                'updatedAt': firestore.SERVER_TIMESTAMP,
+            }
+            sign = '+' if change >= 0 else ''
+            print(f"  {code} {name}: ${price:.1f} ({sign}{pct:.2f}%)")
+        except Exception as e:
+            print(f"  ⚠ {code} {name} 失敗: {e}")
+
+    if stock_data:
+        db.collection('stocks').document('latest').set(stock_data, merge=True)
+        print(f"  ✅ 股價已存入 Firebase")
+
+
 def main():
     mode = os.environ.get('FETCH_MODE', 'all')
     print(f"\n{'='*50}")
@@ -374,6 +417,10 @@ def main():
     neg = sum(1 for a in all_articles if a['sentiment'] == 'negative')
     neu = sum(1 for a in all_articles if a['sentiment'] == 'neutral')
     print(f"\n📈 情緒分佈: 正面 {pos} / 負面 {neg} / 中立 {neu}")
+
+    # ─── 股價抓取 ───
+    fetch_stock_prices(db)
+
     print(f"\n{'='*50}")
     print("抓取完成！")
     print(f"{'='*50}\n")

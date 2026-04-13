@@ -106,6 +106,18 @@
 <!-- ─────────────── MAIN CONTENT ─────────────── -->
 <div class="max-w-7xl mx-auto px-4 py-6">
 
+  <!-- Stock Cards -->
+  <div id="stockSection" class="mb-5 hidden">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">📈 台股即時行情</span>
+      <span class="text-xs text-gray-400" id="stockUpdatedAt">資料載入中...</span>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="stockCards">
+      <!-- 由 JS 動態填入 -->
+    </div>
+    <div class="text-xs text-gray-400 mt-1.5 text-right">⏱ 延遲約 20 分鐘．資料來源：台灣證交所</div>
+  </div>
+
   <!-- Stats Cards -->
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
     <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
@@ -699,6 +711,70 @@ function initFirebase() {
   }
 }
 
+// ═══════════════════════════════════════════
+// STOCK PRICES
+// ═══════════════════════════════════════════
+const STOCK_META = {
+  '2451': { name: '創見', fullName: '創見資訊', isSelf: true },
+  '3260': { name: '威剛', fullName: '威剛科技' },
+  '6248': { name: '廣穎', fullName: '廣穎電通' },
+  '5483': { name: '宜鼎', fullName: '宜鼎國際' },
+};
+
+async function loadStockPrices() {
+  if (!state.db) return;
+  try {
+    const doc = await state.db.collection('stocks').doc('latest').get();
+    if (!doc.exists) return;
+    const data = doc.data();
+    renderStockCards(data);
+  } catch(e) {
+    console.warn('股價載入失敗:', e);
+  }
+}
+
+function renderStockCards(data) {
+  const section = document.getElementById('stockSection');
+  const container = document.getElementById('stockCards');
+  if (!data || Object.keys(data).length === 0) return;
+  section.classList.remove('hidden');
+
+  let updatedAt = '';
+  const cards = Object.entries(STOCK_META).map(([code, meta]) => {
+    const s = data[code];
+    if (!s) return '';
+    if (s.updatedAt && !updatedAt) {
+      const d = s.updatedAt.toDate ? s.updatedAt.toDate() : new Date(s.updatedAt);
+      updatedAt = d.toLocaleString('zh-TW', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    }
+    const price = (s.price || 0).toFixed(1);
+    const change = s.change || 0;
+    const changePct = s.changePct || 0;
+    const isUp = change > 0;
+    const isDown = change < 0;
+    const arrow = isUp ? '▲' : isDown ? '▼' : '─';
+    const colorStyle = isUp ? 'color:#16a34a' : isDown ? 'color:#dc2626' : 'color:#6b7280';
+    const borderStyle = meta.isSelf ? 'border-color:#960014;border-width:2px' : '';
+    return `
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4" style="${borderStyle}">
+        <div class="flex items-center justify-between mb-1">
+          <div>
+            <span class="text-xs font-bold text-gray-800">${meta.name}</span>
+            <span class="text-xs text-gray-400 ml-1">${code}</span>
+          </div>
+          ${meta.isSelf ? `<span class="text-xs px-1.5 py-0.5 rounded font-medium" style="background:#fef2f2;color:#960014">我們</span>` : ''}
+        </div>
+        <div class="text-xl font-bold text-gray-900">$${price}</div>
+        <div class="text-xs font-semibold mt-0.5" style="${colorStyle}">
+          ${arrow} ${Math.abs(change).toFixed(1)} (${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%)
+        </div>
+        <div class="text-xs text-gray-400 mt-1">成交量 ${s.volume ? (s.volume/1000).toFixed(0)+'K' : '-'}</div>
+      </div>`;
+  }).join('');
+  container.innerHTML = cards;
+  if (updatedAt) document.getElementById('stockUpdatedAt').textContent = `更新時間：${updatedAt}`;
+}
+
 async function saveToFirebase(articles) {
   if (!state.db) return;
   const batch = state.db.batch();
@@ -1020,7 +1096,6 @@ function isInPeriod(date, period) {
 function getFilteredNews(cat, brand) {
   const search = document.getElementById('searchInput').value.toLowerCase();
   const sentFilter = document.getElementById('sentFilter').value;
-  // 競品 / 供應商 Tab 只顯示含中文字的新聞（過濾掉英文舊資料）
   const chineseOnly = (brand === 'competitor' || brand === 'supplier');
   return state.news.filter(n => {
     if (cat && n.cat !== cat) return false;
@@ -1028,13 +1103,20 @@ function getFilteredNews(cat, brand) {
       if (brand === 'competitor' && n.cat !== 'competitor') return false;
       if (brand === 'supplier' && n.cat !== 'supplier') return false;
     }
+    // ① 創見 Tab：只保留含「創見」或「Transcend」或「2451」的新聞
+    if (cat === 'transcend') {
+      const t = (n.title || '') + ' ' + (n.content || '');
+      if (!/創見|Transcend|transcend|2451/.test(t)) return false;
+    }
+    // ④ 美國市場 Tab：只保留英文新聞（標題不含中文字）
+    if (cat === 'usMarket' && /[\u4e00-\u9fa5]/.test(n.title || '')) return false;
     // 競品品牌篩選
     if (brand === 'competitor' && state.competitorBrand && state.competitorBrand !== 'all') {
       const nb = (n.brand || '').toLowerCase();
       const fb = state.competitorBrand.toLowerCase();
       if (!nb.includes(fb) && !fb.includes(nb)) return false;
     }
-    // 前端中文過濾：競品和供應商 Tab 只保留含有中文字的標題
+    // 競品和供應商 Tab 只保留含有中文字的標題
     if (chineseOnly && !/[\u4e00-\u9fa5]/.test(n.title || '')) return false;
     if (!isInPeriod(n.pubDate, state.currentFilter)) return false;
     if (sentFilter !== 'all' && n.sentiment !== sentFilter) return false;
@@ -1158,10 +1240,10 @@ function renderMediaStats() {
         <div class="flex-1 min-w-0">
           <div class="text-sm font-medium text-gray-800 truncate">${name}</div>
           <div class="h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
-            <div class="h-full bg-blue-500 rounded-full" style="width:${Math.round(cnt/max*100)}%"></div>
+            <div class="h-full rounded-full" style="width:${Math.round(cnt/max*100)}%;background:#960014"></div>
           </div>
         </div>
-        <span class="text-sm font-bold text-blue-600 flex-shrink-0">${cnt}</span>
+        <span class="text-sm font-bold flex-shrink-0" style="color:#960014">${cnt}</span>
       </div>
     `).join('');
   }
@@ -1182,7 +1264,7 @@ function renderMediaChart(data) {
       datasets: [{
         label: '新聞數量',
         data: data.map(([, c]) => c),
-        backgroundColor: data.map((_, i) => `hsla(${220 - i*12}, 70%, ${55 + i*2}%, 0.85)`),
+        backgroundColor: data.map((_, i) => `hsla(${0}, ${80 - i*3}%, ${30 + i*4}%, 0.85)`),
         borderRadius: 6, borderSkipped: false
       }]
     },
@@ -1201,7 +1283,7 @@ function renderMediaChart(data) {
 // 競品媒體對比
 // ═══════════════════════════════════════════
 const COMPARE_BRANDS = [
-  { key: 'transcend', label: '創見', color: 'rgba(37,99,235,0.8)' },
+  { key: 'transcend', label: '創見', color: 'rgba(150,0,20,0.85)' },
   { key: 'ADATA',     label: 'ADATA', color: 'rgba(16,185,129,0.8)' },
   { key: 'Kingston',  label: 'Kingston', color: 'rgba(245,158,11,0.8)' },
   { key: 'Innodisk',  label: 'Innodisk', color: 'rgba(239,68,68,0.8)' },
@@ -1386,10 +1468,10 @@ function switchTab(tab) {
   document.getElementById('tab-' + tab).classList.remove('hidden');
   if (tab === 'media') {
     const mt = state.currentMediaTab || 'exposure';
+    renderMediaStats(); // 切換到媒體 tab 時一律重繪
     if (mt === 'compare') renderCompareChart();
     if (mt === 'reporter') renderReporterStats();
   }
-  // 切換 tab 時更新 stats 數字
   updateStats();
 }
 
@@ -1669,6 +1751,9 @@ async function init() {
   initFirebase();
 
   if (state.db) {
+    // 並行載入股價
+    loadStockPrices();
+
     showStatus('從 Firebase 載入新聞資料...');
     try {
       const fbNews = await loadFromFirebase(7);
