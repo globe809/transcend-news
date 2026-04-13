@@ -299,46 +299,63 @@ def save_to_firestore(db, articles):
 
 
 def fetch_stock_prices(db):
-    """抓取台股行情並存入 Firebase stocks/latest"""
+    """抓取台股行情（使用台灣證交所官方 API）並存入 Firebase stocks/latest"""
+    # tse = 上市（TWSE），otc = 上櫃（TPEx）
+    STOCKS = {
+        '2451': ('創見資訊', 'tse'),
+        '3260': ('威剛科技', 'tse'),
+        '6248': ('廣穎電通', 'tse'),
+        '5483': ('宜鼎國際', 'tse'),
+    }
+    print("\n📈 抓取台股行情（台灣證交所）...")
+    ex_ch = '|'.join(f"{ex}_{code}.tw" for code, (_, ex) in STOCKS.items())
+    url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={ex_ch}&json=1&delay=0"
     try:
-        import yfinance as yf
-    except ImportError:
-        print("⚠ yfinance 未安裝，略過股價抓取")
+        r = requests.get(url, headers={
+            'Referer': 'https://mis.twse.com.tw/',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }, timeout=15)
+        items = r.json().get('msgArray', [])
+    except Exception as e:
+        print(f"  ⚠ TWSE API 失敗: {e}")
         return
 
-    stocks = {
-        '2451': '創見資訊',
-        '3260': '威剛科技',
-        '6248': '廣穎電通',
-        '5483': '宜鼎國際',
-    }
     stock_data = {}
-    print("\n📈 抓取台股行情...")
-    for code, name in stocks.items():
+    for item in items:
+        code = item.get('c', '')
+        if code not in STOCKS:
+            continue
+        name = STOCKS[code][0]
+        # z = 當前成交價（非交易時間為 '-'），y = 昨日收盤
+        z_raw = item.get('z', '-')
+        y_raw = item.get('y', '0')
         try:
-            ticker = yf.Ticker(f"{code}.TW")
-            info = ticker.fast_info
-            price = float(info.last_price) if info.last_price else 0
-            prev  = float(info.previous_close) if info.previous_close else price
-            change = price - prev
-            pct    = (change / prev * 100) if prev else 0
-            vol    = int(info.three_month_average_volume) if info.three_month_average_volume else 0
-            stock_data[code] = {
-                'name': name,
-                'price': round(price, 2),
-                'change': round(change, 2),
-                'changePct': round(pct, 2),
-                'volume': vol,
-                'updatedAt': firestore.SERVER_TIMESTAMP,
-            }
-            sign = '+' if change >= 0 else ''
-            print(f"  {code} {name}: ${price:.1f} ({sign}{pct:.2f}%)")
-        except Exception as e:
-            print(f"  ⚠ {code} {name} 失敗: {e}")
+            y = float(y_raw) if y_raw and y_raw != '-' else 0
+            price = float(z_raw) if z_raw and z_raw != '-' else y
+        except (ValueError, TypeError):
+            price, y = 0, 0
+        change = round(price - y, 2) if y else 0
+        pct = round(change / y * 100, 2) if y else 0
+        try:
+            vol = int(str(item.get('v', '0')).replace(',', '') or 0) * 1000
+        except (ValueError, TypeError):
+            vol = 0
+        stock_data[code] = {
+            'name': name,
+            'price': round(price, 2),
+            'change': change,
+            'changePct': pct,
+            'volume': vol,
+            'updatedAt': firestore.SERVER_TIMESTAMP,
+        }
+        sign = '+' if change >= 0 else ''
+        print(f"  {code} {name}: ${price:.1f} ({sign}{pct:.2f}%)")
 
     if stock_data:
         db.collection('stocks').document('latest').set(stock_data, merge=True)
-        print(f"  ✅ 股價已存入 Firebase")
+        print(f"  ✅ 股價已存入 Firebase ({len(stock_data)} 檔)")
+    else:
+        print("  ⚠ 未取得任何股價（可能為非交易時間，下次交易時段後會自動更新）")
 
 
 def main():
