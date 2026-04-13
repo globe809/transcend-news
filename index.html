@@ -10,12 +10,14 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
 <style>
   body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+  :root { --brand: #960014; --brand-dark: #6b000e; --brand-light: #fef2f2; }
   .news-card { transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }
-  .news-card:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.12); border-color: #93c5fd; }
-  .tab-active { border-bottom: 3px solid #1d4ed8 !important; color: #1d4ed8 !important; font-weight: 600; }
-  .filter-active { background: #1d4ed8 !important; color: white !important; }
-  .sub-tab-active { background: #1d4ed8 !important; color: white !important; }
-  .media-sub-active { background: #1d4ed8 !important; color: white !important; }
+  .news-card:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(150,0,20,0.12); border-color: #fca5a5; }
+  .tab-active { border-bottom: 3px solid #960014 !important; color: #960014 !important; font-weight: 600; }
+  .filter-active { background: #960014 !important; color: white !important; }
+  .sub-tab-active { background: #960014 !important; color: white !important; }
+  .media-sub-active { background: #960014 !important; color: white !important; }
+  .brand-filter-active { background: #960014 !important; color: white !important; }
   @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
   .fade-in { animation: fadeSlideIn 0.35s ease-out; }
   .modal-backdrop { backdrop-filter: blur(6px); background: rgba(0,0,0,0.55); }
@@ -29,7 +31,7 @@
   .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
   .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-  .gradient-header { background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #2563eb 100%); }
+  .gradient-header { background: linear-gradient(135deg, #6b000e 0%, #960014 60%, #b5001a 100%); }
   .glow-green { box-shadow: 0 0 0 3px rgba(34,197,94,0.25); }
   .glow-red { box-shadow: 0 0 0 3px rgba(239,68,68,0.25); }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -49,15 +51,21 @@
     <div class="flex items-center justify-between">
       <!-- Logo -->
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 bg-white bg-opacity-20 rounded-xl flex items-center justify-center text-xl font-bold border border-white border-opacity-30 backdrop-blur-sm">創</div>
-        <div>
-          <h1 class="text-lg font-bold leading-tight">創見資訊 新聞監控系統</h1>
-          <p class="text-xs text-blue-200 leading-tight">Transcend Information News Intelligence</p>
+        <div class="h-8 flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 202 38" height="32" style="display:block">
+            <defs><style>.st0{fill:#fff;fill-rule:evenodd}</style></defs>
+            <path class="st0" d="M64,8.3h-15.3c0,.1-.7,4.2-.7,4.2h5.5s-3.6,17.1-3.6,17.1h4.3s3.6-17.2,3.6-17.2h5.3s.9-4.2.9-4.2ZM76.3,12s-5.2-3.3-8.3,4.8l.9-4.9h-3.7s-3.5,17.7-3.5,17.7h3.8s2.2-9.5,2.2-9.5c0,0,2-6.1,7.3-3.7,0,0,1.3-4.5,1.3-4.5ZM80.7,27c-1,0-1.8-.6-1.8-1.7,0-1,1.1-2,2.2-2.6,1.1-.6,4.7-1.8,4.7-1.8,0,4.3-4.1,6-5.1,6.1M85.5,10.9s-4.8.4-7.7,3.1l-.5,4.2s3-3.3,6.1-3.3c3,0,5,2.7.1,4.3-4.9,1.6-8.9,2.5-8.8,7.4,0,4.9,7.5,4.5,10-.2l-.4,3h3.7s2.6-12.7,2.6-12.7c0,0,1.5-5.8-5-5.8M104.8,10.8c-5.2,0-7.4,5.8-7.4,5.8l1-5h-4s-3.3,17.9-3.3,17.9h4s2.2-10.6,2.2-10.6c0,0,1.1-3.8,4.5-3.8,3.4,0,2.4,3.4,2.3,4.5-.2,1.1-2.1,9.7-2.1,9.7h4.2s2.6-13.4,2.6-13.4c0,0,1.2-5.2-3.9-5.1M118.1,10.8c-3.8,0-7.4,3.3-7.3,7,0,3.7,4.2,4.2,4.8,4.4.7.2,2,.6,2.1,2,0,1.4-3.5,4.8-8-.3l-.6,4.1s1.6,1.9,4.7,1.9c3.2,0,7.7-2.5,7.6-6.6,0-4.2-5.1-4.3-6.4-5.4-1.3-1.1.5-3.3,2.8-3.3,2.2,0,4.2,2.4,4.2,2.4l.9-4s-.9-2.1-4.7-2.1M132.6,10.6c-3.9,0-9.9,4.2-9.9,11.7,0,7.6,7.4,10.4,12.5,4.2l.3-3.1s-2.3,3.2-5.6,3.2c-3.3,0-3.6-3.9-3.5-5.3.2-1.3,1.3-6.6,5.7-6.6,4.3,0,4.8,2.9,4.8,2.9l.9-4.4s-1.4-2.7-5.3-2.6M150.7,18.5h-8.7c0,0,1.3-3.9,5.3-4,4.1,0,3.4,4,3.4,4M147.5,10.6c-4.8,0-10,5.7-10,12.2,0,6.5,7.5,9.9,13.6,3.7l.3-3s-1.6,3.1-6.2,3.1c-4.5,0-4-4.8-4-4.8h11.2c0,0,1.3-3.9.9-6.2-.4-2.3-1.1-5.1-5.9-5M167.6,10.9c-5.2,0-7.4,5.8-7.4,5.8l1-5h-4s-3.3,17.9-3.3,17.9h4s2.2-10.6,2.2-10.6c0,0,1.1-3.8,4.5-3.8,3.4,0,2.4,3.4,2.2,4.5-.2,1.1-2,9.7-2,9.7h4.2s2.6-13.4,2.6-13.4c0,0,1.2-5.2-3.9-5.2M185.4,18.5c0,5.1-3.7,7.9-5.5,7.9-1.8,0-3.2-1.5-3.2-3.9,0-2.4,1.7-7.3,5.4-7.3,3.7,0,3.3,3.4,3.3,3.4ZM187.8,7.3l-1.7,8.1s-.2-4.5-4.6-4.5c-4.4,0-8.9,5.8-8.8,12.1,0,6.2,6.3,10.8,11.6,2.5l-.9,3.9h3.9s4.5-22.1,4.5-22.1c0,0-4,0-4,0ZM197.2,10.8h.3c.5,0,.8,0,.9,0s.2,0,.3-.2c0,0,.1-.2,0-.3,0-.1,0-.2,0-.3,0,0-.2-.2-.3-.2-.1,0-.4,0-.9,0h-.3v1.1h0ZM196.4,13v-3.9h.8c.8,0,1.2,0,1.3,0,.3,0,.5,0,.6.2.1,0,.3.2.4.4,0,.2.1.4.1.6s0,.5-.3.7c-.2.2-.4.3-.8.4.1,0,.2,0,.3.1.1,0,.2.2.3.3,0,0,.1.2.3.5l.5.8h-1l-.3-.6c-.2-.4-.4-.7-.5-.8-.1-.1-.3-.2-.6-.2h-.2v1.6h-.8ZM198.1,8c-.5,0-1,.1-1.5.4-.5.3-.8.6-1.1,1.1-.3.5-.4,1-.4,1.5s.1,1,.4,1.5c.3.5.6.8,1.1,1.1.9.5,2.1.5,3,0,.5-.3.8-.6,1.1-1.1.3-.5.4-1,.4-1.5s-.1-1-.4-1.5c-.3-.5-.6-.8-1.1-1.1-.5-.2-1-.4-1.5-.4h0ZM198.1,7.3c.6,0,1.2.2,1.8.5.6.3,1.1.8,1.4,1.4.3.6.5,1.2.5,1.9,0,.6-.2,1.3-.5,1.9-.3.6-.8,1.1-1.4,1.4-.6.3-1.2.5-1.9.5-.7,0-1.3-.2-1.9-.5-.6-.3-1.1-.8-1.4-1.4-.3-.6-.5-1.2-.5-1.9,0-.7.2-1.3.5-1.9.3-.6.8-1.1,1.4-1.4.6-.3,1.2-.5,1.8-.5h0ZM39.4,9.8c0-.2-.2-.5-.3-.7C35.1.3,23.3-2.6,12.9,2.6,6.9,5.7,2.7,10.7.9,16.1h15.3l-3,15.1h7.8l3-15.1h5.1l1.6-7.4H9.4C14.5,3,22,.1,28.3,2.2c3.8,1.2,6.4,4.1,7.6,7.6,0,0,3.5,0,3.5,0Z"/>
+            <path class="st0" d="M32.6,12.4l-1.6,7.4h5c-.3,1.2-.8,2.4-1.4,3.6-4.4,9.1-14.4,14.3-22.4,11.7-6.5-2.2-9.6-9-8-16.4H.3c-.6,3.2-.2,6.5,1.1,9.5,4.1,8.9,15.8,11.8,26.2,6.5,9.2-4.6,14.3-14.1,12.6-22.3,0,0-7.6,0-7.6,0Z"/>
+          </svg>
+        </div>
+        <div class="border-l border-white border-opacity-30 pl-3 ml-1">
+          <h1 class="text-sm font-bold leading-tight">新聞監控系統</h1>
+          <p class="text-xs text-red-200 leading-tight">News Intelligence Platform</p>
         </div>
       </div>
       <!-- Action Buttons -->
       <div class="flex items-center gap-2">
-        <div id="lastFetchBadge" class="hidden text-xs text-blue-200 mr-2">
+        <div id="lastFetchBadge" class="hidden text-xs text-red-200 mr-2">
           上次更新: <span id="lastFetchTime" class="text-white font-medium">-</span>
         </div>
         <button onclick="reloadFromFirebase()" id="fetchBtn"
@@ -88,7 +96,7 @@
 </header>
 
 <!-- Status Bar -->
-<div id="statusBar" class="hidden bg-blue-600 text-white px-4 py-2 text-sm">
+<div id="statusBar" class="hidden text-white px-4 py-2 text-sm" style="background:#960014">
   <div class="max-w-7xl mx-auto flex items-center gap-2">
     <span class="pulse-dot w-2 h-2 bg-white rounded-full inline-block"></span>
     <span id="statusMsg">正在抓取新聞...</span>
@@ -106,7 +114,7 @@
         <span class="text-2xl">📰</span>
       </div>
       <div class="text-sm text-gray-500">篩選範圍新聞</div>
-      <div class="text-xs text-blue-600 mt-1" id="statPeriod">今日</div>
+      <div class="text-xs mt-1" style="color:#960014" id="statPeriod">今日</div>
     </div>
     <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
       <div class="flex items-center justify-between mb-1">
@@ -139,19 +147,19 @@
 
     <!-- Main Tabs -->
     <div class="flex border-b border-gray-100 bg-gray-50">
-      <button onclick="switchTab('transcend')" class="main-tab tab-active px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="transcend">
+      <button onclick="switchTab('transcend')" class="main-tab tab-active px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-red-700 transition-colors" data-tab="transcend">
         🏢 創見資訊
       </button>
-      <button onclick="switchTab('competitor')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="competitor">
+      <button onclick="switchTab('competitor')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-red-700 transition-colors" data-tab="competitor">
         🥊 競品
       </button>
-      <button onclick="switchTab('supplier')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="supplier">
+      <button onclick="switchTab('supplier')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-red-700 transition-colors" data-tab="supplier">
         🏭 供應商
       </button>
-      <button onclick="switchTab('usMarket')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="usMarket">
+      <button onclick="switchTab('usMarket')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-red-700 transition-colors" data-tab="usMarket">
         🇺🇸 美國市場
       </button>
-      <button onclick="switchTab('media')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-blue-600 transition-colors" data-tab="media">
+      <button onclick="switchTab('media')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-red-700 transition-colors" data-tab="media">
         📊 媒體曝光統計
       </button>
     </div>
@@ -165,9 +173,9 @@
       <button onclick="setFilter('year')" class="time-filter px-3 py-1 rounded-full text-xs font-medium text-gray-500 hover:bg-gray-200 transition-all" data-f="year">本年</button>
       <div class="ml-auto flex items-center gap-2">
         <input type="text" id="searchInput" placeholder="🔍 搜尋關鍵字..."
-          class="text-xs border border-gray-200 rounded-lg px-3 py-1.5 w-40 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+          class="text-xs border border-gray-200 rounded-lg px-3 py-1.5 w-40 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent"
           oninput="renderAll()">
-        <select id="sentFilter" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400" onchange="renderAll()">
+        <select id="sentFilter" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-400" onchange="renderAll()">
           <option value="all">全部情緒</option>
           <option value="positive">🟢 正面</option>
           <option value="negative">🔴 負面</option>
@@ -185,11 +193,11 @@
           <div class="col-span-3 text-center py-16 text-gray-400">
             <div class="text-5xl mb-4">📰</div>
             <div class="text-lg font-semibold text-gray-500">點擊「抓取新聞」開始監控</div>
-            <div class="text-sm mt-2 text-gray-400">或等待每日 08:00（台灣時間）自動更新</div>
+            <div class="text-sm mt-2 text-gray-400">每 30 分鐘自動更新，或點擊「重新整理」立即載入</div>
             <div class="flex flex-wrap justify-center gap-2 mt-4">
-              <span class="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full">創見資訊</span>
-              <span class="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full">Transcend</span>
-              <span class="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full">2451</span>
+              <span class="text-xs px-3 py-1 rounded-full" style="background:#fef2f2;color:#960014">創見資訊</span>
+              <span class="text-xs px-3 py-1 rounded-full" style="background:#fef2f2;color:#960014">Transcend</span>
+              <span class="text-xs px-3 py-1 rounded-full" style="background:#fef2f2;color:#960014">2451</span>
             </div>
           </div>
         </div>
@@ -197,6 +205,17 @@
 
       <!-- Competitor Tab -->
       <div id="tab-competitor" class="tab-panel hidden">
+        <!-- 品牌篩選列 -->
+        <div class="flex flex-wrap gap-2 mb-4">
+          <button onclick="switchCompetitorBrand('all')" class="comp-brand-btn brand-filter-active px-3 py-1.5 rounded-full text-xs font-medium transition-all" data-brand="all">全部</button>
+          <button onclick="switchCompetitorBrand('ADATA')" class="comp-brand-btn px-3 py-1.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-brand="ADATA">威剛 ADATA</button>
+          <button onclick="switchCompetitorBrand('Innodisk')" class="comp-brand-btn px-3 py-1.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-brand="Innodisk">宜鼎 Innodisk</button>
+          <button onclick="switchCompetitorBrand('Apacer')" class="comp-brand-btn px-3 py-1.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-brand="Apacer">宇瞻 Apacer</button>
+          <button onclick="switchCompetitorBrand('Silicon Power')" class="comp-brand-btn px-3 py-1.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-brand="Silicon Power">廣穎 Silicon Power</button>
+          <button onclick="switchCompetitorBrand('Kingston')" class="comp-brand-btn px-3 py-1.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-brand="Kingston">金士頓 Kingston</button>
+          <button onclick="switchCompetitorBrand('Lexar')" class="comp-brand-btn px-3 py-1.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-brand="Lexar">雷克沙 Lexar</button>
+          <button onclick="switchCompetitorBrand('PNY')" class="comp-brand-btn px-3 py-1.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-brand="PNY">必恩威 PNY</button>
+        </div>
         <div id="competitorGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <div class="col-span-3 text-center py-12 text-gray-400">
             <div class="text-5xl mb-3">🥊</div>
@@ -223,7 +242,7 @@
           <div class="col-span-3 text-center py-16 text-gray-400">
             <div class="text-5xl mb-4">🌐</div>
             <div class="text-lg font-semibold text-gray-500">美國 DRAM / Flash 市場動態</div>
-            <div class="text-sm mt-2 text-gray-400">每日台灣時間 16:00 自動更新</div>
+            <div class="text-sm mt-2 text-gray-400">每 30 分鐘自動更新</div>
             <div class="flex flex-wrap justify-center gap-2 mt-4">
               <span class="text-xs bg-orange-50 text-orange-600 px-3 py-1 rounded-full">DRAM</span>
               <span class="text-xs bg-orange-50 text-orange-600 px-3 py-1 rounded-full">NAND Flash</span>
@@ -296,23 +315,13 @@
   </div>
 
   <!-- Schedule Info -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-      <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">🌅</div>
-      <div class="flex-1">
-        <div class="font-semibold text-gray-800">每日 08:00（台灣時間）</div>
-        <div class="text-xs text-gray-500 mt-0.5">自動抓取 創見資訊 / Transcend / 2451 新聞</div>
-      </div>
-      <div id="morningStatus"><span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full">待機中</span></div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4 mb-6">
+    <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0" style="background:#fef2f2">⏱️</div>
+    <div class="flex-1">
+      <div class="font-semibold text-gray-800">每 30 分鐘自動更新</div>
+      <div class="text-xs text-gray-500 mt-0.5">全天候自動抓取創見資訊、競品、供應商、美國市場新聞，無需手動觸發</div>
     </div>
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-      <div class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">🌆</div>
-      <div class="flex-1">
-        <div class="font-semibold text-gray-800">每日 16:00（台灣時間）</div>
-        <div class="text-xs text-gray-500 mt-0.5">自動抓取美國 DRAM / NAND Flash 市場新聞</div>
-      </div>
-      <div id="afternoonStatus"><span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full">待機中</span></div>
-    </div>
+    <span id="scheduleStatus" class="text-xs px-3 py-1.5 rounded-full font-medium" style="background:#fef2f2;color:#960014">🔄 運作中</span>
   </div>
 
   <!-- Firebase Info Banner -->
@@ -599,6 +608,7 @@ let state = {
   settings: { claudeKey: '', claudeModel: 'claude-sonnet-4-6', fbKey: '', fbProjectId: '', fbAuthDomain: '', fbBucket: '', fbSenderId: '', fbAppId: '', rssKey: '' },
   currentTab: 'transcend',
   currentFilter: 'today',
+  competitorBrand: 'all',
   db: null,
   chart: null,
   isFetching: false
@@ -710,7 +720,7 @@ async function loadFromFirebase(days = 1) {
   const snap = await state.db.collection('news')
     .where('pubDate', '>=', firebase.firestore.Timestamp.fromDate(since))
     .orderBy('pubDate', 'desc')
-    .limit(500)
+    .limit(2000)
     .get();
   const raw = snap.docs.map(d => {
     const data = d.data();
@@ -1015,9 +1025,14 @@ function getFilteredNews(cat, brand) {
   return state.news.filter(n => {
     if (cat && n.cat !== cat) return false;
     if (brand) {
-      // If we're in competitor or supplier sub-tabs, check cat
       if (brand === 'competitor' && n.cat !== 'competitor') return false;
       if (brand === 'supplier' && n.cat !== 'supplier') return false;
+    }
+    // 競品品牌篩選
+    if (brand === 'competitor' && state.competitorBrand && state.competitorBrand !== 'all') {
+      const nb = (n.brand || '').toLowerCase();
+      const fb = state.competitorBrand.toLowerCase();
+      if (!nb.includes(fb) && !fb.includes(nb)) return false;
     }
     // 前端中文過濾：競品和供應商 Tab 只保留含有中文字的標題
     if (chineseOnly && !/[\u4e00-\u9fa5]/.test(n.title || '')) return false;
@@ -1376,6 +1391,22 @@ function switchTab(tab) {
   }
   // 切換 tab 時更新 stats 數字
   updateStats();
+}
+
+function switchCompetitorBrand(brand) {
+  state.competitorBrand = brand;
+  document.querySelectorAll('.comp-brand-btn').forEach(b => {
+    b.classList.remove('brand-filter-active');
+    b.classList.add('bg-gray-100', 'text-gray-600');
+    b.style.background = '';
+    b.style.color = '';
+  });
+  const active = document.querySelector(`.comp-brand-btn[data-brand="${brand}"]`);
+  if (active) {
+    active.classList.remove('bg-gray-100', 'text-gray-600');
+    active.classList.add('brand-filter-active');
+  }
+  renderCards('competitorGrid', getFilteredNews(null, 'competitor'));
 }
 
 function setFilter(f) {
