@@ -364,27 +364,21 @@
         </button>
       </div>
 
-      <!-- Claude API -->
-      <div class="mb-6 p-4 bg-purple-50 rounded-xl border border-purple-100">
-        <h3 class="text-sm font-bold text-purple-800 mb-3 flex items-center gap-2">
-          <span class="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold">AI</span>
-          Claude API 設定
+      <!-- Gemini API -->
+      <div class="mb-6 p-4 rounded-xl border" style="background:#f0fdf4;border-color:#bbf7d0">
+        <h3 class="text-sm font-bold mb-3 flex items-center gap-2" style="color:#166534">
+          <span class="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:#16a34a">AI</span>
+          Gemini AI（已啟用）
         </h3>
         <div class="space-y-3">
           <div>
-            <label class="text-xs font-medium text-gray-600 block mb-1">Anthropic API Key <span class="text-red-500">*</span></label>
-            <input type="password" id="s_claudeKey" placeholder="sk-ant-api03-..."
-              class="w-full border border-purple-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white">
-            <p class="text-xs text-gray-400 mt-1">前往 <a href="https://console.anthropic.com" target="_blank" class="text-purple-600 underline">console.anthropic.com</a> 取得 API Key</p>
+            <p class="text-xs" style="color:#166534">✅ Gemini 1.5 Flash 已連線，AI 摘要與公關口徑功能可正常使用。</p>
+            <p class="text-xs text-gray-400 mt-1">如需更換 Key，請直接修改 index.html 中的 <code>GEMINI_API_KEY</code> 變數。</p>
           </div>
           <div>
             <label class="text-xs font-medium text-gray-600 block mb-1">Claude 模型</label>
             <select id="s_claudeModel" class="w-full border border-purple-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white">
               <option value="claude-opus-4-6">Claude Opus 4.6（最強，速度慢）</option>
-              <option value="claude-sonnet-4-6" selected>Claude Sonnet 4.6（推薦）</option>
-              <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5（最快）</option>
-            </select>
-          </div>
         </div>
       </div>
 
@@ -1507,22 +1501,18 @@ function setFilter(f) {
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
 // ═══════════════════════════════════════════
-// CLAUDE API
+// GEMINI API
 // ═══════════════════════════════════════════
-async function callClaude(prompt) {
-  if (!state.settings.claudeKey) throw new Error('請先在設定中填入 Claude API Key');
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+const GEMINI_API_KEY = 'AIzaSyCNxSWC57_SBwvf1JqA-ITw83Eo9IUCLQY';
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+async function callGemini(prompt) {
+  const res = await fetch(GEMINI_URL, {
     method: 'POST',
-    headers: {
-      'x-api-key': state.settings.claudeKey,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: state.settings.claudeModel || 'claude-sonnet-4-6',
-      max_tokens: 2048,
-      messages: [{ role: 'user', content: prompt }]
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 2048, temperature: 0.7 }
     })
   });
   if (!res.ok) {
@@ -1530,7 +1520,7 @@ async function callClaude(prompt) {
     throw new Error(err.error?.message || `HTTP ${res.status}`);
   }
   const data = await res.json();
-  return data.content?.[0]?.text || '';
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
 // ═══════════════════════════════════════════
@@ -1539,7 +1529,7 @@ async function callClaude(prompt) {
 async function openAISummary() {
   document.getElementById('aiSummaryModal').classList.remove('hidden');
   const el = document.getElementById('aiSummaryContent');
-  el.innerHTML = `<div class="text-center py-10"><div class="spin text-4xl inline-block mb-3">⚙️</div><div class="text-gray-500 mt-2">Claude 正在分析新聞中...</div></div>`;
+  el.innerHTML = `<div class="text-center py-10"><div class="spin text-4xl inline-block mb-3">✨</div><div class="text-gray-500 mt-2">Gemini AI 正在分析新聞中...</div></div>`;
 
   try {
     const filtered = state.news.filter(n => isInPeriod(n.pubDate, state.currentFilter));
@@ -1564,13 +1554,12 @@ async function openAISummary() {
 以下是最新新聞列表：
 ${topNews}`;
 
-    const result = await callClaude(prompt);
+    const result = await callGemini(prompt);
     el.innerHTML = formatAIResponse(result);
   } catch(e) {
     el.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
       <div class="font-semibold mb-1">❌ 無法取得 AI 分析</div>
       <div class="text-sm">${e.message}</div>
-      ${!state.settings.claudeKey ? '<div class="mt-2 text-sm"><a href="#" onclick="openSettings()" class="underline text-red-600">請先在設定中填入 Claude API Key</a></div>' : ''}
     </div>`;
   }
 }
@@ -1581,7 +1570,7 @@ ${topNews}`;
 async function openPRAdvice() {
   document.getElementById('prAdviceModal').classList.remove('hidden');
   const el = document.getElementById('prAdviceContent');
-  el.innerHTML = `<div class="text-center py-10"><div class="spin text-4xl inline-block mb-3">📢</div><div class="text-gray-500 mt-2">Claude 正在生成公關口徑建議...</div></div>`;
+  el.innerHTML = `<div class="text-center py-10"><div class="spin text-4xl inline-block mb-3">📢</div><div class="text-gray-500 mt-2">Gemini AI 正在生成公關口徑建議...</div></div>`;
 
   try {
     const filtered = state.news.filter(n => isInPeriod(n.pubDate, state.currentFilter));
@@ -1631,13 +1620,12 @@ ${marketNews.length ? formatList(marketNews) : '（無）'}
 【競品與供應商動態】
 ${compNews.length ? formatList(compNews) : '（無）'}`;
 
-    const result = await callClaude(prompt);
+    const result = await callGemini(prompt);
     el.innerHTML = formatAIResponse(result);
   } catch(e) {
     el.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
       <div class="font-semibold mb-1">❌ 無法取得 AI 分析</div>
       <div class="text-sm">${e.message}</div>
-      ${!state.settings.claudeKey ? '<div class="mt-2 text-sm"><a href="#" onclick="openSettings()" class="underline text-red-600">請先在設定中填入 Claude API Key</a></div>' : ''}
     </div>`;
   }
 }
@@ -1781,8 +1769,8 @@ async function init() {
   setInterval(checkSchedule, 60 * 1000); // Check every minute
 
   // 首次使用提示
-  if (!state.settings.claudeKey) {
-    setTimeout(() => showToast('💡 請點右上角 ⚙️ 設定，填入 Claude API Key 與 Firebase 設定', 'info'), 1500);
+  if (false) {
+    setTimeout(() => showToast('', 'info'), 1500);
   }
 
   // 讀取 status.json（GitHub Actions 執行狀態）
