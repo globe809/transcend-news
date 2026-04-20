@@ -50,17 +50,18 @@ const { useState, useEffect, useMemo, useCallback } = React;
 
 // ── Recharts 防禦性載入（CDN 失敗時不讓整個 App crash）──
 const RC = window.Recharts || {};
-const BarChart = RC.BarChart || (() => null);
-const Bar = RC.Bar || (() => null);
-const PieChart = RC.PieChart || (() => null);
-const Pie = RC.Pie || (() => null);
-const Cell = RC.Cell || (() => null);
-const LineChart = RC.LineChart || (() => null);
-const Line = RC.Line || (() => null);
-const XAxis = RC.XAxis || (() => null);
-const YAxis = RC.YAxis || (() => null);
-const Tooltip = RC.Tooltip || (() => null);
-const Legend = RC.Legend || (() => null);
+const BarChart      = RC.BarChart      || (() => null);
+const Bar           = RC.Bar           || (() => null);
+const ComposedChart = RC.ComposedChart || (() => null);
+const PieChart      = RC.PieChart      || (() => null);
+const Pie           = RC.Pie           || (() => null);
+const Cell          = RC.Cell          || (() => null);
+const LineChart     = RC.LineChart     || (() => null);
+const Line          = RC.Line          || (() => null);
+const XAxis         = RC.XAxis         || (() => null);
+const YAxis         = RC.YAxis         || (() => null);
+const Tooltip       = RC.Tooltip       || (() => null);
+const Legend        = RC.Legend        || (() => null);
 const ResponsiveContainer = RC.ResponsiveContainer || (({ children }) => <div style={{width:'100%',height:220}}>{children}</div>);
 const CartesianGrid = RC.CartesianGrid || (() => null);
 
@@ -97,6 +98,22 @@ const FIREBASE_CONFIG = {
 const GEMINI_API_KEY = 'AIzaSyCNxSWC57_SBwvf1JqA-ITw83Eo9IUCLQY';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 const BRAND = '#960014';
+
+// ── PR 重點媒體監控清單 ──
+const KEY_MEDIA = [
+  { name:'電子時報',       en:'Digitimes'         },
+  { name:'科技新報',       en:'TechNews'          },
+  { name:'經濟日報',       en:'Economic Daily'    },
+  { name:'工商時報',       en:'Commercial Times'  },
+  { name:'中央社',         en:'CNA'               },
+  { name:'iThome',         en:'iThome'            },
+  { name:'鉅亨網',         en:'Anue/CNyes'        },
+  { name:'MoneyDJ',        en:'MoneyDJ'           },
+  { name:'自由時報',       en:'Liberty Times'     },
+  { name:'ETtoday財經雲',  en:'ETtoday Finance'   },
+  { name:'聯合報',         en:'UDN'               },
+  { name:'中時新聞網',     en:'China Times'       },
+];
 
 // ═══════════════════════════════════════════════════════════
 // MEDIA DOMAIN MAP
@@ -343,7 +360,79 @@ function PRStatsPanel({ articles }) {
           <div className="h-40 flex items-center justify-center text-gray-600 text-sm">資料載入中…</div>
         )}
       </Card>
+
+      {/* 重點媒體曝光分析 */}
+      <KeyMediaPanel articles={articles} />
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// PR TAB — 重點媒體曝光分析
+// ═══════════════════════════════════════════════════════════
+function KeyMediaPanel({ articles }) {
+  const now        = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const yearStart  = new Date(now.getFullYear(), 0, 1);
+  const getD = n => n.pubDate?.toDate ? n.pubDate.toDate() : new Date(n.pubDate || 0);
+
+  const stats = useMemo(() => {
+    const yearArticles  = articles.filter(n => getD(n) >= yearStart);
+    const monthArticles = articles.filter(n => getD(n) >= monthStart);
+    const total  = yearArticles.length  || 1;
+    const mTotal = monthArticles.length || 1;
+
+    return KEY_MEDIA.map(km => {
+      const yearCount  = yearArticles.filter(n =>
+        (n.mediaName || n.sourceName || '').includes(km.name)).length;
+      const monthCount = monthArticles.filter(n =>
+        (n.mediaName || n.sourceName || '').includes(km.name)).length;
+      return {
+        ...km,
+        yearCount,
+        monthCount,
+        yearPct:  Math.round(yearCount  / total  * 100),
+        monthPct: Math.round(monthCount / mTotal * 100),
+      };
+    }).sort((a, b) => b.yearCount - a.yearCount);
+  }, [articles]);
+
+  const maxYear = Math.max(...stats.map(s => s.yearCount), 1);
+
+  return (
+    <Card title="重點媒體曝光監控" icon="🎯">
+      <div className="flex items-center gap-4 mb-3 text-xs text-gray-500">
+        <span>本年累計曝光篇數（各媒體佔比）</span>
+        <span className="ml-auto">本月</span>
+        <span className="w-12 text-right">本年</span>
+      </div>
+      <div className="space-y-2.5">
+        {stats.map((s, i) => (
+          <div key={s.name} className="group">
+            <div className="flex items-center gap-2 mb-1">
+              {/* rank */}
+              <span className="text-xs w-4 tabular-nums text-gray-600">{i+1}</span>
+              {/* name */}
+              <span className="text-xs text-gray-300 w-28 shrink-0">{s.name}</span>
+              <span className="text-xs text-gray-600 hidden sm:inline">{s.en}</span>
+              {/* bar */}
+              <div className="flex-1 h-2 rounded-full bg-gray-800 overflow-hidden">
+                <div className="h-full rounded-full transition-all"
+                  style={{ width:`${Math.round(s.yearCount/maxYear*100)}%`, background: i===0?'#ef4444':BRAND }} />
+              </div>
+              {/* counts */}
+              <span className={`text-xs tabular-nums w-8 text-right font-semibold ${s.monthCount>0?'text-yellow-400':'text-gray-600'}`}>
+                {s.monthCount}
+              </span>
+              <span className={`text-xs tabular-nums w-8 text-right font-bold ${s.yearCount>0?'text-white':'text-gray-600'}`}>
+                {s.yearCount}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-gray-700 mt-3 text-right">本月 / 本年各媒體篇數</p>
+    </Card>
   );
 }
 
@@ -539,6 +628,85 @@ function CommunityMonitor({ community }) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// IR TAB — 月營收圖表
+// ═══════════════════════════════════════════════════════════
+function RevenueChart({ revenue }) {
+  // revenue: array of { year, month, revenue(千元), prevYr, yoyPct, label }
+  const data = useMemo(() => {
+    if (!revenue || !revenue.length) return [];
+    return revenue.slice(-24).map(r => ({
+      label:   `${String(r.year).slice(2)}/${r.month}`,
+      rev:     +(r.revenue   / 1000).toFixed(0),   // 百萬元
+      prevYr:  +(r.prevYr    / 1000).toFixed(0),
+      yoyPct:  r.yoyPct,
+    }));
+  }, [revenue]);
+
+  const hasData = data.length > 0;
+  const recent12 = useMemo(() => (revenue || []).slice(-12).reverse(), [revenue]);
+
+  return (
+    <Card title="創見月營收（近 24 個月）" icon="💰">
+      {hasData ? (
+        <>
+          <ResponsiveContainer width="100%" height={230}>
+            <ComposedChart data={data} margin={{ top:4, right:44, left:0, bottom:0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+              <XAxis dataKey="label" tick={{ fill:'#6b7280', fontSize:10 }} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="l" tick={{ fill:'#6b7280', fontSize:10 }} width={44} axisLine={false} tickLine={false}
+                tickFormatter={v => `${v}M`} />
+              <YAxis yAxisId="r" orientation="right" tick={{ fill:'#6b7280', fontSize:10 }} width={36}
+                axisLine={false} tickLine={false} unit="%" />
+              <Tooltip {...TT}
+                formatter={(v, name) => name === '年增率%' ? [`${v}%`, name] : [`${v} 百萬`, name]} />
+              <Legend wrapperStyle={{ fontSize:11, color:'#9ca3af', paddingTop:8 }} />
+              <Bar yAxisId="l" dataKey="rev"    name="當月營收" fill={BRAND}   radius={[2,2,0,0]} maxBarSize={16} />
+              <Bar yAxisId="l" dataKey="prevYr" name="去年同期" fill="#374151" radius={[2,2,0,0]} maxBarSize={16} />
+              <Line yAxisId="r" type="monotone" dataKey="yoyPct" name="年增率%"
+                stroke="#4ade80" strokeWidth={2} dot={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+
+          {/* 近 12 個月明細表 */}
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-700/60 text-gray-500">
+                  <th className="text-left pb-1.5 pr-3 font-medium">年月</th>
+                  <th className="text-right pb-1.5 pr-3 font-medium">當月營收</th>
+                  <th className="text-right pb-1.5 pr-3 font-medium">去年同期</th>
+                  <th className="text-right pb-1.5 font-medium">年增率</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recent12.map((r, i) => (
+                  <tr key={i} className="border-b border-gray-800/40 hover:bg-gray-800/20">
+                    <td className="py-1.5 pr-3 text-gray-300 tabular-nums">{r.label}</td>
+                    <td className="text-right py-1.5 pr-3 text-white tabular-nums font-medium">
+                      {(r.revenue/1000).toFixed(0)} 百萬
+                    </td>
+                    <td className="text-right py-1.5 pr-3 text-gray-500 tabular-nums">
+                      {(r.prevYr/1000).toFixed(0)} 百萬
+                    </td>
+                    <td className={`text-right py-1.5 font-bold tabular-nums ${r.yoyPct>0?'text-green-400':r.yoyPct<0?'text-red-400':'text-gray-400'}`}>
+                      {r.yoyPct > 0 ? '+' : ''}{r.yoyPct}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <div className="h-40 flex items-center justify-center text-gray-600 text-sm">
+          {revenue === null ? '載入中…' : '尚無月營收資料（Actions 跑完後自動更新）'}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // IR TAB — 股價走勢折線圖
 // ═══════════════════════════════════════════════════════════
 function StockTrendChart() {
@@ -637,7 +805,7 @@ function PRTab({ news }) {
 // ═══════════════════════════════════════════════════════════
 // IR TAB
 // ═══════════════════════════════════════════════════════════
-function IRTab({ news, stocks, community }) {
+function IRTab({ news, stocks, community, revenue }) {
   return (
     <div className="space-y-4 fade-in">
       {/* Stock cards */}
@@ -663,6 +831,7 @@ function IRTab({ news, stocks, community }) {
         <CommunityMonitor community={community} />
       </div>
 
+      <RevenueChart revenue={revenue} />
       <StockTrendChart />
     </div>
   );
@@ -675,6 +844,7 @@ function App() {
   const [tab,       setTab]       = useState('pr');
   const [news,      setNews]      = useState([]);
   const [stocks,    setStocks]    = useState({});
+  const [revenue,   setRevenue]   = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [connected, setConnected] = useState(false);
   const [updated,   setUpdated]   = useState(null);
@@ -697,7 +867,7 @@ function App() {
 
   async function fetchAll() {
     setLoading(true);
-    await Promise.all([ fetchNews(), fetchStocks() ]);
+    await Promise.all([ fetchNews(), fetchStocks(), fetchRevenue() ]);
     setLoading(false);
     setUpdated(new Date());
   }
@@ -718,6 +888,14 @@ function App() {
       const doc = await window._db.collection('stocks').doc('latest').get();
       if (doc.exists) setStocks(doc.data());
     } catch(e) { console.error('Stocks:', e); }
+  }
+
+  async function fetchRevenue() {
+    try {
+      const doc = await window._db.collection('revenue').doc('2451').get();
+      if (doc.exists) setRevenue(doc.data().records || []);
+      else setRevenue([]);
+    } catch(e) { console.error('Revenue:', e); setRevenue([]); }
   }
 
   // ─── AI Summary (Gemini) ─────────────────────────────────
@@ -834,7 +1012,7 @@ function App() {
 
       {/* ─────────── MAIN ─────────── */}
       <main className="max-w-7xl mx-auto px-4 py-5">
-        {tab==='pr' ? <PRTab news={news} /> : <IRTab news={news} stocks={stocks} community={community} />}
+        {tab==='pr' ? <PRTab news={news} /> : <IRTab news={news} stocks={stocks} community={community} revenue={revenue} />}
       </main>
 
       {/* ─────────── AI MODAL ─────────── */}

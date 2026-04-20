@@ -514,6 +514,94 @@ def fetch_ptt_stock_forum(limit=20):
     return articles
 
 
+def fetch_monthly_revenue(db, stock_code='2451'):
+    """從公開資訊觀測站（MOPS）抓取月營收並存入 Firebase revenue/{stock_code}"""
+    import re
+    from bs4 import BeautifulSoup
+
+    url = 'https://mops.twse.com.tw/mops/web/ajax_t05st10_ifrs'
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': '*/*',
+        'Accept-Language': 'zh-TW,zh;q=0.9',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Referer': 'https://mops.twse.com.tw/mops/web/t05st10_ifrs',
+        'Origin': 'https://mops.twse.com.tw',
+        'X-Requested-With': 'XMLHttpRequest',
+    }
+    payload = (
+        'encodeURIComponent=1&step=1&firstin=1&off=1'
+        '&keyword4=&code1=&TYPEK2=&checkbtn='
+        '&queryName=co_id&inpuType=co_id&TYPEK=sii'
+        f'&co_id={stock_code}'
+    )
+
+    print(f"\n💰 抓取 {stock_code} 月營收（公開資訊觀測站）...")
+    all_records = []
+    seen = set()
+
+    def parse_num(s):
+        s2 = re.sub(r'[^\d\-\.]', '', s or '')
+        try: return float(s2) if '.' in s2 else int(s2)
+        except: return 0
+
+    try:
+        r = requests.post(url, data=payload, headers=headers, timeout=20)
+        r.encoding = 'utf-8'
+        soup = BeautifulSoup(r.text, 'lxml')
+
+        for table in soup.find_all('table'):
+            rows = table.find_all('tr')
+            for row in rows:
+                cols = [td.get_text(strip=True) for td in row.find_all('td')]
+                if len(cols) < 7:
+                    continue
+                try:
+                    # MOPS 欄位：年度, 月份, 當月, 當月累計, 去年同月, 去年累計, 月增率, 年增率
+                    roc_year = parse_num(cols[0])
+                    month    = parse_num(cols[1])
+                    if not (1 <= month <= 12) or roc_year < 100:
+                        continue
+                    ad_year  = int(roc_year) + 1911
+                    revenue  = parse_num(cols[2])   # 千元
+                    cumrev   = parse_num(cols[3])
+                    prev_yr  = parse_num(cols[4])
+                    mom_pct  = parse_num(cols[6]) if len(cols) > 6 else 0
+                    yoy_pct  = parse_num(cols[7]) if len(cols) > 7 else 0
+                    key = f'{ad_year}-{int(month):02d}'
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    all_records.append({
+                        'year':       ad_year,
+                        'month':      int(month),
+                        'revenue':    int(revenue),    # 千元
+                        'cumRevenue': int(cumrev),
+                        'prevYr':     int(prev_yr),
+                        'momPct':     float(mom_pct),
+                        'yoyPct':     float(yoy_pct),
+                        'label':      key,
+                    })
+                except Exception:
+                    continue
+
+        all_records.sort(key=lambda x: (x['year'], x['month']))
+
+        if all_records:
+            db.collection('revenue').document(stock_code).set({
+                'records':   all_records,
+                'stockCode': stock_code,
+                'updatedAt': firestore.SERVER_TIMESTAMP,
+            })
+            first, last = all_records[0]['label'], all_records[-1]['label']
+            print(f"  ✅ 月營收已儲存 {len(all_records)} 筆（{first} ～ {last}）")
+        else:
+            print("  ⚠ 未解析到月營收資料（MOPS 可能尚未更新或 HTML 結構異動）")
+
+    except Exception as e:
+        print(f"  ✗ 月營收抓取失敗: {e}")
+
+
 def fetch_stock_prices(db):
     """抓取台股行情（使用台灣證交所官方 API）並存入 Firebase stocks/latest"""
     # tse = 上市（TWSE），otc = 上櫃（TPEx）
@@ -682,6 +770,9 @@ def main():
 
     # ─── 股價抓取 ───
     fetch_stock_prices(db)
+
+    # ─── 月營收抓取（每月 5 日後 MOPS 更新） ───
+    fetch_monthly_revenue(db, '2451')
 
     print(f"\n{'='*50}")
     print("抓取完成！")
