@@ -331,15 +331,24 @@ def save_to_firestore(db, articles):
 def fetch_stock_prices(db):
     """抓取台股行情（使用台灣證交所官方 API）並存入 Firebase stocks/latest"""
     # tse = 上市（TWSE），otc = 上櫃（TPEx）
+    # exchange: 'tse'=上市, 'otc'=上櫃, 'auto'=自動偵測(同時查兩個交易所)
     STOCKS = {
-        '2451': ('創見資訊', 'tse'),
-        '3260': ('威剛科技', 'tse'),
-        '6248': ('廣穎電通', 'tse'),
-        '5483': ('宜鼎國際', 'tse'),
-        '4967': ('十銓科技', 'tse'),
+        '2451': ('創見資訊',  'tse'),   # 上市
+        '3260': ('威剛科技',  'auto'),  # 自動偵測
+        '6248': ('廣穎電通',  'auto'),  # 自動偵測
+        '5483': ('宜鼎國際',  'auto'),  # 自動偵測
+        '4967': ('十銓科技',  'tse'),   # 上市
     }
     print("\n📈 抓取台股行情（台灣證交所）...")
-    ex_ch = '|'.join(f"{ex}_{code}.tw" for code, (_, ex) in STOCKS.items())
+    # auto 模式：同時帶入 tse_ 和 otc_ 前綴，API 會自動忽略不存在的那個
+    all_codes = []
+    for code, (_, ex) in STOCKS.items():
+        if ex == 'auto':
+            all_codes.append(f"tse_{code}.tw")
+            all_codes.append(f"otc_{code}.tw")
+        else:
+            all_codes.append(f"{ex}_{code}.tw")
+    ex_ch = '|'.join(all_codes)
     url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={ex_ch}&json=1&delay=0"
     try:
         r = requests.get(url, headers={
@@ -352,10 +361,12 @@ def fetch_stock_prices(db):
         return
 
     stock_data = {}
+    seen_codes = set()   # 防止 tse/otc 重複
     for item in items:
         code = item.get('c', '')
-        if code not in STOCKS:
+        if code not in STOCKS or code in seen_codes:
             continue
+        seen_codes.add(code)
         name = STOCKS[code][0]
         # z = 當前成交價（非交易時間為 '-'），y = 昨日收盤
         z_raw = item.get('z', '-')
