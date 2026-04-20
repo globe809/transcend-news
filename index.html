@@ -122,16 +122,16 @@ const MEDIA_MAP = {
 const COMPETITORS = [
   { id:'ADATA',         name:'ADATA 威剛',        stock:'3260', color:'#ef4444' },
   { id:'Kingston',      name:'Kingston',           stock:null,   color:'#f97316' },
-  { id:'Innodisk',      name:'Innodisk 宜鼎',     stock:'5483', color:'#eab308' },
+  { id:'Innodisk',      name:'Innodisk 宜鼎',     stock:'5289', color:'#eab308' },
   { id:'Apacer',        name:'Apacer 宇瞻',       stock:null,   color:'#22c55e' },
-  { id:'Silicon Power', name:'Silicon Power 廣穎', stock:'6248', color:'#3b82f6' },
+  { id:'Silicon Power', name:'Silicon Power 廣穎', stock:'4973', color:'#3b82f6' },
 ];
 
 const STOCK_META = {
   '2451':{ name:'創見',    isSelf:true  },
   '3260':{ name:'威剛',    isSelf:false },
-  '6248':{ name:'廣穎',    isSelf:false },
-  '5483':{ name:'宜鼎',    isSelf:false },
+  '4973':{ name:'廣穎',    isSelf:false },
+  '5289':{ name:'宜鼎',    isSelf:false },
   '4967':{ name:'十銓科技', isSelf:false },
 };
 
@@ -151,8 +151,8 @@ const SRC_COLOR = { 'PTT Stock':'#f97316', 'CMoney':'#10b981' };
 // MOCK — 股價歷史走勢（示意，未來接每日收盤紀錄）
 // ═══════════════════════════════════════════════════════════
 const MOCK_STOCK_HISTORY = (() => {
-  const base  = { '2451':255, '3260':84, '6248':133, '5483':190, '4967':58 };
-  const trend = { '2451':1.5, '3260':0.3,'6248':0.5, '5483':0.4, '4967':0.2 };
+  const base  = { '2451':255, '3260':84, '4973':133, '5289':190, '4967':58 };
+  const trend = { '2451':1.5, '3260':0.3,'4973':0.5, '5289':0.4, '4967':0.2 };
   return Array.from({ length:20 }, (_,i) => {
     const d = new Date('2026-03-24'); d.setDate(d.getDate()+i);
     const row = { date:`${d.getMonth()+1}/${d.getDate()}` };
@@ -541,8 +541,8 @@ function StockTrendChart() {
   const LINES = [
     { code:'2451', name:'創見',    color:BRAND,     w:2.5 },
     { code:'3260', name:'威剛',    color:'#ef4444', w:1.5 },
-    { code:'6248', name:'廣穎',    color:'#3b82f6', w:1.5 },
-    { code:'5483', name:'宜鼎',    color:'#eab308', w:1.5 },
+    { code:'4973', name:'廣穎',    color:'#3b82f6', w:1.5 },
+    { code:'5289', name:'宜鼎',    color:'#eab308', w:1.5 },
     { code:'4967', name:'十銓科技', color:'#a78bfa', w:1.5 },
   ];
   return (
