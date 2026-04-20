@@ -3,497 +3,52 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>創見資訊 新聞監控 | Transcend News Intelligence</title>
+<title>創見資訊 News Intelligence</title>
+
+<!-- Tailwind CSS (免費 CDN) -->
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<!-- Firebase (免費 CDN) -->
 <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+
+<!-- React 18 (免費 CDN) -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+<!-- Recharts (免費 CDN) -->
+<script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.js"></script>
+
+<!-- Babel standalone — JSX transpiler (免費 CDN) -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
 <style>
-  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
-  :root { --brand: #960014; --brand-dark: #6b000e; --brand-light: #fef2f2; }
-  .news-card { transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }
-  .news-card:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(150,0,20,0.12); border-color: #fca5a5; }
-  .tab-active { border-bottom: 3px solid #960014 !important; color: #960014 !important; font-weight: 600; }
-  .filter-active { background: #960014 !important; color: white !important; }
-  .sub-tab-active { background: #960014 !important; color: white !important; }
-  .media-sub-active { background: #960014 !important; color: white !important; }
-  .brand-filter-active { background: #960014 !important; color: white !important; }
-  @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-  .fade-in { animation: fadeSlideIn 0.35s ease-out; }
-  .modal-backdrop { backdrop-filter: blur(6px); background: rgba(0,0,0,0.55); }
-  .sentiment-pos { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
-  .sentiment-neg { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
-  .sentiment-neu { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
-  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-  .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
-  .scrollbar-thin::-webkit-scrollbar { width: 5px; }
-  .scrollbar-thin::-webkit-scrollbar-track { background: #f8fafc; border-radius: 10px; }
-  .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-  .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-  .gradient-header { background: linear-gradient(135deg, #6b000e 0%, #960014 60%, #b5001a 100%); }
-  .glow-green { box-shadow: 0 0 0 3px rgba(34,197,94,0.25); }
-  .glow-red { box-shadow: 0 0 0 3px rgba(239,68,68,0.25); }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .spin { animation: spin 1s linear infinite; display: inline-block; }
-  .news-modal-content { max-height: 75vh; overflow-y: auto; }
-  .pr-section { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 1px solid #86efac; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
-  .ai-response { white-space: pre-wrap; line-height: 1.75; }
-  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-  .pulse-dot { animation: pulse-dot 1.5s infinite; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #030712; }
+  .line-clamp-2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .line-clamp-3 { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  .fade-in { animation: fadeIn .3s ease-out; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .spin { animation: spin 1s linear infinite; display:inline-block; }
+  ::-webkit-scrollbar { width:4px; height:4px; }
+  ::-webkit-scrollbar-track { background:#111827; }
+  ::-webkit-scrollbar-thumb { background:#374151; border-radius:4px; }
 </style>
 </head>
-<body class="bg-slate-50 min-h-screen">
+<body>
+<div id="root"></div>
 
-<!-- ─────────────── HEADER ─────────────── -->
-<header class="gradient-header text-white sticky top-0 z-40 shadow-xl">
-  <div class="max-w-7xl mx-auto px-4 py-3.5">
-    <div class="flex items-center justify-between">
-      <!-- Logo -->
-      <div class="flex items-center gap-3">
-        <div class="h-8 flex items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 202 38" height="32" style="display:block">
-            <defs><style>.st0{fill:#fff;fill-rule:evenodd}</style></defs>
-            <path class="st0" d="M64,8.3h-15.3c0,.1-.7,4.2-.7,4.2h5.5s-3.6,17.1-3.6,17.1h4.3s3.6-17.2,3.6-17.2h5.3s.9-4.2.9-4.2ZM76.3,12s-5.2-3.3-8.3,4.8l.9-4.9h-3.7s-3.5,17.7-3.5,17.7h3.8s2.2-9.5,2.2-9.5c0,0,2-6.1,7.3-3.7,0,0,1.3-4.5,1.3-4.5ZM80.7,27c-1,0-1.8-.6-1.8-1.7,0-1,1.1-2,2.2-2.6,1.1-.6,4.7-1.8,4.7-1.8,0,4.3-4.1,6-5.1,6.1M85.5,10.9s-4.8.4-7.7,3.1l-.5,4.2s3-3.3,6.1-3.3c3,0,5,2.7.1,4.3-4.9,1.6-8.9,2.5-8.8,7.4,0,4.9,7.5,4.5,10-.2l-.4,3h3.7s2.6-12.7,2.6-12.7c0,0,1.5-5.8-5-5.8M104.8,10.8c-5.2,0-7.4,5.8-7.4,5.8l1-5h-4s-3.3,17.9-3.3,17.9h4s2.2-10.6,2.2-10.6c0,0,1.1-3.8,4.5-3.8,3.4,0,2.4,3.4,2.3,4.5-.2,1.1-2.1,9.7-2.1,9.7h4.2s2.6-13.4,2.6-13.4c0,0,1.2-5.2-3.9-5.1M118.1,10.8c-3.8,0-7.4,3.3-7.3,7,0,3.7,4.2,4.2,4.8,4.4.7.2,2,.6,2.1,2,0,1.4-3.5,4.8-8-.3l-.6,4.1s1.6,1.9,4.7,1.9c3.2,0,7.7-2.5,7.6-6.6,0-4.2-5.1-4.3-6.4-5.4-1.3-1.1.5-3.3,2.8-3.3,2.2,0,4.2,2.4,4.2,2.4l.9-4s-.9-2.1-4.7-2.1M132.6,10.6c-3.9,0-9.9,4.2-9.9,11.7,0,7.6,7.4,10.4,12.5,4.2l.3-3.1s-2.3,3.2-5.6,3.2c-3.3,0-3.6-3.9-3.5-5.3.2-1.3,1.3-6.6,5.7-6.6,4.3,0,4.8,2.9,4.8,2.9l.9-4.4s-1.4-2.7-5.3-2.6M150.7,18.5h-8.7c0,0,1.3-3.9,5.3-4,4.1,0,3.4,4,3.4,4M147.5,10.6c-4.8,0-10,5.7-10,12.2,0,6.5,7.5,9.9,13.6,3.7l.3-3s-1.6,3.1-6.2,3.1c-4.5,0-4-4.8-4-4.8h11.2c0,0,1.3-3.9.9-6.2-.4-2.3-1.1-5.1-5.9-5M167.6,10.9c-5.2,0-7.4,5.8-7.4,5.8l1-5h-4s-3.3,17.9-3.3,17.9h4s2.2-10.6,2.2-10.6c0,0,1.1-3.8,4.5-3.8,3.4,0,2.4,3.4,2.2,4.5-.2,1.1-2,9.7-2,9.7h4.2s2.6-13.4,2.6-13.4c0,0,1.2-5.2-3.9-5.2M185.4,18.5c0,5.1-3.7,7.9-5.5,7.9-1.8,0-3.2-1.5-3.2-3.9,0-2.4,1.7-7.3,5.4-7.3,3.7,0,3.3,3.4,3.3,3.4ZM187.8,7.3l-1.7,8.1s-.2-4.5-4.6-4.5c-4.4,0-8.9,5.8-8.8,12.1,0,6.2,6.3,10.8,11.6,2.5l-.9,3.9h3.9s4.5-22.1,4.5-22.1c0,0-4,0-4,0ZM197.2,10.8h.3c.5,0,.8,0,.9,0s.2,0,.3-.2c0,0,.1-.2,0-.3,0-.1,0-.2,0-.3,0,0-.2-.2-.3-.2-.1,0-.4,0-.9,0h-.3v1.1h0ZM196.4,13v-3.9h.8c.8,0,1.2,0,1.3,0,.3,0,.5,0,.6.2.1,0,.3.2.4.4,0,.2.1.4.1.6s0,.5-.3.7c-.2.2-.4.3-.8.4.1,0,.2,0,.3.1.1,0,.2.2.3.3,0,0,.1.2.3.5l.5.8h-1l-.3-.6c-.2-.4-.4-.7-.5-.8-.1-.1-.3-.2-.6-.2h-.2v1.6h-.8ZM198.1,8c-.5,0-1,.1-1.5.4-.5.3-.8.6-1.1,1.1-.3.5-.4,1-.4,1.5s.1,1,.4,1.5c.3.5.6.8,1.1,1.1.9.5,2.1.5,3,0,.5-.3.8-.6,1.1-1.1.3-.5.4-1,.4-1.5s-.1-1-.4-1.5c-.3-.5-.6-.8-1.1-1.1-.5-.2-1-.4-1.5-.4h0ZM198.1,7.3c.6,0,1.2.2,1.8.5.6.3,1.1.8,1.4,1.4.3.6.5,1.2.5,1.9,0,.6-.2,1.3-.5,1.9-.3.6-.8,1.1-1.4,1.4-.6.3-1.2.5-1.9.5-.7,0-1.3-.2-1.9-.5-.6-.3-1.1-.8-1.4-1.4-.3-.6-.5-1.2-.5-1.9,0-.7.2-1.3.5-1.9.3-.6.8-1.1,1.4-1.4.6-.3,1.2-.5,1.8-.5h0ZM39.4,9.8c0-.2-.2-.5-.3-.7C35.1.3,23.3-2.6,12.9,2.6,6.9,5.7,2.7,10.7.9,16.1h15.3l-3,15.1h7.8l3-15.1h5.1l1.6-7.4H9.4C14.5,3,22,.1,28.3,2.2c3.8,1.2,6.4,4.1,7.6,7.6,0,0,3.5,0,3.5,0Z"/>
-            <path class="st0" d="M32.6,12.4l-1.6,7.4h5c-.3,1.2-.8,2.4-1.4,3.6-4.4,9.1-14.4,14.3-22.4,11.7-6.5-2.2-9.6-9-8-16.4H.3c-.6,3.2-.2,6.5,1.1,9.5,4.1,8.9,15.8,11.8,26.2,6.5,9.2-4.6,14.3-14.1,12.6-22.3,0,0-7.6,0-7.6,0Z"/>
-          </svg>
-        </div>
-        <div class="border-l border-white border-opacity-30 pl-3 ml-1">
-          <h1 class="text-sm font-bold leading-tight">新聞監控系統</h1>
-          <p class="text-xs text-red-200 leading-tight">News Intelligence Platform</p>
-        </div>
-      </div>
-      <!-- Action Buttons -->
-      <div class="flex items-center gap-2">
-        <div id="lastFetchBadge" class="hidden text-xs text-red-200 mr-2">
-          上次更新: <span id="lastFetchTime" class="text-white font-medium">-</span>
-        </div>
-        <button onclick="reloadFromFirebase()" id="fetchBtn"
-          class="px-3.5 py-1.5 bg-white bg-opacity-20 hover:bg-opacity-30 text-white border border-white border-opacity-30 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-all">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-          </svg>
-          重新整理
-        </button>
-        <button onclick="openAISummary()"
-          class="px-3.5 py-1.5 bg-purple-500 hover:bg-purple-400 text-white rounded-lg text-sm font-medium flex items-center gap-1.5 transition-all shadow-md">
-          ✨ AI 摘要
-        </button>
-        <button onclick="openPRAdvice()"
-          class="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-sm font-medium flex items-center gap-1.5 transition-all shadow-md">
-          📢 公關口徑
-        </button>
-        <button onclick="openSettings()"
-          class="p-2 bg-white bg-opacity-10 hover:bg-opacity-20 text-white rounded-lg border border-white border-opacity-20 transition-all">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-            <circle cx="12" cy="12" r="3"/>
-          </svg>
-        </button>
-      </div>
-    </div>
-  </div>
-</header>
+<script type="text/babel">
+const { useState, useEffect, useMemo, useCallback } = React;
+const {
+  BarChart, Bar, PieChart, Pie, Cell,
+  LineChart, Line, XAxis, YAxis,
+  Tooltip, Legend, ResponsiveContainer, CartesianGrid
+} = Recharts;
 
-<!-- Status Bar -->
-<div id="statusBar" class="hidden text-white px-4 py-2 text-sm" style="background:#960014">
-  <div class="max-w-7xl mx-auto flex items-center gap-2">
-    <span class="pulse-dot w-2 h-2 bg-white rounded-full inline-block"></span>
-    <span id="statusMsg">正在抓取新聞...</span>
-  </div>
-</div>
-
-<!-- ─────────────── MAIN CONTENT ─────────────── -->
-<div class="max-w-7xl mx-auto px-4 py-6">
-
-  <!-- Stock Cards -->
-  <div id="stockSection" class="mb-5 hidden">
-    <div class="flex items-center justify-between mb-2">
-      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">📈 台股即時行情</span>
-      <span class="text-xs text-gray-400" id="stockUpdatedAt">資料載入中...</span>
-    </div>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="stockCards">
-      <!-- 由 JS 動態填入 -->
-    </div>
-    <div class="text-xs text-gray-400 mt-1.5 text-right">⏱ 延遲約 20 分鐘．資料來源：台灣證交所</div>
-  </div>
-
-  <!-- Stats Cards -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-      <div class="flex items-center justify-between mb-1">
-        <span class="text-3xl font-bold text-gray-900" id="statTotal">0</span>
-        <span class="text-2xl">📰</span>
-      </div>
-      <div class="text-sm text-gray-500">篩選範圍新聞</div>
-      <div class="text-xs mt-1" style="color:#960014" id="statPeriod">今日</div>
-    </div>
-    <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-      <div class="flex items-center justify-between mb-1">
-        <span class="text-3xl font-bold text-green-600" id="statPos">0</span>
-        <span class="text-2xl">🟢</span>
-      </div>
-      <div class="text-sm text-gray-500">正面新聞</div>
-      <div class="text-xs text-green-600 mt-1">利多訊號</div>
-    </div>
-    <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-      <div class="flex items-center justify-between mb-1">
-        <span class="text-3xl font-bold text-red-600" id="statNeg">0</span>
-        <span class="text-2xl">🔴</span>
-      </div>
-      <div class="text-sm text-gray-500">負面新聞</div>
-      <div class="text-xs text-red-600 mt-1">風險關注</div>
-    </div>
-    <div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-      <div class="flex items-center justify-between mb-1">
-        <span class="text-3xl font-bold text-purple-600" id="statMediaCnt">0</span>
-        <span class="text-2xl">📡</span>
-      </div>
-      <div class="text-sm text-gray-500">媒體曝光次數</div>
-      <div class="text-xs text-purple-600 mt-1" id="statMediaSrc">來源數</div>
-    </div>
-  </div>
-
-  <!-- Main Panel -->
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
-
-    <!-- Main Tabs -->
-    <div class="flex border-b border-gray-100 bg-gray-50">
-      <button onclick="switchTab('transcend')" class="main-tab tab-active px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-red-700 transition-colors" data-tab="transcend">
-        🏢 創見資訊
-      </button>
-      <button onclick="switchTab('competitor')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-red-700 transition-colors" data-tab="competitor">
-        🥊 競品
-      </button>
-      <button onclick="switchTab('supplier')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-red-700 transition-colors" data-tab="supplier">
-        🏭 供應商
-      </button>
-      <button onclick="switchTab('usMarket')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-red-700 transition-colors" data-tab="usMarket">
-        🇺🇸 美國市場
-      </button>
-      <button onclick="switchTab('media')" class="main-tab px-6 py-3.5 text-sm text-gray-500 border-b-2 border-transparent hover:text-red-700 transition-colors" data-tab="media">
-        📊 媒體曝光統計
-      </button>
-    </div>
-
-    <!-- Filters -->
-    <div class="flex flex-wrap items-center gap-2 px-6 py-3 border-b border-gray-100 bg-gray-50">
-      <span class="text-xs text-gray-400 font-medium">時間:</span>
-      <button onclick="setFilter('today')" class="time-filter filter-active px-3 py-1 rounded-full text-xs font-medium transition-all" data-f="today">今天</button>
-      <button onclick="setFilter('week')" class="time-filter px-3 py-1 rounded-full text-xs font-medium text-gray-500 hover:bg-gray-200 transition-all" data-f="week">本週</button>
-      <button onclick="setFilter('month')" class="time-filter px-3 py-1 rounded-full text-xs font-medium text-gray-500 hover:bg-gray-200 transition-all" data-f="month">本月</button>
-      <button onclick="setFilter('year')" class="time-filter px-3 py-1 rounded-full text-xs font-medium text-gray-500 hover:bg-gray-200 transition-all" data-f="year">本年</button>
-      <div class="ml-auto flex items-center gap-2">
-        <input type="text" id="searchInput" placeholder="🔍 搜尋關鍵字..."
-          class="text-xs border border-gray-200 rounded-lg px-3 py-1.5 w-40 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent"
-          oninput="renderAll()">
-        <select id="sentFilter" class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-400" onchange="renderAll()">
-          <option value="all">全部情緒</option>
-          <option value="positive">🟢 正面</option>
-          <option value="negative">🔴 負面</option>
-          <option value="neutral">⚪ 中立</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Tab Contents -->
-    <div id="tabContent" class="p-6">
-
-      <!-- Transcend Tab -->
-      <div id="tab-transcend" class="tab-panel">
-        <div id="transcendGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <div class="col-span-3 text-center py-16 text-gray-400">
-            <div class="text-5xl mb-4">📰</div>
-            <div class="text-lg font-semibold text-gray-500">點擊「抓取新聞」開始監控</div>
-            <div class="text-sm mt-2 text-gray-400">每 30 分鐘自動更新，或點擊「重新整理」立即載入</div>
-            <div class="flex flex-wrap justify-center gap-2 mt-4">
-              <span class="text-xs px-3 py-1 rounded-full" style="background:#fef2f2;color:#960014">創見資訊</span>
-              <span class="text-xs px-3 py-1 rounded-full" style="background:#fef2f2;color:#960014">Transcend</span>
-              <span class="text-xs px-3 py-1 rounded-full" style="background:#fef2f2;color:#960014">2451</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Competitor Tab -->
-      <div id="tab-competitor" class="tab-panel hidden">
-        <!-- 品牌篩選列 -->
-        <div class="flex flex-wrap gap-2 mb-4">
-          <button onclick="switchCompetitorBrand('all')" class="comp-brand-btn brand-filter-active px-3 py-1.5 rounded-full text-xs font-medium transition-all" data-brand="all">全部</button>
-          <button onclick="switchCompetitorBrand('ADATA')" class="comp-brand-btn px-3 py-1.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-brand="ADATA">威剛 ADATA</button>
-          <button onclick="switchCompetitorBrand('Innodisk')" class="comp-brand-btn px-3 py-1.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-brand="Innodisk">宜鼎 Innodisk</button>
-          <button onclick="switchCompetitorBrand('Apacer')" class="comp-brand-btn px-3 py-1.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-brand="Apacer">宇瞻 Apacer</button>
-          <button onclick="switchCompetitorBrand('Silicon Power')" class="comp-brand-btn px-3 py-1.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-brand="Silicon Power">廣穎 Silicon Power</button>
-          <button onclick="switchCompetitorBrand('Kingston')" class="comp-brand-btn px-3 py-1.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-brand="Kingston">金士頓 Kingston</button>
-          <button onclick="switchCompetitorBrand('Lexar')" class="comp-brand-btn px-3 py-1.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-brand="Lexar">雷克沙 Lexar</button>
-          <button onclick="switchCompetitorBrand('PNY')" class="comp-brand-btn px-3 py-1.5 rounded-full text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-brand="PNY">必恩威 PNY</button>
-        </div>
-        <div id="competitorGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <div class="col-span-3 text-center py-12 text-gray-400">
-            <div class="text-5xl mb-3">🥊</div>
-            <div class="font-semibold text-gray-500">競品新聞監控</div>
-            <div class="text-sm mt-1">ADATA、Innodisk、Apacer、Kingston、Lexar、Silicon Power、PNY</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Supplier Tab -->
-      <div id="tab-supplier" class="tab-panel hidden">
-        <div id="supplierGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <div class="col-span-3 text-center py-12 text-gray-400">
-            <div class="text-5xl mb-3">🏭</div>
-            <div class="font-semibold text-gray-500">上游供應商新聞監控</div>
-            <div class="text-sm mt-1">Samsung、Micron、SK Hynix、Kioxia、SanDisk/WD、SMI、Phison</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- US Market Tab -->
-      <div id="tab-usMarket" class="tab-panel hidden">
-        <div id="usMarketGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <div class="col-span-3 text-center py-16 text-gray-400">
-            <div class="text-5xl mb-4">🌐</div>
-            <div class="text-lg font-semibold text-gray-500">美國 DRAM / Flash 市場動態</div>
-            <div class="text-sm mt-2 text-gray-400">每 30 分鐘自動更新</div>
-            <div class="flex flex-wrap justify-center gap-2 mt-4">
-              <span class="text-xs bg-orange-50 text-orange-600 px-3 py-1 rounded-full">DRAM</span>
-              <span class="text-xs bg-orange-50 text-orange-600 px-3 py-1 rounded-full">NAND Flash</span>
-              <span class="text-xs bg-orange-50 text-orange-600 px-3 py-1 rounded-full">Memory Market</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Media Stats Tab -->
-      <div id="tab-media" class="tab-panel hidden">
-        <!-- 媒體子分頁 -->
-        <div class="flex gap-2 mb-6">
-          <button onclick="switchMediaTab('exposure')" class="media-sub-tab media-sub-active px-4 py-1.5 rounded-lg text-sm font-medium transition-all" data-mt="exposure">📊 媒體曝光排行</button>
-          <button onclick="switchMediaTab('compare')" class="media-sub-tab px-4 py-1.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-mt="compare">🥊 競品媒體對比</button>
-          <button onclick="switchMediaTab('reporter')" class="media-sub-tab px-4 py-1.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all" data-mt="reporter">✍️ 記者追蹤</button>
-        </div>
-
-        <!-- 媒體曝光排行 -->
-        <div id="media-exposure" class="media-panel">
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div>
-              <h3 class="text-base font-bold text-gray-700 mb-4">📋 台灣媒體曝光排行榜（創見）</h3>
-              <div id="mediaRankList" class="space-y-2">
-                <div class="text-center py-10 text-gray-400"><div class="text-4xl mb-3">📊</div><div>抓取新聞後將自動統計</div></div>
-              </div>
-            </div>
-            <div>
-              <h3 class="text-base font-bold text-gray-700 mb-4">📈 媒體曝光趨勢</h3>
-              <canvas id="mediaChart" height="300"></canvas>
-            </div>
-          </div>
-        </div>
-
-        <!-- 競品媒體對比 -->
-        <div id="media-compare" class="media-panel hidden">
-          <div class="mb-4 flex items-center gap-3">
-            <h3 class="text-base font-bold text-gray-700">🥊 各媒體品牌曝光對比</h3>
-            <span class="text-xs text-gray-400">以創見曝光最多的前 8 家媒體為基準</span>
-          </div>
-          <div class="mb-6">
-            <canvas id="compareChart" height="180"></canvas>
-          </div>
-          <div id="compareTable" class="overflow-x-auto">
-            <div class="text-center py-10 text-gray-400"><div class="text-4xl mb-3">🥊</div><div>抓取新聞後將自動生成對比圖</div></div>
-          </div>
-        </div>
-
-        <!-- 記者追蹤 -->
-        <div id="media-reporter" class="media-panel hidden">
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div>
-              <h3 class="text-base font-bold text-gray-700 mb-4">✍️ 記者報導排行（創見相關）</h3>
-              <p class="text-xs text-gray-400 mb-4">從新聞作者欄位自動辨識，排除媒體名稱後統計個人記者</p>
-              <div id="reporterList" class="space-y-2">
-                <div class="text-center py-10 text-gray-400"><div class="text-4xl mb-3">✍️</div><div>抓取新聞後將自動辨識記者名單</div></div>
-              </div>
-            </div>
-            <div>
-              <h3 class="text-base font-bold text-gray-700 mb-4">📰 記者最新報導</h3>
-              <div id="reporterArticles" class="space-y-2 text-sm text-gray-500">
-                <div class="text-center py-10 text-gray-400">點選記者名稱查看其報導</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- Schedule Info -->
-  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4 mb-6">
-    <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0" style="background:#fef2f2">⏱️</div>
-    <div class="flex-1">
-      <div class="font-semibold text-gray-800">每 30 分鐘自動更新</div>
-      <div class="text-xs text-gray-500 mt-0.5">全天候自動抓取創見資訊、競品、供應商、美國市場新聞，無需手動觸發</div>
-    </div>
-    <span id="scheduleStatus" class="text-xs px-3 py-1.5 rounded-full font-medium" style="background:#fef2f2;color:#960014">🔄 運作中</span>
-  </div>
-
-  <!-- Firebase Info Banner -->
-  <div id="firebaseBanner" class="bg-orange-50 border border-orange-200 rounded-2xl p-4 mb-6 hidden">
-    <div class="flex items-center gap-3">
-      <span class="text-xl">🔥</span>
-      <div>
-        <div class="text-sm font-semibold text-orange-800">Firebase 已連線</div>
-        <div class="text-xs text-orange-600">新聞資料將自動儲存至 Firestore 資料庫</div>
-      </div>
-      <span class="ml-auto text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">✅ 已連線</span>
-    </div>
-  </div>
-
-</div>
-
-<!-- ─────────────── MODAL: Settings ─────────────── -->
-<div id="settingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto scrollbar-thin">
-    <div class="p-6">
-      <div class="flex items-center justify-between mb-6">
-        <div>
-          <h2 class="text-xl font-bold text-gray-900">⚙️ 系統設定</h2>
-          <p class="text-xs text-gray-500 mt-1">API 金鑰與資料庫設定</p>
-        </div>
-        <button onclick="closeSettings()" class="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
-      </div>
-
-      <!-- Gemini API -->
-      <div class="mb-6 p-4 rounded-xl border" style="background:#f0fdf4;border-color:#bbf7d0">
-        <h3 class="text-sm font-bold mb-3 flex items-center gap-2" style="color:#166534">
-          <span class="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:#16a34a">AI</span>
-          Gemini AI（已啟用）
-        </h3>
-        <div class="space-y-3">
-          <div>
-            <p class="text-xs" style="color:#166534">✅ Gemini 1.5 Flash 已連線，AI 摘要與公關口徑功能可正常使用。</p>
-            <p class="text-xs text-gray-400 mt-1">如需更換 Key，請直接修改 index.html 中的 <code>GEMINI_API_KEY</code> 變數。</p>
-          </div>
-          <div>
-            <label class="text-xs font-medium text-gray-600 block mb-1">Claude 模型</label>
-            <select id="s_claudeModel" class="w-full border border-purple-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white">
-              <option value="claude-opus-4-6">Claude Opus 4.6（最強，速度慢）</option>
-        </div>
-      </div>
-
-      <!-- Firebase Config -->
-      <div class="mb-6 p-4 bg-orange-50 rounded-xl border border-orange-100">
-        <h3 class="text-sm font-bold text-orange-800 mb-1 flex items-center gap-2">
-          <span class="text-lg">🔥</span> Firebase 設定
-          <span class="text-xs font-normal bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">選填</span>
-        </h3>
-        <p class="text-xs text-orange-600 mb-3">用於雲端儲存新聞資料，不填寫則使用瀏覽器記憶體（重整後清空）</p>
-        <div class="space-y-3">
-          <div>
-            <label class="text-xs font-medium text-gray-600 block mb-1">Firebase API Key</label>
-            <input type="text" id="s_fbKey" placeholder="AIzaSy..." class="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white">
-          </div>
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="text-xs font-medium text-gray-600 block mb-1">Auth Domain</label>
-              <input type="text" id="s_fbAuthDomain" placeholder="your-app.firebaseapp.com" class="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white">
-            </div>
-            <div>
-              <label class="text-xs font-medium text-gray-600 block mb-1">Project ID</label>
-              <input type="text" id="s_fbProjectId" placeholder="your-project-id" class="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white">
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="text-xs font-medium text-gray-600 block mb-1">Storage Bucket</label>
-              <input type="text" id="s_fbBucket" placeholder="your-app.appspot.com" class="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white">
-            </div>
-            <div>
-              <label class="text-xs font-medium text-gray-600 block mb-1">Messaging Sender ID</label>
-              <input type="text" id="s_fbSenderId" placeholder="123456789" class="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white">
-            </div>
-          </div>
-          <div>
-            <label class="text-xs font-medium text-gray-600 block mb-1">App ID</label>
-            <input type="text" id="s_fbAppId" placeholder="1:xxx:web:xxx" class="w-full border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white">
-          </div>
-        </div>
-      </div>
-
-      <!-- RSS2JSON API (optional) -->
-      <div class="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
-        <h3 class="text-sm font-bold text-blue-800 mb-1 flex items-center gap-2">
-          <span class="text-lg">📡</span> RSS2JSON API Key
-          <span class="text-xs font-normal bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">選填</span>
-        </h3>
-        <p class="text-xs text-blue-600 mb-3">免費版每天 10,000 次，不填也可使用（共用額度）</p>
-        <input type="text" id="s_rssKey" placeholder="RSS2JSON API Key（選填）"
-          class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white">
-        <p class="text-xs text-gray-400 mt-1">前往 <a href="https://rss2json.com" target="_blank" class="text-blue-600 underline">rss2json.com</a> 申請</p>
-      </div>
-
-      <div class="flex gap-3">
-        <button onclick="saveSettings()" class="flex-1 bg-blue-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-blue-700 transition-colors">
-          💾 儲存設定
-        </button>
-        <button onclick="testClaudeKey()" class="px-4 bg-purple-100 text-purple-700 rounded-xl py-2.5 text-sm font-semibold hover:bg-purple-200 transition-colors">
-          測試 AI
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ─────────────── MODAL: AI Summary ─────────────── -->
-<div id="aiSummaryModal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4">
-    <div class="p-6">
-      <div class="flex items-center justify-between mb-5">
-        <div>
-          <h2 class="text-xl font-bold text-gray-900">✨ AI 新聞摘要</h2>
-          <p class="text-xs text-gray-500 mt-1">Claude 分析今日 5 則重要新聞 + 公關方向建議</p>
-        </div>
-        <button onclick="closeModal('aiSummaryModal')" class="text-gray-400 hover:text-gray-700 p-1">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
-      </div>
-      <div class="news-modal-content scrollbar-thin">
-        <div id="aiSummaryContent" class="text-sm text-gray-700 ai-response"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ─────────────── MODAL: PR Advice ─────────────── -->
-<div id="prAdviceModal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4">
-    <div class="p-6">
-      <div class="flex items-center justify-between mb-5">
-        <div>
-          <h2 class="text-xl font-bold text-gray-900">📢 AI 公關口徑建議</h2>
-          <p class="text-xs text-gray-500 mt-1">根據目前篩選的新聞，生成公關應對策略</p>
-        </div>
-        <button onclick="closeModal('prAdviceModal')" class="text-gray-400 hover:text-gray-700 p-1">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
-      </div>
-      <div class="news-modal-content scrollbar-thin">
-        <div id="prAdviceContent" class="text-sm text-gray-700 ai-response"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Toast -->
-<div id="toast" class="hidden fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-2xl text-sm font-medium text-white transition-all duration-300 max-w-xs"></div>
-
-<!-- ─────────────── JAVASCRIPT ─────────────── -->
-<script>
-// ═══════════════════════════════════════════
-// ★★★ 在這裡填入你的 Firebase 設定 ★★★
-// 填完後 push 到 GitHub，任何電腦打開都能自動連線
-// ═══════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// FIREBASE CONFIG
+// ═══════════════════════════════════════════════════════════
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyD9uEf6a0Q8qDeyfPDa5JsgrR0GO0XLmNw",
   authDomain:        "transcend-news-monitor.firebaseapp.com",
@@ -502,1298 +57,630 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "724058805854",
   appId:             "1:724058805854:web:ec0afc075f51f093be86cf"
 };
-// ═══════════════════════════════════════════
 
-// ═══════════════════════════════════════════
-// CONSTANTS & CONFIG
-// ═══════════════════════════════════════════
-
-const RSS_API = 'https://api.rss2json.com/v1/api.json';
-
-const SOURCES = {
-  transcend: [
-    { label: '創見資訊', url: 'https://news.google.com/rss/search?q=創見資訊&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Transcend Info', url: 'https://news.google.com/rss/search?q=Transcend+Information+memory&hl=en&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: '2451 股票', url: 'https://news.google.com/rss/search?q=2451+創見+股票&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: '聯合報-創見', url: 'https://udn.com/rssfeed/news/2/6644?ch=news', cat: 'transcend', filter: '創見' },
-    { label: '科技新報-創見', url: 'https://technews.tw/feed/', cat: 'transcend', filter: '創見' },
-    { label: '中央社-創見', url: 'https://www.cna.com.tw/rss/aall.aspx', cat: 'transcend', filter: '創見' },
-    { label: '財訊-創見', url: 'https://www.wealth.com.tw/rss/all', cat: 'transcend', filter: '創見' },
-    { label: '遠見-創見', url: 'https://www.gvm.com.tw/rss', cat: 'transcend', filter: '創見' },
-    { label: '壹蘋-創見', url: 'https://tw.nextapple.com/rss.xml', cat: 'transcend', filter: '創見' },
-    { label: 'TrendForce-創見', url: 'https://www.trendforce.com/rss', cat: 'transcend', filter: 'Transcend' },
-    // ─── 指定媒體搜尋 ───
-    { label: 'Google News-經濟日報', url: 'https://news.google.com/rss/search?q=創見+site:money.udn.com&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-鉅亨網', url: 'https://news.google.com/rss/search?q=創見+site:cnyes.com&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-中時新聞', url: 'https://news.google.com/rss/search?q=創見+site:chinatimes.com&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-工商時報', url: 'https://news.google.com/rss/search?q=創見+site:ctee.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-科技新報', url: 'https://news.google.com/rss/search?q=創見+site:technews.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-ETtoday', url: 'https://news.google.com/rss/search?q=創見+site:ettoday.net&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-財訊', url: 'https://news.google.com/rss/search?q=創見+site:wealth.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-中央社', url: 'https://news.google.com/rss/search?q=創見+site:cna.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-電子時報', url: 'https://news.google.com/rss/search?q=創見+site:digitimes.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-非凡', url: 'https://news.google.com/rss/search?q=創見+非凡財經&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-PC DIY', url: 'https://news.google.com/rss/search?q=Transcend+site:pcdiy.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-TrendForce', url: 'https://news.google.com/rss/search?q=Transcend+site:trendforce.com&hl=en&gl=US&ceid=US:en', cat: 'transcend' },
-    // ─── 依 clipping report 補齊高頻媒體 ───
-    { label: 'Google News-鏡報(mnews)', url: 'https://news.google.com/rss/search?q=創見+site:mnews.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-鏡報(mirror)', url: 'https://news.google.com/rss/search?q=創見+site:mirrordaily.news&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-Newtalk', url: 'https://news.google.com/rss/search?q=創見+site:newtalk.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-自由時報財經', url: 'https://news.google.com/rss/search?q=創見+site:ec.ltn.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-ETtoday財經', url: 'https://news.google.com/rss/search?q=創見+site:finance.ettoday.net&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-聯合報', url: 'https://news.google.com/rss/search?q=創見+site:udn.com&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-    { label: 'Google News-旺得富', url: 'https://news.google.com/rss/search?q=創見+site:wantrich.chinatimes.com&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'transcend' },
-  ],
-  usMarket: [
-    // ─── 上游供應商（英文）───
-    { label: 'Samsung Memory EN',  url: 'https://news.google.com/rss/search?q=Samsung+memory+semiconductor&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
-    { label: 'Micron EN',          url: 'https://news.google.com/rss/search?q=Micron+Technology+memory&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
-    { label: 'SK Hynix EN',        url: 'https://news.google.com/rss/search?q=SK+Hynix+memory+semiconductor&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
-    { label: 'Kioxia EN',          url: 'https://news.google.com/rss/search?q=Kioxia+flash+storage&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
-    { label: 'SanDisk WD EN',      url: 'https://news.google.com/rss/search?q=SanDisk+OR+"Western+Digital"+NAND+flash&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
-    // ─── DRAM 市場趨勢 ───
-    { label: 'DRAM Market Trend',  url: 'https://news.google.com/rss/search?q=DRAM+market+trend+price+supply&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
-    { label: 'DRAM Industry',      url: 'https://news.google.com/rss/search?q=DRAM+industry+demand+outlook&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
-    // ─── Flash 市場趨勢 ───
-    { label: 'NAND Flash Trend',   url: 'https://news.google.com/rss/search?q=NAND+Flash+market+trend+price&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
-    { label: 'Flash Storage Market', url: 'https://news.google.com/rss/search?q=flash+storage+market+outlook+supply&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
-    // ─── Transcend Information ───
-    { label: 'Transcend Info EN',  url: 'https://news.google.com/rss/search?q="Transcend+Information"&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
-    { label: 'Transcend Memory EN', url: 'https://news.google.com/rss/search?q=Transcend+memory+storage+flash&hl=en&gl=US&ceid=US:en', cat: 'usMarket' },
-  ],
-  competitors: [
-    // ─── 競品：僅中文 ───
-    { label: 'ADATA 威剛',         url: 'https://news.google.com/rss/search?q=威剛+ADATA&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'ADATA' },
-    { label: 'Innodisk 宜鼎',      url: 'https://news.google.com/rss/search?q=宜鼎+Innodisk&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Innodisk' },
-    { label: 'Apacer 宇瞻',        url: 'https://news.google.com/rss/search?q=宇瞻+Apacer&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Apacer' },
-    { label: 'Silicon Power 廣穎', url: 'https://news.google.com/rss/search?q=廣穎+Silicon+Power&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Silicon Power' },
-    { label: 'Kingston 金士頓',    url: 'https://news.google.com/rss/search?q=金士頓+Kingston&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Kingston' },
-    { label: 'Lexar 雷克沙',       url: 'https://news.google.com/rss/search?q=Lexar+雷克沙&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'Lexar' },
-    { label: 'PNY 必恩威',         url: 'https://news.google.com/rss/search?q=PNY+必恩威&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'competitor', brand: 'PNY' },
-  ],
-  suppliers: [
-    // ─── 供應商：僅中文 ───
-    { label: '三星 Samsung',    url: 'https://news.google.com/rss/search?q=三星+Samsung+半導體+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Samsung' },
-    { label: '美光 Micron',     url: 'https://news.google.com/rss/search?q=美光+Micron+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Micron' },
-    { label: 'SK 海力士',       url: 'https://news.google.com/rss/search?q=SK+海力士+Hynix+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'SK Hynix' },
-    { label: 'Kioxia 鎧俠',     url: 'https://news.google.com/rss/search?q=Kioxia+鎧俠+快閃+儲存&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Kioxia' },
-    { label: 'SanDisk 威騰',    url: 'https://news.google.com/rss/search?q=SanDisk+威騰+儲存&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'SanDisk/WD' },
-    { label: '慧榮 SMI',        url: 'https://news.google.com/rss/search?q=慧榮+Silicon+Motion&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'SMI' },
-    { label: '群聯 Phison',     url: 'https://news.google.com/rss/search?q=群聯+Phison&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Phison' },
-    { label: '瑞昱 Realtek',    url: 'https://news.google.com/rss/search?q=瑞昱+Realtek&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', cat: 'supplier', brand: 'Realtek' },
-  ]
-};
-
-const POS_KW = ['獲獎','表揚','優勝','榮獲','營收','新高','成長','獲利','上漲','上升','突破','合作','推出','創新','領先','冠軍','熱銷','供不應求','超預期','亮眼','利多','上調','漲','award','growth','revenue','record high','profit','partnership','launch','beats','strong','bullish','surge','rise','positive','upgrade','outperform','rally','expand'];
-const NEG_KW = ['崩盤','瑕疵','虧損','下滑','召回','訴訟','罰款','跌','下跌','危機','衝擊','困境','裁員','停產','倒閉','賠','供應鏈中斷','市場萎縮','利空','下調','recall','loss','lawsuit','fine','crash','decline','fall','drop','risk','bearish','weak','miss','cut','layoff','bankruptcy','warning','concern','shortfall','downgrade'];
-
-const TAIWAN_MEDIA = {
-  'udn.com': '聯合報', 'money.udn.com': '經濟日報', 'ctee.com.tw': '工商時報',
-  'chinatimes.com': '中時新聞網', 'technews.tw': '科技新報', 'ithome.com.tw': 'iThome',
-  'digitimes.com.tw': '電子時報', 'digitimes.com': '電子時報',
-  'eettaiwan.com': 'EE Times Taiwan', 'eetimes.com': 'EE Times',
-  'anue.com.tw': '鉅亨網', 'cnyes.com': '鉅亨網', 'news.cnyes.com': '鉅亨網', 'm.cnyes.com': '鉅亨網',
-  'wantrich.chinatimes.com': '旺得富理財網',
-  'ltn.com.tw': '自由時報', 'ec.ltn.com.tw': '自由時報', 'setn.com': '三立新聞', 'tvbs.com.tw': 'TVBS',
-  'ettoday.net': 'ETtoday', 'finance.ettoday.net': 'ETtoday財經雲', 'storm.mg': '風傳媒', 'businessweekly.com.tw': '商業週刊',
-  'cw.com.tw': '天下雜誌', 'bnext.com.tw': 'Meet 創業小聚', 'inside.com.tw': 'INSIDE',
-  'tw.stock.yahoo.com': 'Yahoo 財經', 'moneydj.com': '精實財經(MoneyDJ)',
-  'stockfeel.com.tw': '股感', 'nownews.com': 'NOWnews',
-  'ctinews.com': '中天新聞', 'ftv.com.tw': '民視新聞', 'pts.org.tw': '公視',
-  'mirrormedia.mg': '鏡週刊',
-  // 新增媒體
-  'cna.com.tw': '中央社',
-  'wealth.com.tw': '財訊雙周刊',
-  'nextapple.com': '壹蘋新聞網', 'news.nextapple.com': '壹蘋新聞網',
-  'mnews.tw': '鏡報', 'mirrordaily.news': '鏡報',
-  'newtalk.tw': 'Newtalk',
-  'gvm.com.tw': '遠見',
-  'ustv.com.tw': '非凡財經',
-  'trendforce.com': '集邦科技(TrendForce)',
-  'pcdiy.com.tw': 'PC DIY',
-  'imageinfo.com.tw': 'Image Media',
-  'ioiotimes.com': 'ioio Times',
-  'chinatimes.com/stock': '時報資訊',
-  'ctee.com.tw': '工商時報',
-};
-
-// ═══════════════════════════════════════════
-// APP STATE
-// ═══════════════════════════════════════════
-let state = {
-  news: [],
-  settings: { claudeKey: '', claudeModel: 'claude-sonnet-4-6', fbKey: '', fbProjectId: '', fbAuthDomain: '', fbBucket: '', fbSenderId: '', fbAppId: '', rssKey: '' },
-  currentTab: 'transcend',
-  currentFilter: 'today',
-  competitorBrand: 'all',
-  db: null,
-  chart: null,
-  isFetching: false
-};
-
-// ═══════════════════════════════════════════
-// SETTINGS
-// ═══════════════════════════════════════════
-function loadSettings() {
-  try {
-    const saved = localStorage.getItem('transcend_settings');
-    if (saved) state.settings = { ...state.settings, ...JSON.parse(saved) };
-  } catch(e) {}
-}
-
-function saveSettings() {
-  state.settings.claudeKey = document.getElementById('s_claudeKey').value.trim();
-  state.settings.claudeModel = document.getElementById('s_claudeModel').value;
-  state.settings.fbKey = document.getElementById('s_fbKey').value.trim();
-  state.settings.fbAuthDomain = document.getElementById('s_fbAuthDomain').value.trim();
-  state.settings.fbProjectId = document.getElementById('s_fbProjectId').value.trim();
-  state.settings.fbBucket = document.getElementById('s_fbBucket').value.trim();
-  state.settings.fbSenderId = document.getElementById('s_fbSenderId').value.trim();
-  state.settings.fbAppId = document.getElementById('s_fbAppId').value.trim();
-  state.settings.rssKey = document.getElementById('s_rssKey').value.trim();
-  localStorage.setItem('transcend_settings', JSON.stringify(state.settings));
-  if (state.settings.fbKey && state.settings.fbProjectId) initFirebase();
-  closeModal('settingsModal');
-  showToast('✅ 設定已儲存', 'success');
-}
-
-function openSettings() {
-  document.getElementById('s_claudeKey').value = state.settings.claudeKey || '';
-  document.getElementById('s_claudeModel').value = state.settings.claudeModel || 'claude-sonnet-4-6';
-  document.getElementById('s_fbKey').value = state.settings.fbKey || '';
-  document.getElementById('s_fbAuthDomain').value = state.settings.fbAuthDomain || '';
-  document.getElementById('s_fbProjectId').value = state.settings.fbProjectId || '';
-  document.getElementById('s_fbBucket').value = state.settings.fbBucket || '';
-  document.getElementById('s_fbSenderId').value = state.settings.fbSenderId || '';
-  document.getElementById('s_fbAppId').value = state.settings.fbAppId || '';
-  document.getElementById('s_rssKey').value = state.settings.rssKey || '';
-  document.getElementById('settingsModal').classList.remove('hidden');
-}
-
-function closeSettings() { closeModal('settingsModal'); }
-
-async function testClaudeKey() {
-  if (!state.settings.claudeKey) { showToast('⚠️ 請先填入 Claude API Key', 'warning'); return; }
-  showToast('🔄 測試 Claude API...', 'info');
-  try {
-    const res = await callClaude('請用繁體中文回答：創見資訊是哪個國家的公司？一句話即可。');
-    showToast('✅ Claude API 連線正常！', 'success');
-  } catch(e) {
-    showToast('❌ 連線失敗：' + e.message, 'error');
-  }
-}
-
-// ═══════════════════════════════════════════
-// FIREBASE
-// ═══════════════════════════════════════════
-function initFirebase() {
-  try {
-    // 優先使用 localStorage 設定，否則用 HTML 裡的硬寫設定
-    const s = state.settings;
-    const cfg = (s.fbKey && s.fbProjectId) ? {
-      apiKey: s.fbKey,
-      authDomain: s.fbAuthDomain,
-      projectId: s.fbProjectId,
-      storageBucket: s.fbBucket,
-      messagingSenderId: s.fbSenderId,
-      appId: s.fbAppId
-    } : FIREBASE_CONFIG;
-
-    // 如果硬寫設定還沒填（仍是預設佔位符），不嘗試連線
-    if (!cfg.projectId || cfg.projectId.includes('填入')) {
-      console.warn('Firebase config not set. Please fill FIREBASE_CONFIG in index.html');
-      return;
-    }
-
-    if (!firebase.apps.length) firebase.initializeApp(cfg);
-    else firebase.app();
-    state.db = firebase.firestore();
-    document.getElementById('firebaseBanner').classList.remove('hidden');
-    showToast('🔥 Firebase 已連線', 'success');
-  } catch(e) {
-    console.error('Firebase init error:', e);
-    showToast('⚠️ Firebase 連線失敗', 'warning');
-  }
-}
-
-// ═══════════════════════════════════════════
-// STOCK PRICES
-// ═══════════════════════════════════════════
-const STOCK_META = {
-  '2451': { name: '創見', fullName: '創見資訊', isSelf: true },
-  '3260': { name: '威剛', fullName: '威剛科技' },
-  '6248': { name: '廣穎', fullName: '廣穎電通' },
-  '5483': { name: '宜鼎', fullName: '宜鼎國際' },
-};
-
-async function loadStockPrices() {
-  if (!state.db) return;
-  try {
-    const doc = await state.db.collection('stocks').doc('latest').get();
-    if (!doc.exists) return;
-    const data = doc.data();
-    renderStockCards(data);
-  } catch(e) {
-    console.warn('股價載入失敗:', e);
-  }
-}
-
-function renderStockCards(data) {
-  const section = document.getElementById('stockSection');
-  const container = document.getElementById('stockCards');
-  if (!data || Object.keys(data).length === 0) return;
-  section.classList.remove('hidden');
-
-  let updatedAt = '';
-  const cards = Object.entries(STOCK_META).map(([code, meta]) => {
-    const s = data[code];
-    if (!s) return '';
-    if (s.updatedAt && !updatedAt) {
-      const d = s.updatedAt.toDate ? s.updatedAt.toDate() : new Date(s.updatedAt);
-      updatedAt = d.toLocaleString('zh-TW', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-    }
-    const price = (s.price || 0).toFixed(1);
-    const change = s.change || 0;
-    const changePct = s.changePct || 0;
-    const isUp = change > 0;
-    const isDown = change < 0;
-    const arrow = isUp ? '▲' : isDown ? '▼' : '─';
-    const colorStyle = isUp ? 'color:#16a34a' : isDown ? 'color:#dc2626' : 'color:#6b7280';
-    const borderStyle = meta.isSelf ? 'border-color:#960014;border-width:2px' : '';
-    return `
-      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4" style="${borderStyle}">
-        <div class="flex items-center justify-between mb-1">
-          <div>
-            <span class="text-xs font-bold text-gray-800">${meta.name}</span>
-            <span class="text-xs text-gray-400 ml-1">${code}</span>
-          </div>
-          ${meta.isSelf ? `<span class="text-xs px-1.5 py-0.5 rounded font-medium" style="background:#fef2f2;color:#960014">我們</span>` : ''}
-        </div>
-        <div class="text-xl font-bold text-gray-900">$${price}</div>
-        <div class="text-xs font-semibold mt-0.5" style="${colorStyle}">
-          ${arrow} ${Math.abs(change).toFixed(1)} (${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%)
-        </div>
-        <div class="text-xs text-gray-400 mt-1">成交量 ${s.volume ? (s.volume/1000).toFixed(0)+'K' : '-'}</div>
-      </div>`;
-  }).join('');
-  container.innerHTML = cards;
-  if (updatedAt) document.getElementById('stockUpdatedAt').textContent = `更新時間：${updatedAt}`;
-}
-
-async function saveToFirebase(articles) {
-  if (!state.db) return;
-  const batch = state.db.batch();
-  articles.forEach(a => {
-    const ref = state.db.collection('news').doc(a.id);
-    batch.set(ref, {
-      ...a,
-      pubDate: a.pubDate instanceof Date ? firebase.firestore.Timestamp.fromDate(a.pubDate) : a.pubDate,
-      fetchedAt: firebase.firestore.Timestamp.now()
-    }, { merge: true });
-  });
-  await batch.commit();
-}
-
-async function loadFromFirebase(days = 1) {
-  if (!state.db) return [];
-  // 固定從 2026/1/1 開始載入（忽略 days 參數）
-  const since = new Date('2026-01-01T00:00:00+08:00');
-  const snap = await state.db.collection('news')
-    .where('pubDate', '>=', firebase.firestore.Timestamp.fromDate(since))
-    .orderBy('pubDate', 'desc')
-    .limit(2000)
-    .get();
-  const raw = snap.docs.map(d => {
-    const data = d.data();
-    return { ...data, pubDate: data.pubDate?.toDate?.() || new Date(data.pubDate), id: d.id };
-  });
-  // 標題去重複（同一篇新聞可能從不同 RSS 來源重複存入）
-  const seenTitles = new Set();
-  const seenLinks = new Set();
-  return raw.filter(a => {
-    const normTitle = (a.title || '').replace(/[\s\W]+/g, '').toLowerCase().slice(0, 30);
-    if (normTitle && seenTitles.has(normTitle)) return false;
-    if (a.link && seenLinks.has(a.link)) return false;
-    seenTitles.add(normTitle);
-    if (a.link) seenLinks.add(a.link);
-    return true;
-  });
-}
-
-// ═══════════════════════════════════════════
-// SENTIMENT ANALYSIS
-// ═══════════════════════════════════════════
-function analyzeSentiment(title, content = '') {
-  const text = (title + ' ' + content).toLowerCase();
-  let pos = 0, neg = 0;
-  POS_KW.forEach(k => { if (text.includes(k.toLowerCase())) pos++; });
-  NEG_KW.forEach(k => { if (text.includes(k.toLowerCase())) neg++; });
-  if (pos > neg) return 'positive';
-  if (neg > pos) return 'negative';
-  return 'neutral';
-}
-
-// ═══════════════════════════════════════════
-// MEDIA NAME EXTRACTION
-// ═══════════════════════════════════════════
-
-// 從標題後綴提取媒體名稱（Google News 格式：「標題 - 媒體名稱」）
-function extractMediaFromTitle(title) {
-  if (!title) return null;
-  const match = title.match(/[-–—]\s*([^-–—]{2,40})\s*$/);
-  if (!match) return null;
-  const candidate = match[1].trim();
-  // 對照已知媒體
-  for (const [, name] of Object.entries(TAIWAN_MEDIA)) {
-    if (candidate === name || name.includes(candidate) || candidate.includes(name)) return name;
-  }
-  // 不在名單但看起來是媒體名（非純數字、有意義長度）
-  if (candidate.length >= 2 && candidate.length <= 30 && !/^\d+$/.test(candidate)) return candidate;
-  return null;
-}
-
-function getMediaName(item) {
-  // 1. 優先從標題後綴解析（Google News 格式）
-  const fromTitle = extractMediaFromTitle(item.title || '');
-  if (fromTitle) return fromTitle;
-
-  // 2. 從 author 欄位比對
-  const author = (item.author || '').trim();
-  if (author && author.length < 40 && !author.includes('@') && !author.includes('google')) {
-    for (const [, name] of Object.entries(TAIWAN_MEDIA)) {
-      if (author.includes(name) || name.includes(author)) return name;
-    }
-    if (author.length >= 2 && !/^https?/.test(author)) return author;
-  }
-
-  // 3. 從連結 domain 比對（排除 news.google.com）
-  try {
-    const domain = new URL(item.link || item.url || '').hostname.replace('www.', '');
-    if (!domain.includes('google')) {
-      for (const [key, name] of Object.entries(TAIWAN_MEDIA)) {
-        if (domain.includes(key) || key.includes(domain)) return name;
-      }
-      if (domain && domain !== 'news.google.com') return domain;
-    }
-  } catch {}
-
-  return '未知媒體';
-}
-
-// ═══════════════════════════════════════════
-// RSS FETCHING
-// ═══════════════════════════════════════════
-async function fetchRSS(url, keyFilter) {
-  const apiUrl = RSS_API + '?rss_url=' + encodeURIComponent(url) + '&count=30' +
-    (state.settings.rssKey ? '&api_key=' + state.settings.rssKey : '');
-  const res = await fetch(apiUrl);
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  const items = (data.items || []);
-  if (keyFilter) return items.filter(i => i.title && i.title.includes(keyFilter));
-  return items;
-}
-
-function makeArticle(item, src) {
-  const id = btoa(encodeURIComponent((item.link || item.guid || item.title || '') + src.cat)).slice(0, 24);
-  const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
-  const content = (item.content || item.description || '').replace(/<[^>]*>/g, '').trim();
-  const rawAuthor = (item.author || '').trim();
-  const mediaName = getMediaName(item);
-
-  // 去除標題後面的「- 媒體名稱」（Google News 格式）
-  let title = (item.title || '').replace(/<[^>]*>/g, '').trim();
-  const titleSuffix = title.match(/\s*[-–—]\s*[^-–—]{2,40}\s*$/);
-  if (titleSuffix) {
-    const removed = titleSuffix[0].replace(/^\s*[-–—]\s*/, '').trim();
-    // 只有確認是媒體名稱才移除（避免誤刪有 dash 的標題）
-    if (mediaName !== '未知媒體' && (removed === mediaName || mediaName.includes(removed) || removed.includes(mediaName))) {
-      title = title.slice(0, title.length - titleSuffix[0].length).trim();
-    }
-  }
-
-  return {
-    id,
-    title,
-    content: content.slice(0, 500),
-    link: item.link || item.url || '#',
-    pubDate,
-    sentiment: analyzeSentiment(title, content),
-    cat: src.cat,
-    brand: src.brand || null,
-    sourceName: src.label,
-    mediaName,
-    rawAuthor,
-    fetchedAt: new Date()
-  };
-}
-
-async function fetchTranscendNews() {
-  const articles = [];
-  for (const src of SOURCES.transcend) {
-    try {
-      const items = await fetchRSS(src.url, src.filter);
-      items.forEach(i => articles.push(makeArticle(i, src)));
-    } catch(e) { console.warn('Fetch failed:', src.label, e.message); }
-  }
-  return articles;
-}
-
-async function fetchUSMarketNews() {
-  const articles = [];
-  for (const src of SOURCES.usMarket) {
-    try {
-      const items = await fetchRSS(src.url);
-      items.forEach(i => articles.push(makeArticle(i, src)));
-    } catch(e) { console.warn('Fetch failed:', src.label, e.message); }
-  }
-  return articles;
-}
-
-async function fetchCompetitorNews() {
-  const articles = [];
-  for (const src of [...SOURCES.competitors, ...SOURCES.suppliers]) {
-    try {
-      const items = await fetchRSS(src.url);
-      items.forEach(i => articles.push(makeArticle(i, src)));
-    } catch(e) { console.warn('Fetch failed:', src.label, e.message); }
-  }
-  return articles;
-}
-
-async function reloadFromFirebase() {
-  const btn = document.getElementById('fetchBtn');
-  btn.disabled = true;
-  btn.innerHTML = `<span class="spin">⚙️</span> 載入中...`;
-  try {
-    if (!state.db) {
-      showToast('⚠️ Firebase 未連線，請檢查設定', 'warning');
-      return;
-    }
-    showStatus('從 Firebase 載入最新新聞...');
-    const fbNews = await loadFromFirebase(7);
-    if (fbNews.length > 0) {
-      state.news = fbNews;
-      renderAll();
-      updateStats();
-      renderMediaStats();
-      const last = fbNews.reduce((a, b) => a.fetchedAt > b.fetchedAt ? a : b);
-      document.getElementById('lastFetchBadge').classList.remove('hidden');
-      document.getElementById('lastFetchTime').textContent = new Date(last.fetchedAt).toLocaleString('zh-TW', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-      showToast(`☁️ 已載入 ${fbNews.length} 則新聞`, 'success');
-    } else {
-      showToast('⚠️ Firebase 目前沒有資料，請等待每日自動抓取', 'warning');
-    }
-  } catch(e) {
-    showToast('❌ 載入失敗：' + e.message, 'error');
-    console.error(e);
-  } finally {
-    hideStatus();
-    btn.disabled = false;
-    btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> 重新整理`;
-  }
-}
-
-async function fetchAllNews() {
-  if (state.isFetching) return;
-  state.isFetching = true;
-  const btn = document.getElementById('fetchBtn');
-  btn.disabled = true;
-  btn.innerHTML = `<span class="spin">⚙️</span> 抓取中...`;
-
-  showStatus('正在抓取所有新聞資料...');
-  showToast('🔄 開始抓取新聞...', 'info');
-
-  try {
-    setStatus('抓取創見資訊相關新聞...');
-    const t = await fetchTranscendNews();
-    setStatus('抓取美國市場新聞...');
-    const u = await fetchUSMarketNews();
-    setStatus('抓取競品與供應商新聞...');
-    const c = await fetchCompetitorNews();
-
-    const all = [...t, ...u, ...c];
-    // 以標題正規化去重複（移除空白/標點，避免同一新聞從不同來源重複出現）
-    const seenTitles = new Set();
-    const seenLinks = new Set();
-    const unique = all.filter(a => {
-      const normTitle = (a.title || '').replace(/[\s\W]+/g, '').toLowerCase().slice(0, 30);
-      if (seenTitles.has(normTitle)) return false;
-      if (a.link && seenLinks.has(a.link)) return false;
-      seenTitles.add(normTitle);
-      if (a.link) seenLinks.add(a.link);
-      return true;
-    });
-
-    state.news = unique;
-    localStorage.setItem('transcend_last_fetch', new Date().toISOString());
-    localStorage.setItem('transcend_news_cache', JSON.stringify(unique.slice(0, 200).map(n => ({...n, pubDate: n.pubDate.toISOString(), fetchedAt: n.fetchedAt.toISOString()}))));
-
-    if (state.db) {
-      setStatus('儲存至 Firebase...');
-      await saveToFirebase(unique);
-    }
-
-    // Update schedule status
-    const now = getTaiwanTime();
-    const h = now.getHours();
-    if (h === 8 || h < 9) {
-      document.getElementById('morningStatus').innerHTML = '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">✅ 已更新</span>';
-      localStorage.setItem('transcend_morning_fetch', now.toDateString());
-    }
-    if (h >= 16) {
-      document.getElementById('afternoonStatus').innerHTML = '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">✅ 已更新</span>';
-      localStorage.setItem('transcend_afternoon_fetch', now.toDateString());
-    }
-
-    hideStatus();
-    renderAll();
-    updateStats();
-    renderMediaStats();
-    showToast(`✅ 成功抓取 ${unique.length} 則新聞`, 'success');
-
-    document.getElementById('lastFetchBadge').classList.remove('hidden');
-    document.getElementById('lastFetchTime').textContent = new Date().toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'});
-
-  } catch(e) {
-    hideStatus();
-    showToast('❌ 抓取失敗：' + e.message, 'error');
-    console.error(e);
-  }
-
-  btn.disabled = false;
-  btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> 抓取新聞`;
-  state.isFetching = false;
-}
-
-// ═══════════════════════════════════════════
-// TIME FILTERING
-// ═══════════════════════════════════════════
-function getTaiwanTime() {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Taipei' }));
-}
-
-function isInPeriod(date, period) {
-  const tw = getTaiwanTime();
-  const d = date instanceof Date ? date : new Date(date);
-  const today = new Date(tw.getFullYear(), tw.getMonth(), tw.getDate());
-  switch(period) {
-    case 'today':
-      return d >= today;
-    case 'week': {
-      const dow = tw.getDay();
-      const startOfWeek = new Date(today);
-      startOfWeek.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
-      return d >= startOfWeek;
-    }
-    case 'month': {
-      const startOfMonth = new Date(tw.getFullYear(), tw.getMonth(), 1);
-      return d >= startOfMonth;
-    }
-    case 'year': {
-      const startOfYear = new Date(tw.getFullYear(), 0, 1);
-      return d >= startOfYear;
-    }
-    default: return true;
-  }
-}
-
-function getFilteredNews(cat, brand) {
-  const search = document.getElementById('searchInput').value.toLowerCase();
-  const sentFilter = document.getElementById('sentFilter').value;
-  const chineseOnly = (brand === 'competitor' || brand === 'supplier');
-  return state.news.filter(n => {
-    if (cat && n.cat !== cat) return false;
-    if (brand) {
-      if (brand === 'competitor' && n.cat !== 'competitor') return false;
-      if (brand === 'supplier' && n.cat !== 'supplier') return false;
-    }
-    // ① 創見 Tab：只保留含「創見」或「Transcend」或「2451」的新聞
-    if (cat === 'transcend') {
-      const t = (n.title || '') + ' ' + (n.content || '');
-      if (!/創見|Transcend|transcend|2451/.test(t)) return false;
-    }
-    // ④ 美國市場 Tab：只保留英文新聞（標題不含中文字）
-    if (cat === 'usMarket' && /[\u4e00-\u9fa5]/.test(n.title || '')) return false;
-    // 競品品牌篩選
-    if (brand === 'competitor' && state.competitorBrand && state.competitorBrand !== 'all') {
-      const nb = (n.brand || '').toLowerCase();
-      const fb = state.competitorBrand.toLowerCase();
-      if (!nb.includes(fb) && !fb.includes(nb)) return false;
-    }
-    // 競品和供應商 Tab 只保留含有中文字的標題
-    if (chineseOnly && !/[\u4e00-\u9fa5]/.test(n.title || '')) return false;
-    if (!isInPeriod(n.pubDate, state.currentFilter)) return false;
-    if (sentFilter !== 'all' && n.sentiment !== sentFilter) return false;
-    if (search && !n.title.toLowerCase().includes(search) && !n.content.toLowerCase().includes(search)) return false;
-    return true;
-  });
-}
-
-// ═══════════════════════════════════════════
-// NEWS CARD RENDERING
-// ═══════════════════════════════════════════
-function sentimentBadge(s) {
-  const cfg = {
-    positive: { cls: 'sentiment-pos', icon: '🟢', txt: '正面' },
-    negative: { cls: 'sentiment-neg', icon: '🔴', txt: '負面' },
-    neutral:  { cls: 'sentiment-neu', icon: '⚪', txt: '中立' }
-  };
-  const c = cfg[s] || cfg.neutral;
-  return `<span class="text-xs px-2 py-0.5 rounded-full font-medium ${c.cls}">${c.icon} ${c.txt}</span>`;
-}
-
-function formatDate(d) {
-  const date = d instanceof Date ? d : new Date(d);
-  return date.toLocaleString('zh-TW', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-}
-
-function renderCards(containerId, articles) {
-  const el = document.getElementById(containerId);
-  if (!articles || articles.length === 0) {
-    el.innerHTML = `<div class="col-span-3 text-center py-16 text-gray-400">
-      <div class="text-5xl mb-3">📭</div>
-      <div class="text-lg font-semibold text-gray-500">沒有符合條件的新聞</div>
-      <div class="text-sm mt-2">請嘗試更換時間範圍、關鍵字，或先點選「抓取新聞」</div>
-    </div>`;
-    return;
-  }
-  el.innerHTML = articles.slice(0, 60).map(a => {
-    const clean = a.content.replace(/<[^>]*>/g, '').slice(0, 120);
-    const media = a.mediaName || '未知媒體';
-    return `<div class="news-card fade-in bg-white border border-gray-200 rounded-xl p-4 cursor-pointer" onclick="openArticle('${encodeURIComponent(a.link)}')">
-      <!-- 媒體來源列 -->
-      <div class="flex items-center justify-between gap-2 mb-2.5">
-        <span class="flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-full truncate max-w-[160px]">
-          <svg class="w-3 h-3 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 12h6"/></svg>
-          ${media}
-        </span>
-        <span class="text-xs text-gray-400 shrink-0">${formatDate(a.pubDate)}</span>
-      </div>
-      <!-- 標題 -->
-      <h3 class="text-sm font-semibold text-gray-900 mb-2 line-clamp-2 leading-snug">${a.title}</h3>
-      ${clean ? `<p class="text-xs text-gray-500 line-clamp-2 mb-3">${clean}</p>` : ''}
-      <!-- 底部：情緒 + 品牌 -->
-      <div class="flex items-center justify-between gap-2 mt-auto">
-        ${sentimentBadge(a.sentiment)}
-        ${a.brand ? `<span class="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">${a.brand}</span>` : ''}
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function openArticle(encodedUrl) {
-  window.open(decodeURIComponent(encodedUrl), '_blank');
-}
-
-// ═══════════════════════════════════════════
-// RENDER ALL
-// ═══════════════════════════════════════════
-function renderAll() {
-  renderCards('transcendGrid', getFilteredNews('transcend'));
-  renderCards('competitorGrid', getFilteredNews(null, 'competitor'));
-  renderCards('supplierGrid', getFilteredNews(null, 'supplier'));
-  renderCards('usMarketGrid', getFilteredNews('usMarket'));
-  updateStats();
-  renderMediaStats();
-}
-
-// ═══════════════════════════════════════════
-// STATS
-// ═══════════════════════════════════════════
-function updateStats() {
-  // 根據目前分頁篩選對應的新聞
-  const catMap = { transcend: 'transcend', competitor: 'competitor', supplier: 'supplier', usMarket: 'usMarket' };
-  const currentCat = catMap[state.currentTab];
-  let periodNews = state.news.filter(n => isInPeriod(n.pubDate, state.currentFilter));
-  const tabNews = currentCat ? periodNews.filter(n => n.cat === currentCat) : periodNews;
-
-  const pos = tabNews.filter(n => n.sentiment === 'positive').length;
-  const neg = tabNews.filter(n => n.sentiment === 'negative').length;
-  const mediaSrc = new Set(tabNews.map(n => n.mediaName).filter(Boolean)).size;
-
-  document.getElementById('statTotal').textContent = tabNews.length;
-  document.getElementById('statPos').textContent = pos;
-  document.getElementById('statNeg').textContent = neg;
-  document.getElementById('statMediaCnt').textContent = tabNews.length;
-  document.getElementById('statMediaSrc').textContent = `來自 ${mediaSrc} 個媒體`;
-
-  const labels = { today:'今日', week:'本週', month:'本月', year:'本年' };
-  document.getElementById('statPeriod').textContent = labels[state.currentFilter] || '篩選期間';
-}
-
-// ═══════════════════════════════════════════
-// MEDIA STATS
-// ═══════════════════════════════════════════
-function renderMediaStats() {
-  const all = state.news.filter(n => isInPeriod(n.pubDate, state.currentFilter) && n.cat === 'transcend');
-  const counts = {};
-  all.forEach(n => {
-    counts[n.mediaName] = (counts[n.mediaName] || 0) + 1;
-  });
-  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-
-  // Rank list
-  const listEl = document.getElementById('mediaRankList');
-  if (sorted.length === 0) {
-    listEl.innerHTML = '<div class="text-center py-8 text-gray-400"><div class="text-3xl mb-2">📊</div><div class="text-sm">抓取創見新聞後自動統計</div></div>';
-  } else {
-    const max = sorted[0][1];
-    listEl.innerHTML = sorted.slice(0, 15).map(([name, cnt], i) => `
-      <div class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50">
-        <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${i === 0 ? 'bg-yellow-100 text-yellow-700' : i === 1 ? 'bg-gray-200 text-gray-600' : i === 2 ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'}">${i+1}</span>
-        <div class="flex-1 min-w-0">
-          <div class="text-sm font-medium text-gray-800 truncate">${name}</div>
-          <div class="h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
-            <div class="h-full rounded-full" style="width:${Math.round(cnt/max*100)}%;background:#960014"></div>
-          </div>
-        </div>
-        <span class="text-sm font-bold flex-shrink-0" style="color:#960014">${cnt}</span>
-      </div>
-    `).join('');
-  }
-
-  // Chart
-  renderMediaChart(sorted.slice(0, 10));
-}
-
-let mediaChartInstance = null;
-function renderMediaChart(data) {
-  const ctx = document.getElementById('mediaChart').getContext('2d');
-  if (mediaChartInstance) mediaChartInstance.destroy();
-  if (!data || data.length === 0) return;
-  mediaChartInstance = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: data.map(([n]) => n.length > 8 ? n.slice(0, 8) + '…' : n),
-      datasets: [{
-        label: '新聞數量',
-        data: data.map(([, c]) => c),
-        backgroundColor: data.map((_, i) => `hsla(${0}, ${80 - i*3}%, ${30 + i*4}%, 0.85)`),
-        borderRadius: 6, borderSkipped: false
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: false } },
-      scales: {
-        y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: '#f1f5f9' } },
-        x: { ticks: { font: { size: 10 } }, grid: { display: false } }
-      }
-    }
-  });
-}
-
-// ═══════════════════════════════════════════
-// 競品媒體對比
-// ═══════════════════════════════════════════
-const COMPARE_BRANDS = [
-  { key: 'transcend', label: '創見', color: 'rgba(150,0,20,0.85)' },
-  { key: 'ADATA',     label: 'ADATA', color: 'rgba(16,185,129,0.8)' },
-  { key: 'Kingston',  label: 'Kingston', color: 'rgba(245,158,11,0.8)' },
-  { key: 'Innodisk',  label: 'Innodisk', color: 'rgba(239,68,68,0.8)' },
-  { key: 'Apacer',    label: 'Apacer', color: 'rgba(139,92,246,0.8)' },
-  { key: 'Silicon Power', label: 'Silicon Power', color: 'rgba(236,72,153,0.8)' },
-];
-
-let compareChartInstance = null;
-function renderCompareChart() {
-  const period = state.currentFilter;
-  const allNews = state.news.filter(n => isInPeriod(n.pubDate, period));
-
-  // 取創見曝光最多的前 8 家媒體作為 X 軸
-  const transcendByMedia = {};
-  allNews.filter(n => n.cat === 'transcend').forEach(n => {
-    transcendByMedia[n.mediaName] = (transcendByMedia[n.mediaName] || 0) + 1;
-  });
-  const topMedia = Object.entries(transcendByMedia).sort((a,b) => b[1]-a[1]).slice(0, 8).map(([m]) => m);
-
-  if (topMedia.length === 0) {
-    document.getElementById('compareTable').innerHTML =
-      '<div class="text-center py-10 text-gray-400"><div class="text-4xl mb-3">🥊</div><div>請先抓取新聞</div></div>';
-    return;
-  }
-
-  // 計算每個品牌在這些媒體的曝光數
-  const datasets = COMPARE_BRANDS.map(brand => {
-    const data = topMedia.map(media => {
-      if (brand.key === 'transcend') {
-        return allNews.filter(n => n.cat === 'transcend' && n.mediaName === media).length;
-      }
-      return allNews.filter(n => n.brand === brand.key && n.mediaName === media).length;
-    });
-    return { label: brand.label, data, backgroundColor: brand.color, borderRadius: 4, borderSkipped: false };
-  });
-
-  // 圖表
-  const ctx = document.getElementById('compareChart').getContext('2d');
-  if (compareChartInstance) compareChartInstance.destroy();
-  compareChartInstance = new Chart(ctx, {
-    type: 'bar',
-    data: { labels: topMedia.map(m => m.length > 7 ? m.slice(0,7)+'…' : m), datasets },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } }
-      },
-      scales: {
-        x: { ticks: { font: { size: 10 } }, grid: { display: false } },
-        y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } }, grid: { color: '#f1f5f9' } }
-      }
-    }
-  });
-
-  // 表格
-  const filterLabel = { today:'今日', week:'本週', month:'本月', year:'本年' }[period];
-  let html = `<div class="text-xs text-gray-500 mb-3">${filterLabel}各媒體品牌曝光次數</div>
-    <table class="w-full text-sm border-collapse">
-      <thead><tr class="bg-gray-50">
-        <th class="text-left p-2 border border-gray-200 font-semibold text-gray-700">媒體</th>
-        ${COMPARE_BRANDS.map(b => `<th class="p-2 border border-gray-200 font-semibold text-center" style="color:${b.color.replace('0.8','1')}">${b.label}</th>`).join('')}
-      </tr></thead><tbody>`;
-  topMedia.forEach((media, i) => {
-    const row = COMPARE_BRANDS.map(brand => {
-      const cnt = datasets.find(d => d.label === brand.label).data[i];
-      return `<td class="p-2 border border-gray-100 text-center font-medium ${cnt > 0 ? 'text-gray-800' : 'text-gray-300'}">${cnt || '-'}</td>`;
-    }).join('');
-    html += `<tr class="${i%2===0?'bg-white':'bg-gray-50'} hover:bg-blue-50 transition-colors">
-      <td class="p-2 border border-gray-200 font-medium text-gray-700">${media}</td>${row}</tr>`;
-  });
-  html += '</tbody></table>';
-  document.getElementById('compareTable').innerHTML = html;
-}
-
-// ═══════════════════════════════════════════
-// 記者追蹤
-// ═══════════════════════════════════════════
-const MEDIA_NAME_SET = new Set(Object.values(TAIWAN_MEDIA));
-
-function extractReporter(rawAuthor) {
-  if (!rawAuthor) return null;
-  const a = rawAuthor.trim();
-  if (!a || a.length < 2 || a.length > 15 || a.includes('@') || a.includes('http')) return null;
-  // 排除已知媒體名稱
-  if (MEDIA_NAME_SET.has(a)) return null;
-  for (const name of MEDIA_NAME_SET) { if (a.includes(name) || name.includes(a)) return null; }
-  // 是中文人名（2-4字）或英文人名（含空格）
-  const isCNName = /^[\u4e00-\u9fa5]{2,4}$/.test(a);
-  const isENName = /^[A-Z][a-z]+([ ][A-Z][a-z]+)+$/.test(a);
-  return (isCNName || isENName) ? a : null;
-}
-
-function renderReporterStats() {
-  const transcendNews = state.news.filter(n => isInPeriod(n.pubDate, state.currentFilter) && n.cat === 'transcend');
-  const reporterMap = {}; // reporter -> { count, media, articles }
-
-  transcendNews.forEach(n => {
-    const reporter = extractReporter(n.rawAuthor || n.mediaName);
-    if (!reporter) return;
-    if (!reporterMap[reporter]) reporterMap[reporter] = { count: 0, media: n.mediaName, articles: [] };
-    reporterMap[reporter].count++;
-    if (reporterMap[reporter].articles.length < 5) reporterMap[reporter].articles.push(n);
-  });
-
-  const sorted = Object.entries(reporterMap).sort((a,b) => b[1].count - a[1].count);
-  const listEl = document.getElementById('reporterList');
-
-  if (sorted.length === 0) {
-    listEl.innerHTML = `<div class="text-center py-8 text-gray-400">
-      <div class="text-3xl mb-2">✍️</div>
-      <div class="text-sm">目前無法從 RSS 辨識個人記者</div>
-      <div class="text-xs mt-2 text-gray-400">部分媒體 RSS 不提供記者姓名，<br>建議後續考慮直接爬取文章頁面</div>
-    </div>`;
-    return;
-  }
-
-  const max = sorted[0][1].count;
-  listEl.innerHTML = sorted.slice(0, 20).map(([name, info], i) => `
-    <div class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors"
-         onclick="showReporterArticles('${name}')">
-      <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0
-        ${i===0?'bg-yellow-100 text-yellow-700':i===1?'bg-gray-200 text-gray-600':i===2?'bg-orange-100 text-orange-600':'bg-gray-100 text-gray-500'}">${i+1}</span>
-      <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2">
-          <span class="text-sm font-semibold text-gray-800">${name}</span>
-          <span class="text-xs text-gray-400">${info.media}</span>
-        </div>
-        <div class="h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
-          <div class="h-full bg-purple-400 rounded-full" style="width:${Math.round(info.count/max*100)}%"></div>
-        </div>
-      </div>
-      <span class="text-sm font-bold text-purple-600 flex-shrink-0">${info.count} 篇</span>
-    </div>
-  `).join('');
-
-  // 儲存到 state 方便查詢
-  state.reporterMap = reporterMap;
-}
-
-function showReporterArticles(reporter) {
-  const info = state.reporterMap?.[reporter];
-  if (!info) return;
-  const el = document.getElementById('reporterArticles');
-  el.innerHTML = `<div class="font-semibold text-gray-700 mb-3">✍️ ${reporter} 的近期報導</div>` +
-    info.articles.map(a => `
-      <div class="p-3 bg-gray-50 rounded-lg mb-2 hover:bg-blue-50 cursor-pointer" onclick="openArticle('${encodeURIComponent(a.link)}')">
-        <div class="text-xs text-gray-400 mb-1">${formatDate(a.pubDate)} · ${a.mediaName}</div>
-        <div class="text-sm font-medium text-gray-800 line-clamp-2">${a.title}</div>
-        <div class="text-xs mt-1 ${a.sentiment==='positive'?'text-green-600':a.sentiment==='negative'?'text-red-600':'text-gray-400'}">
-          ${a.sentiment==='positive'?'🟢 正面':a.sentiment==='negative'?'🔴 負面':'⚪ 中立'}
-        </div>
-      </div>`).join('');
-}
-
-// ═══════════════════════════════════════════
-// 媒體子分頁切換
-// ═══════════════════════════════════════════
-function switchMediaTab(mt) {
-  state.currentMediaTab = mt;
-  document.querySelectorAll('.media-sub-tab').forEach(t => {
-    t.classList.remove('media-sub-active', 'bg-blue-600', 'text-white');
-    t.classList.add('text-gray-600', 'bg-gray-100');
-  });
-  const active = document.querySelector(`[data-mt="${mt}"]`);
-  active.classList.add('media-sub-active', 'bg-blue-600', 'text-white');
-  active.classList.remove('text-gray-600', 'bg-gray-100');
-  document.querySelectorAll('.media-panel').forEach(p => p.classList.add('hidden'));
-  document.getElementById('media-' + mt).classList.remove('hidden');
-  // 切換時重新渲染對應內容
-  if (mt === 'compare') renderCompareChart();
-  if (mt === 'reporter') renderReporterStats();
-}
-
-// ═══════════════════════════════════════════
-// TAB SWITCHING
-// ═══════════════════════════════════════════
-function switchTab(tab) {
-  state.currentTab = tab;
-  document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('tab-active'));
-  document.querySelector(`[data-tab="${tab}"]`).classList.add('tab-active');
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
-  document.getElementById('tab-' + tab).classList.remove('hidden');
-  if (tab === 'media') {
-    const mt = state.currentMediaTab || 'exposure';
-    renderMediaStats(); // 切換到媒體 tab 時一律重繪
-    if (mt === 'compare') renderCompareChart();
-    if (mt === 'reporter') renderReporterStats();
-  }
-  updateStats();
-}
-
-function switchCompetitorBrand(brand) {
-  state.competitorBrand = brand;
-  document.querySelectorAll('.comp-brand-btn').forEach(b => {
-    b.classList.remove('brand-filter-active');
-    b.classList.add('bg-gray-100', 'text-gray-600');
-    b.style.background = '';
-    b.style.color = '';
-  });
-  const active = document.querySelector(`.comp-brand-btn[data-brand="${brand}"]`);
-  if (active) {
-    active.classList.remove('bg-gray-100', 'text-gray-600');
-    active.classList.add('brand-filter-active');
-  }
-  renderCards('competitorGrid', getFilteredNews(null, 'competitor'));
-}
-
-function setFilter(f) {
-  state.currentFilter = f;
-  document.querySelectorAll('.time-filter').forEach(b => {
-    b.classList.remove('filter-active');
-    b.classList.add('text-gray-500');
-    if (!b.classList.contains('filter-active')) b.classList.add('hover:bg-gray-200');
-  });
-  const active = document.querySelector(`[data-f="${f}"]`);
-  active.classList.add('filter-active');
-  active.classList.remove('text-gray-500', 'hover:bg-gray-200');
-  renderAll();
-}
-
-function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-
-// ═══════════════════════════════════════════
-// GEMINI API
-// ═══════════════════════════════════════════
 const GEMINI_API_KEY = 'AIzaSyCNxSWC57_SBwvf1JqA-ITw83Eo9IUCLQY';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+const BRAND = '#960014';
 
-async function callGemini(prompt) {
-  const res = await fetch(GEMINI_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 2048, temperature: 0.7 }
-    })
+// ═══════════════════════════════════════════════════════════
+// MEDIA DOMAIN MAP
+// ═══════════════════════════════════════════════════════════
+const MEDIA_MAP = {
+  'udn.com':'聯合報','money.udn.com':'經濟日報','ctee.com.tw':'工商時報',
+  'chinatimes.com':'中時新聞網','technews.tw':'科技新報','ithome.com.tw':'iThome',
+  'digitimes.com.tw':'電子時報','digitimes.com':'電子時報',
+  'anue.com.tw':'鉅亨網','cnyes.com':'鉅亨網','news.cnyes.com':'鉅亨網','m.cnyes.com':'鉅亨網',
+  'wantrich.chinatimes.com':'旺得富理財網',
+  'ltn.com.tw':'自由時報','ec.ltn.com.tw':'自由時報',
+  'ettoday.net':'ETtoday','finance.ettoday.net':'ETtoday財經雲',
+  'nextapple.com':'壹蘋新聞網','news.nextapple.com':'壹蘋新聞網',
+  'mnews.tw':'鏡報','mirrordaily.news':'鏡報','mirrormedia.mg':'鏡週刊',
+  'newtalk.tw':'Newtalk','moneydj.com':'MoneyDJ','storm.mg':'風傳媒',
+  'cna.com.tw':'中央社','wealth.com.tw':'財訊','gvm.com.tw':'遠見',
+  'ustv.com.tw':'非凡財經','trendforce.com':'TrendForce',
+};
+
+// ═══════════════════════════════════════════════════════════
+// COMPETITOR CONFIG
+// ═══════════════════════════════════════════════════════════
+const COMPETITORS = [
+  { id:'ADATA',         name:'ADATA 威剛',        stock:'3260', color:'#ef4444' },
+  { id:'Kingston',      name:'Kingston',           stock:null,   color:'#f97316' },
+  { id:'Innodisk',      name:'Innodisk 宜鼎',     stock:'5483', color:'#eab308' },
+  { id:'Apacer',        name:'Apacer 宇瞻',       stock:null,   color:'#22c55e' },
+  { id:'Silicon Power', name:'Silicon Power 廣穎', stock:'6248', color:'#3b82f6' },
+];
+
+const STOCK_META = {
+  '2451':{ name:'創見', isSelf:true  },
+  '3260':{ name:'威剛', isSelf:false },
+  '6248':{ name:'廣穎', isSelf:false },
+  '5483':{ name:'宜鼎', isSelf:false },
+};
+
+// ═══════════════════════════════════════════════════════════
+// MOCK — 社群觀測站（示意，未來接 RSS）
+// ═══════════════════════════════════════════════════════════
+const MOCK_COMMUNITY = [
+  { id:1, src:'PTT Stock',  title:'[情報] 創見元月EPS 6.49元，年增15倍，今年挑戰20元有望',    s:'positive', time:'3h前',  author:'investor2451'  },
+  { id:2, src:'Dcard 理財',  title:'創見配息11.8元，殖利率約4%，長期持有值得嗎？',              s:'neutral',  time:'5h前',  author:'stock_newbie'   },
+  { id:3, src:'股市同學會', title:'記憶體漲價週期啟動，2451後市看法 + 技術分析整理',            s:'positive', time:'8h前',  author:'memory_trader'  },
+  { id:4, src:'PTT Stock',  title:'[新聞] 創見Q1淡季不淡，外資持續加碼',                       s:'positive', time:'12h前', author:'bull_tw88'      },
+  { id:5, src:'CMoney',     title:'威剛 vs 創見：Q1財報誰更強？記憶體廠大比較',                 s:'neutral',  time:'1天前', author:'compare_master' },
+  { id:6, src:'PTT Stock',  title:'記憶體股近期回檔，是買點還是轉弱訊號？',                    s:'negative', time:'1天前', author:'risk_mgr'       },
+];
+
+const SRC_COLOR = { 'PTT Stock':'#f97316','Dcard 理財':'#8b5cf6','股市同學會':'#06b6d4','CMoney':'#10b981' };
+
+// ═══════════════════════════════════════════════════════════
+// MOCK — 股價歷史走勢（示意，未來接每日收盤紀錄）
+// ═══════════════════════════════════════════════════════════
+const MOCK_STOCK_HISTORY = (() => {
+  const base  = { '2451':255, '3260':84, '6248':133, '5483':190 };
+  const trend = { '2451':1.5, '3260':0.3,'6248':0.5, '5483':0.4 };
+  return Array.from({ length:20 }, (_,i) => {
+    const d = new Date('2026-03-24'); d.setDate(d.getDate()+i);
+    const row = { date:`${d.getMonth()+1}/${d.getDate()}` };
+    for (const [c,b] of Object.entries(base)) {
+      const n = Math.sin(i*1.3+parseInt(c)*0.01)*8 + Math.cos(i*0.7)*5;
+      row[c] = +(b + trend[c]*i + n).toFixed(1);
+    }
+    return row;
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `HTTP ${res.status}`);
-  }
-  const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+})();
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function getSentiment(title='', content='') {
+  const t = (title+' '+content).toLowerCase();
+  const pos = ['獲獎','營收','新高','成長','獲利','上漲','突破','合作','推出','亮眼','award','growth','record','profit','surge'].filter(k=>t.includes(k)).length;
+  const neg = ['虧損','下滑','召回','訴訟','下跌','危機','裁員','倒閉','利空','loss','lawsuit','crash','decline','layoff'].filter(k=>t.includes(k)).length;
+  return pos>neg?'positive':neg>pos?'negative':'neutral';
 }
 
-// ═══════════════════════════════════════════
-// AI SUMMARY
-// ═══════════════════════════════════════════
-async function openAISummary() {
-  document.getElementById('aiSummaryModal').classList.remove('hidden');
-  const el = document.getElementById('aiSummaryContent');
-  el.innerHTML = `<div class="text-center py-10"><div class="spin text-4xl inline-block mb-3">✨</div><div class="text-gray-500 mt-2">Gemini AI 正在分析新聞中...</div></div>`;
-
+function fmtDate(ts) {
+  if (!ts) return '';
   try {
-    const filtered = state.news.filter(n => isInPeriod(n.pubDate, state.currentFilter));
-    if (!filtered.length) {
-      el.innerHTML = '<div class="text-center py-8 text-gray-400">📭 目前沒有符合條件的新聞，請先抓取新聞資料。</div>';
-      return;
-    }
-
-    const topNews = filtered.slice(0, 10).map((n, i) =>
-      `${i+1}. 【${n.cat === 'transcend' ? '創見' : n.cat === 'usMarket' ? '美國市場' : n.brand || n.cat}】【${n.sentiment === 'positive' ? '正面' : n.sentiment === 'negative' ? '負面' : '中立'}】\n   ${n.title}\n   來源: ${n.mediaName} | ${formatDate(n.pubDate)}`
-    ).join('\n\n');
-
-    const filterLabel = { today:'今天', week:'本週', month:'本月', year:'本年' }[state.currentFilter];
-    const prompt = `你是創見資訊（Transcend Information，股票代碼 2451）的公關顧問。請分析以下${filterLabel}的最新新聞，並：
-
-1. 挑出 5 則最值得關注的新聞，並說明為何重要
-2. 提供今日整體媒體情緒評估（正面/中立/負面比例與原因）
-3. 提供一段「公關口徑建議」：如果有記者詢問今日市場動態，公關人員應如何回應？
-
-請以繁體中文回答，格式清晰，語氣專業。
-
-以下是最新新聞列表：
-${topNews}`;
-
-    const result = await callGemini(prompt);
-    el.innerHTML = formatAIResponse(result);
-  } catch(e) {
-    el.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
-      <div class="font-semibold mb-1">❌ 無法取得 AI 分析</div>
-      <div class="text-sm">${e.message}</div>
-    </div>`;
-  }
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return `${d.getMonth()+1}/${d.getDate()}`;
+  } catch { return ''; }
 }
 
-// ═══════════════════════════════════════════
-// PR ADVICE
-// ═══════════════════════════════════════════
-async function openPRAdvice() {
-  document.getElementById('prAdviceModal').classList.remove('hidden');
-  const el = document.getElementById('prAdviceContent');
-  el.innerHTML = `<div class="text-center py-10"><div class="spin text-4xl inline-block mb-3">📢</div><div class="text-gray-500 mt-2">Gemini AI 正在生成公關口徑建議...</div></div>`;
-
-  try {
-    const filtered = state.news.filter(n => isInPeriod(n.pubDate, state.currentFilter));
-    if (!filtered.length) {
-      el.innerHTML = '<div class="text-center py-8 text-gray-400">📭 目前沒有符合條件的新聞，請先抓取新聞資料。</div>';
-      return;
-    }
-
-    const transcendNews = filtered.filter(n => n.cat === 'transcend').slice(0, 5);
-    const marketNews = filtered.filter(n => n.cat === 'usMarket').slice(0, 3);
-    const compNews = filtered.filter(n => n.cat === 'competitor' || n.cat === 'supplier').slice(0, 5);
-
-    const formatList = (items) => items.map((n, i) =>
-      `${i+1}. 【${n.sentiment === 'positive' ? '正面' : n.sentiment === 'negative' ? '負面' : '中立'}】${n.title}（${n.mediaName}）`
-    ).join('\n');
-
-    const filterLabel = { today:'今天', week:'本週', month:'本月', year:'本年' }[state.currentFilter];
-    const prompt = `你是創見資訊（Transcend Information，台灣知名記憶體與儲存裝置廠商，股票代碼 2451）的資深公關顧問。
-
-請根據以下${filterLabel}的新聞資料，生成一份完整的「公關口徑策略」文件，包含：
-
-## 一、整體情勢研判
-- 對品牌的有利因素
-- 需要應對的風險點
-- 市場機會
-
-## 二、核心公關訊息（Key Messages）
-- 3-5 個主要訴求點
-
-## 三、各場景問答 Q&A
-- 針對正面新聞：如何放大聲量？
-- 針對負面新聞：如何進行危機管理？
-- 針對競品動態：如何差異化定位？
-
-## 四、建議媒體溝通策略
-- 主動出擊的時機
-- 媒體接觸優先級
-
-請以繁體中文回答，語氣專業且實用。
-
-【創見相關新聞】
-${transcendNews.length ? formatList(transcendNews) : '（無）'}
-
-【美國市場動態】
-${marketNews.length ? formatList(marketNews) : '（無）'}
-
-【競品與供應商動態】
-${compNews.length ? formatList(compNews) : '（無）'}`;
-
-    const result = await callGemini(prompt);
-    el.innerHTML = formatAIResponse(result);
-  } catch(e) {
-    el.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700">
-      <div class="font-semibold mb-1">❌ 無法取得 AI 分析</div>
-      <div class="text-sm">${e.message}</div>
-    </div>`;
-  }
+function sortByDate(arr) {
+  return [...arr].sort((a,b) => {
+    const da = a.pubDate?.toDate ? a.pubDate.toDate() : new Date(a.pubDate||0);
+    const db = b.pubDate?.toDate ? b.pubDate.toDate() : new Date(b.pubDate||0);
+    return db-da;
+  });
 }
 
-function formatAIResponse(text) {
-  // Simple markdown-like formatting
-  return text
-    .replace(/^## (.+)$/gm, '<h3 class="text-base font-bold text-gray-800 mt-5 mb-2 pb-1 border-b border-gray-200">$1</h3>')
-    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-bold text-gray-700 mt-4 mb-1">$1</h4>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^- (.+)$/gm, '<li class="ml-4 text-sm text-gray-700 mb-1">• $1</li>')
-    .replace(/^\d+\. (.+)$/gm, '<li class="ml-4 text-sm text-gray-700 mb-1 list-decimal">$1</li>')
-    .replace(/\n\n/g, '</p><p class="mb-3">')
-    .replace(/\n/g, '<br>')
-    .replace(/^/, '<p class="mb-3">')
-    .replace(/$/, '</p>');
+const SENT_CFG = {
+  positive:{ label:'正面', cls:'bg-green-900/40 text-green-300 border-green-700/50' },
+  neutral: { label:'中立', cls:'bg-gray-800    text-gray-400  border-gray-600/50'  },
+  negative:{ label:'負面', cls:'bg-red-900/40  text-red-300   border-red-700/50'   },
+};
+
+const TT = { contentStyle:{ background:'#1f2937', border:'1px solid #374151', borderRadius:8, color:'#e5e7eb', fontSize:12 } };
+
+// ═══════════════════════════════════════════════════════════
+// ATOMS
+// ═══════════════════════════════════════════════════════════
+function SentBadge({ s }) {
+  const c = SENT_CFG[s] || SENT_CFG.neutral;
+  return <span className={`text-xs px-2 py-0.5 rounded-full border shrink-0 ${c.cls}`}>{c.label}</span>;
 }
 
-// ═══════════════════════════════════════════
-// SCHEDULE CHECK
-// ═══════════════════════════════════════════
-function checkSchedule() {
-  const tw = getTaiwanTime();
-  const h = tw.getHours();
-  const m = tw.getMinutes();
-  const today = tw.toDateString();
-
-  // Morning: 08:00–08:05 → Transcend news
-  if (h === 8 && m < 6) {
-    const last = localStorage.getItem('transcend_morning_fetch');
-    if (last !== today) {
-      showToast('🌅 台灣時間 08:00，自動抓取創見新聞...', 'info');
-      fetchAllNews();
-    }
-  }
-
-  // Afternoon: 16:00–16:05 → US market news
-  if (h === 16 && m < 6) {
-    const last = localStorage.getItem('transcend_afternoon_fetch');
-    if (last !== today) {
-      showToast('🌆 台灣時間 16:00，自動抓取美國市場新聞...', 'info');
-      fetchAllNews();
-    }
-  }
-
-  // Update schedule UI
-  const morningDone = localStorage.getItem('transcend_morning_fetch') === today;
-  const afternoonDone = localStorage.getItem('transcend_afternoon_fetch') === today;
-  if (morningDone) document.getElementById('morningStatus').innerHTML = '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">✅ 已更新</span>';
-  if (afternoonDone) document.getElementById('afternoonStatus').innerHTML = '<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">✅ 已更新</span>';
+function TabBtn({ active, onClick, children }) {
+  return (
+    <button onClick={onClick}
+      className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all ${active?'text-white':'bg-gray-800 text-gray-400 hover:text-gray-200 hover:bg-gray-700'}`}
+      style={active?{ background:BRAND }:{}}>
+      {children}
+    </button>
+  );
 }
 
-// ═══════════════════════════════════════════
-// TOAST & STATUS
-// ═══════════════════════════════════════════
-let toastTimer;
-function showToast(msg, type = 'info') {
-  const el = document.getElementById('toast');
-  const colors = { success: 'bg-green-600', error: 'bg-red-600', warning: 'bg-orange-500', info: 'bg-blue-600' };
-  el.className = `fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-2xl text-sm font-medium text-white transition-all duration-300 max-w-xs ${colors[type] || colors.info}`;
-  el.textContent = msg;
-  el.classList.remove('hidden');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.add('hidden'), 4000);
+function Spinner({ size='sm' }) {
+  const s = size==='lg' ? 'w-8 h-8 border-[3px]' : 'w-4 h-4 border-2';
+  return <div className={`${s} border-gray-700 border-t-red-500 rounded-full spin`} />;
 }
 
-function showStatus(msg) {
-  document.getElementById('statusBar').classList.remove('hidden');
-  document.getElementById('statusMsg').textContent = msg;
+function Card({ title, icon, children, className='' }) {
+  return (
+    <div className={`bg-gray-900 rounded-2xl border border-gray-700/60 p-4 ${className}`}>
+      {title && <h3 className="text-sm font-semibold text-gray-200 mb-3 flex items-center gap-2"><span>{icon}</span>{title}</h3>}
+      {children}
+    </div>
+  );
 }
-function setStatus(msg) { document.getElementById('statusMsg').textContent = msg; }
-function hideStatus() { document.getElementById('statusBar').classList.add('hidden'); }
 
-// ═══════════════════════════════════════════
-// CACHE RESTORE
-// ═══════════════════════════════════════════
-function restoreCache() {
-  try {
-    const cached = localStorage.getItem('transcend_news_cache');
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      state.news = parsed.map(n => ({ ...n, pubDate: new Date(n.pubDate), fetchedAt: new Date(n.fetchedAt) }));
-      const lastFetch = localStorage.getItem('transcend_last_fetch');
-      if (lastFetch) {
-        document.getElementById('lastFetchBadge').classList.remove('hidden');
-        document.getElementById('lastFetchTime').textContent = new Date(lastFetch).toLocaleString('zh-TW', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+function NewsCard({ article }) {
+  const s = article.sentiment || getSentiment(article.title, article.content);
+  const media = article.mediaName || article.sourceName || '媒體';
+  return (
+    <a href={article.link||'#'} target="_blank" rel="noreferrer"
+      className="flex items-start gap-2.5 p-3 rounded-xl bg-gray-800/40 hover:bg-gray-800 border border-gray-700/40 hover:border-gray-600 transition-all group cursor-pointer">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-gray-200 group-hover:text-white line-clamp-2 leading-snug">{article.title}</p>
+        <div className="flex items-center gap-1.5 mt-1.5 text-xs text-gray-500">
+          <span className="font-medium" style={{ color:'#f87171' }}>{media}</span>
+          <span>·</span>
+          <span>{fmtDate(article.pubDate)}</span>
+        </div>
+      </div>
+      <SentBadge s={s} />
+    </a>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// PR TAB — 媒體曝光橫條圖
+// ═══════════════════════════════════════════════════════════
+function MediaExposureChart({ news }) {
+  const data = useMemo(() => {
+    const map = {};
+    news.forEach(n => {
+      const m = n.mediaName || n.sourceName || '其他';
+      if (!map[m]) map[m] = { media:m, transcend:0, competitor:0 };
+      if (n.cat==='transcend') map[m].transcend++;
+      else if (n.cat==='competitor') map[m].competitor++;
+    });
+    return Object.values(map)
+      .filter(r => r.transcend+r.competitor > 0)
+      .sort((a,b) => (b.transcend+b.competitor)-(a.transcend+a.competitor))
+      .slice(0,8);
+  }, [news]);
+
+  return (
+    <Card title="媒體曝光佔比 — 創見 vs 競品（近 30 天）" icon="📊">
+      {data.length > 0 ? (
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={data} layout="vertical" margin={{ top:0, right:12, left:0, bottom:0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
+            <XAxis type="number" tick={{ fill:'#6b7280', fontSize:11 }} axisLine={false} tickLine={false} />
+            <YAxis type="category" dataKey="media" tick={{ fill:'#9ca3af', fontSize:11 }} width={64} axisLine={false} tickLine={false} />
+            <Tooltip {...TT} />
+            <Legend wrapperStyle={{ fontSize:11, color:'#9ca3af', paddingTop:8 }} />
+            <Bar dataKey="transcend" name="創見" fill={BRAND}    radius={[0,4,4,0]} maxBarSize={12} />
+            <Bar dataKey="competitor" name="競品" fill="#374151" radius={[0,4,4,0]} maxBarSize={12} />
+          </BarChart>
+        </ResponsiveContainer>
+      ) : (
+        <div className="h-40 flex items-center justify-center text-gray-600 text-sm">資料載入中…</div>
+      )}
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// PR TAB — 競品動態
+// ═══════════════════════════════════════════════════════════
+function CompetitorNews({ news }) {
+  const [active, setActive] = useState('ADATA');
+  const comp = COMPETITORS.find(c => c.id===active);
+
+  const filtered = useMemo(() =>
+    sortByDate(news.filter(n => n.cat==='competitor' && n.brand===active)).slice(0,10),
+    [news, active]
+  );
+
+  return (
+    <Card title="競品動態監測" icon="🔍" className="h-full">
+      {/* Brand tabs */}
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {COMPETITORS.map(c => (
+          <TabBtn key={c.id} active={active===c.id} onClick={() => setActive(c.id)}>
+            {c.name}
+          </TabBtn>
+        ))}
+      </div>
+
+      {/* Search query badge */}
+      <div className="mb-3 px-3 py-2 rounded-lg bg-gray-800/60 border border-gray-700/40">
+        <p className="text-xs text-gray-500 leading-snug">
+          後端搜尋：
+          <span className="text-green-400/80 font-mono">
+            {comp?.name} (SSD OR DRAM OR Industrial OR Embedded) -shopee -ruten -amazon
+          </span>
+        </p>
+      </div>
+
+      {filtered.length > 0
+        ? <div className="space-y-2">{filtered.map((n,i) => <NewsCard key={n.id||i} article={n} />)}</div>
+        : <p className="text-sm text-gray-600 text-center py-8">暫無 {comp?.name} 相關報導</p>
       }
-      renderAll();
-      showToast(`📦 已從快取載入 ${state.news.length} 則新聞`, 'info');
-    }
-  } catch(e) { console.warn('Cache restore failed:', e); }
+    </Card>
+  );
 }
 
-// ═══════════════════════════════════════════
-// CLOSE MODALS ON BACKDROP CLICK
-// ═══════════════════════════════════════════
-['settingsModal', 'aiSummaryModal', 'prAdviceModal'].forEach(id => {
-  document.getElementById(id).addEventListener('click', function(e) {
-    if (e.target === this) closeModal(id);
-  });
-});
+// ═══════════════════════════════════════════════════════════
+// IR TAB — 股價卡片
+// ═══════════════════════════════════════════════════════════
+function StockCard({ code, data }) {
+  const meta = STOCK_META[code] || {};
+  const up = data.changePct > 0, dn = data.changePct < 0;
+  return (
+    <div className={`p-4 rounded-2xl border transition-all ${meta.isSelf?'border-red-700/40 bg-gradient-to-br from-red-950/25 to-gray-900':'border-gray-700/60 bg-gray-900'}`}>
+      <div className="flex justify-between items-start mb-2">
+        <div>
+          <p className="text-xs text-gray-500">{code}</p>
+          <p className="font-bold text-white">{data.name || meta.name}</p>
+        </div>
+        {meta.isSelf && (
+          <span className="text-xs px-2 py-0.5 rounded-full border" style={{ background:'rgba(150,0,20,0.25)', color:'#fca5a5', borderColor:'rgba(220,38,38,0.35)' }}>
+            本公司
+          </span>
+        )}
+      </div>
+      <p className="text-2xl font-bold text-white">${data.price ?? '--'}</p>
+      <div className={`flex items-center gap-1 text-sm font-semibold mt-1 ${up?'text-green-400':dn?'text-red-400':'text-gray-400'}`}>
+        <span>{up?'▲':dn?'▼':'─'}</span>
+        <span>{up?'+':''}{data.changePct?.toFixed(2)??'--'}%</span>
+      </div>
+      <p className="text-xs text-gray-600 mt-1">
+        {up?'+':''}{data.change?.toFixed(1)??'--'} ·
+        量 {data.volume ? (data.volume/1000).toFixed(0)+'張' : '--'}
+      </p>
+    </div>
+  );
+}
 
-// ═══════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════
-async function init() {
-  loadSettings();
+// ═══════════════════════════════════════════════════════════
+// IR TAB — 情緒圓餅圖
+// ═══════════════════════════════════════════════════════════
+function SentimentPie({ news }) {
+  const data = useMemo(() => {
+    const items = news.filter(n => n.cat==='transcend');
+    const cnt = { positive:0, neutral:0, negative:0 };
+    items.forEach(n => { const s = n.sentiment||getSentiment(n.title,n.content); if(s in cnt) cnt[s]++; });
+    const total = items.length || 1;
+    return [
+      { name:'正面', value:Math.round(cnt.positive/total*100), color:'#22c55e' },
+      { name:'中立', value:Math.round(cnt.neutral/total*100),  color:'#6b7280' },
+      { name:'負面', value:Math.round(cnt.negative/total*100), color:'#ef4444' },
+    ];
+  }, [news]);
 
-  // 永遠嘗試 Firebase（FIREBASE_CONFIG 硬寫在 HTML 裡，不依賴 localStorage）
-  initFirebase();
+  const total = news.filter(n=>n.cat==='transcend').length;
 
-  if (state.db) {
-    // 並行載入股價
-    loadStockPrices();
+  return (
+    <Card title="產業情緒分佈（創見相關報導）" icon="🧭">
+      <div className="flex items-center gap-2">
+        <ResponsiveContainer width="54%" height={170}>
+          <PieChart>
+            <Pie data={data} cx="50%" cy="50%" innerRadius={44} outerRadius={70}
+              paddingAngle={3} dataKey="value" startAngle={90} endAngle={-270}>
+              {data.map((d,i) => <Cell key={i} fill={d.color} stroke="transparent" />)}
+            </Pie>
+            <Tooltip {...TT} formatter={v=>[`${v}%`]} />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="flex flex-col gap-3 flex-1">
+          {data.map(d => (
+            <div key={d.name} className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background:d.color }} />
+                <span className="text-sm text-gray-300">{d.name}</span>
+              </div>
+              <span className="text-sm font-bold tabular-nums" style={{ color:d.color }}>{d.value}%</span>
+            </div>
+          ))}
+          <p className="text-xs text-gray-600 mt-1">共分析 {total} 篇報導</p>
+        </div>
+      </div>
+    </Card>
+  );
+}
 
-    showStatus('從 Firebase 載入新聞資料...');
+// ═══════════════════════════════════════════════════════════
+// IR TAB — 社群觀測站
+// ═══════════════════════════════════════════════════════════
+function CommunityMonitor() {
+  const [filter, setFilter] = useState('all');
+  const posts = filter==='all' ? MOCK_COMMUNITY : MOCK_COMMUNITY.filter(p=>p.s===filter);
+  return (
+    <Card title="社群即時觀測站" icon="💬">
+      <div className="flex gap-1.5 mb-3">
+        {[['all','全部'],['positive','正面'],['neutral','中立'],['negative','負面']].map(([v,l]) => (
+          <TabBtn key={v} active={filter===v} onClick={()=>setFilter(v)}>{l}</TabBtn>
+        ))}
+      </div>
+      <div className="space-y-2">
+        {posts.map(p => (
+          <div key={p.id} className="p-3 rounded-xl bg-gray-800/40 border border-gray-700/40 hover:border-gray-600 transition-all">
+            <div className="flex items-start gap-2.5">
+              <p className="text-sm text-gray-200 line-clamp-2 flex-1 leading-snug">{p.title}</p>
+              <SentBadge s={p.s} />
+            </div>
+            <div className="flex items-center gap-1.5 mt-2 text-xs">
+              <span className="font-semibold" style={{ color:SRC_COLOR[p.src]||'#9ca3af' }}>{p.src}</span>
+              <span className="text-gray-700">·</span>
+              <span className="text-gray-500">{p.author}</span>
+              <span className="text-gray-700">·</span>
+              <span className="text-gray-500">{p.time}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-gray-700 text-center mt-3">示意資料 · 正式版接入 PTT / CMoney RSS 後自動更新</p>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// IR TAB — 股價走勢折線圖
+// ═══════════════════════════════════════════════════════════
+function StockTrendChart() {
+  const LINES = [
+    { code:'2451', name:'創見', color:BRAND,     w:2.5 },
+    { code:'3260', name:'威剛', color:'#ef4444', w:1.5 },
+    { code:'6248', name:'廣穎', color:'#3b82f6', w:1.5 },
+    { code:'5483', name:'宜鼎', color:'#eab308', w:1.5 },
+  ];
+  return (
+    <Card title="競品股價走勢對比（近 20 個交易日）" icon="📉">
+      <ResponsiveContainer width="100%" height={230}>
+        <LineChart data={MOCK_STOCK_HISTORY} margin={{ top:4, right:12, left:0, bottom:0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+          <XAxis dataKey="date" tick={{ fill:'#6b7280', fontSize:10 }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fill:'#6b7280', fontSize:10 }} width={38} axisLine={false} tickLine={false} />
+          <Tooltip {...TT} />
+          <Legend wrapperStyle={{ fontSize:11, color:'#9ca3af', paddingTop:8 }} />
+          {LINES.map(l => (
+            <Line key={l.code} type="monotone" dataKey={l.code} name={l.name}
+              stroke={l.color} strokeWidth={l.w} dot={false} />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+      <p className="text-xs text-gray-700 text-center mt-2">
+        示意資料 · 每日收盤歷史追蹤功能開發中（需求 #1）
+      </p>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// PR TAB
+// ═══════════════════════════════════════════════════════════
+function PRTab({ news }) {
+  const transcend = useMemo(() =>
+    sortByDate(news.filter(n => n.cat==='transcend')).slice(0, 15),
+    [news]
+  );
+  return (
+    <div className="space-y-4 fade-in">
+      <MediaExposureChart news={news} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card title="創見最新報導" icon="📰" className="h-full">
+          {transcend.length > 0
+            ? <div className="space-y-2">{transcend.map((n,i) => <NewsCard key={n.id||i} article={n} />)}</div>
+            : <div className="h-32 flex items-center justify-center text-gray-600 text-sm">
+                載入中…
+              </div>
+          }
+        </Card>
+        <CompetitorNews news={news} />
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// IR TAB
+// ═══════════════════════════════════════════════════════════
+function IRTab({ news, stocks }) {
+  return (
+    <div className="space-y-4 fade-in">
+      {/* Stock cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {Object.keys(STOCK_META).map(code => (
+          stocks[code]
+            ? <StockCard key={code} code={code} data={stocks[code]} />
+            : <div key={code} className="p-4 rounded-2xl border border-gray-700/60 bg-gray-900 flex flex-col items-center justify-center gap-2 min-h-[100px]">
+                <Spinner />
+                <span className="text-xs text-gray-600">{STOCK_META[code].name}</span>
+              </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SentimentPie news={news} />
+        <CommunityMonitor />
+      </div>
+
+      <StockTrendChart />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════════════
+function App() {
+  const [tab,       setTab]       = useState('pr');
+  const [news,      setNews]      = useState([]);
+  const [stocks,    setStocks]    = useState({});
+  const [loading,   setLoading]   = useState(true);
+  const [connected, setConnected] = useState(false);
+  const [updated,   setUpdated]   = useState(null);
+  const [aiOpen,    setAiOpen]    = useState(false);
+  const [aiText,    setAiText]    = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+
+  // ─── Firebase init ───────────────────────────────────────
+  useEffect(() => {
     try {
-      const fbNews = await loadFromFirebase(7);
-      if (fbNews.length > 0) {
-        state.news = fbNews;
-        renderAll();
-        const last = fbNews.reduce((a, b) => a.fetchedAt > b.fetchedAt ? a : b);
-        document.getElementById('lastFetchBadge').classList.remove('hidden');
-        document.getElementById('lastFetchTime').textContent = new Date(last.fetchedAt).toLocaleString('zh-TW', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-        showToast(`☁️ 已從 Firebase 載入 ${fbNews.length} 則新聞`, 'success');
-      } else {
-        restoreCache();
-      }
+      if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+      window._db = firebase.firestore();
+      setConnected(true);
+      fetchAll();
     } catch(e) {
-      console.warn('Firebase load failed:', e);
-      restoreCache();
+      console.error('Firebase:', e);
+      setLoading(false);
     }
-    hideStatus();
-  } else {
-    // Firebase 未設定，從瀏覽器快取還原
-    restoreCache();
+  }, []);
+
+  async function fetchAll() {
+    setLoading(true);
+    await Promise.all([ fetchNews(), fetchStocks() ]);
+    setLoading(false);
+    setUpdated(new Date());
   }
 
-  checkSchedule();
-  setInterval(checkSchedule, 60 * 1000); // Check every minute
-
-  // 首次使用提示
-  if (false) {
-    setTimeout(() => showToast('', 'info'), 1500);
+  async function fetchNews() {
+    try {
+      const snap = await window._db.collection('news')
+        .where('pubDate', '>=', new Date('2026-01-01T00:00:00+08:00'))
+        .orderBy('pubDate', 'desc')
+        .limit(2000)
+        .get();
+      setNews(snap.docs.map(d => ({ id:d.id, ...d.data() })));
+    } catch(e) { console.error('News:', e); }
   }
 
-  // 讀取 status.json（GitHub Actions 執行狀態）
-  fetch('status.json').then(r => r.json()).then(s => {
-    if (s && s.lastFetchTW) {
-      document.getElementById('lastFetchBadge').classList.remove('hidden');
-      document.getElementById('lastFetchTime').textContent = s.lastFetchTW + ' (自動)';
+  async function fetchStocks() {
+    try {
+      const doc = await window._db.collection('stocks').doc('latest').get();
+      if (doc.exists) setStocks(doc.data());
+    } catch(e) { console.error('Stocks:', e); }
+  }
+
+  // ─── AI Summary (Gemini) ─────────────────────────────────
+  async function openAI() {
+    setAiOpen(true);
+    setAiLoading(true);
+    setAiText('');
+    try {
+      const recent = sortByDate(news.filter(n=>n.cat==='transcend')).slice(0,20);
+      const prompt = `你是創見資訊（2451）的公關顧問。分析以下近期新聞，給出：
+1. 本週最值得關注的 3 則新聞及原因
+2. 整體媒體情緒（正面/中立/負面比例與原因）
+3. 建議公關行動
+新聞資料：\n${recent.map(n=>`- [${n.mediaName||''}] ${n.title}`).join('\n')}`;
+
+      const res = await fetch(GEMINI_URL, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ contents:[{ parts:[{ text:prompt }] }] })
+      });
+      const json = await res.json();
+      setAiText(json.candidates?.[0]?.content?.parts?.[0]?.text || '無法取得回應');
+    } catch(e) {
+      setAiText('AI 摘要失敗：' + e.message);
     }
-  }).catch(() => {}); // 靜默失敗（本機開啟時 status.json 不存在）
+    setAiLoading(false);
+  }
+
+  const self = stocks['2451'];
+  const updatedStr = updated ? updated.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}) : '';
+
+  return (
+    <div className="min-h-screen text-white" style={{ background:'#030712', fontFamily:"'Segoe UI',system-ui,sans-serif" }}>
+
+      {/* ─────────── HEADER ─────────── */}
+      <header className="sticky top-0 z-50 shadow-2xl"
+        style={{ background:'linear-gradient(135deg,#3b0007 0%,#960014 55%,#b5001a 100%)' }}>
+        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+
+          {/* Logo */}
+          <div className="flex items-center gap-3 shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 202 38" height="26"
+              style={{ fill:'white', display:'block', flexShrink:0 }}>
+              <path fillRule="evenodd" d="M64,8.3h-15.3c0,.1-.7,4.2-.7,4.2h5.5s-3.6,17.1-3.6,17.1h4.3s3.6-17.2,3.6-17.2h5.3s.9-4.2.9-4.2ZM76.3,12s-5.2-3.3-8.3,4.8l.9-4.9h-3.7s-3.5,17.7-3.5,17.7h3.8s2.2-9.5,2.2-9.5c0,0,2-6.1,7.3-3.7,0,0,1.3-4.5,1.3-4.5ZM80.7,27c-1,0-1.8-.6-1.8-1.7,0-1,1.1-2,2.2-2.6,1.1-.6,4.7-1.8,4.7-1.8,0,4.3-4.1,6-5.1,6.1M85.5,10.9s-4.8.4-7.7,3.1l-.5,4.2s3-3.3,6.1-3.3c3,0,5,2.7.1,4.3-4.9,1.6-8.9,2.5-8.8,7.4,0,4.9,7.5,4.5,10-.2l-.4,3h3.7s2.6-12.7,2.6-12.7c0,0,1.5-5.8-5-5.8M104.8,10.8c-5.2,0-7.4,5.8-7.4,5.8l1-5h-4s-3.3,17.9-3.3,17.9h4s2.2-10.6,2.2-10.6c0,0,1.1-3.8,4.5-3.8,3.4,0,2.4,3.4,2.3,4.5-.2,1.1-2.1,9.7-2.1,9.7h4.2s2.6-13.4,2.6-13.4c0,0,1.2-5.2-3.9-5.1M118.1,10.8c-3.8,0-7.4,3.3-7.3,7,0,3.7,4.2,4.2,4.8,4.4.7.2,2,.6,2.1,2,0,1.4-3.5,4.8-8-.3l-.6,4.1s1.6,1.9,4.7,1.9c3.2,0,7.7-2.5,7.6-6.6,0-4.2-5.1-4.3-6.4-5.4-1.3-1.1.5-3.3,2.8-3.3,2.2,0,4.2,2.4,4.2,2.4l.9-4s-.9-2.1-4.7-2.1M132.6,10.6c-3.9,0-9.9,4.2-9.9,11.7,0,7.6,7.4,10.4,12.5,4.2l.3-3.1s-2.3,3.2-5.6,3.2c-3.3,0-3.6-3.9-3.5-5.3.2-1.3,1.3-6.6,5.7-6.6,4.3,0,4.8,2.9,4.8,2.9l.9-4.4s-1.4-2.7-5.3-2.6M150.7,18.5h-8.7c0,0,1.3-3.9,5.3-4,4.1,0,3.4,4,3.4,4M147.5,10.6c-4.8,0-10,5.7-10,12.2,0,6.5,7.5,9.9,13.6,3.7l.3-3s-1.6,3.1-6.2,3.1c-4.5,0-4-4.8-4-4.8h11.2c0,0,1.3-3.9.9-6.2-.4-2.3-1.1-5.1-5.9-5M167.6,10.9c-5.2,0-7.4,5.8-7.4,5.8l1-5h-4s-3.3,17.9-3.3,17.9h4s2.2-10.6,2.2-10.6c0,0,1.1-3.8,4.5-3.8,3.4,0,2.4,3.4,2.2,4.5-.2,1.1-2,9.7-2,9.7h4.2s2.6-13.4,2.6-13.4c0,0,1.2-5.2-3.9-5.2M185.4,18.5c0,5.1-3.7,7.9-5.5,7.9-1.8,0-3.2-1.5-3.2-3.9,0-2.4,1.7-7.3,5.4-7.3,3.7,0,3.3,3.4,3.3,3.4ZM187.8,7.3l-1.7,8.1s-.2-4.5-4.6-4.5c-4.4,0-8.9,5.8-8.8,12.1,0,6.2,6.3,10.8,11.6,2.5l-.9,3.9h3.9s4.5-22.1,4.5-22.1c0,0-4,0-4,0ZM39.4,9.8c0-.2-.2-.5-.3-.7C35.1.3,23.3-2.6,12.9,2.6,6.9,5.7,2.7,10.7.9,16.1h15.3l-3,15.1h7.8l3-15.1h5.1l1.6-7.4H9.4C14.5,3,22,.1,28.3,2.2c3.8,1.2,6.4,4.1,7.6,7.6,0,0,3.5,0,3.5,0ZM32.6,12.4l-1.6,7.4h5c-.3,1.2-.8,2.4-1.4,3.6-4.4,9.1-14.4,14.3-22.4,11.7-6.5-2.2-9.6-9-8-16.4H.3c-.6,3.2-.2,6.5,1.1,9.5,4.1,8.9,15.8,11.8,26.2,6.5,9.2-4.6,14.3-14.1,12.6-22.3,0,0-7.6,0-7.6,0Z"/>
+            </svg>
+            <div className="border-l border-white/20 pl-3 hidden sm:block">
+              <p className="text-xs font-bold text-white/90 leading-tight tracking-wide">新聞監控</p>
+              <p className="text-xs text-red-200/60 leading-tight">News Intelligence</p>
+            </div>
+          </div>
+
+          {/* PR / IR tab switcher */}
+          <nav className="flex gap-1 p-1 rounded-xl" style={{ background:'rgba(0,0,0,0.35)' }}>
+            {[{id:'pr',icon:'📡',label:'PR 媒體戰情'},{id:'ir',icon:'📈',label:'IR 投資情報'}].map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${tab===t.id?'text-white shadow':'text-red-200/60 hover:text-white'}`}
+                style={tab===t.id?{background:'rgba(0,0,0,0.5)'}:{}}>
+                <span>{t.icon}</span>
+                <span className="hidden sm:inline">{t.label}</span>
+              </button>
+            ))}
+          </nav>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={openAI}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+              style={{ background:'rgba(139,92,246,0.7)', color:'white' }}>
+              ✨ AI 摘要
+            </button>
+            <button onClick={fetchAll} disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+              style={{ background:'rgba(255,255,255,0.15)', border:'1px solid rgba(255,255,255,0.2)', color:'white' }}>
+              {loading ? <Spinner /> : '↻'}
+              <span className="hidden sm:inline">{loading?'載入中':'重新整理'}</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* ─────────── STATUS BAR ─────────── */}
+      <div style={{ background:'#0d1117', borderBottom:'1px solid #1f2937' }}>
+        <div className="max-w-7xl mx-auto px-4 h-8 flex items-center gap-4 text-xs overflow-x-auto whitespace-nowrap">
+          <span className={connected?'text-green-500':'text-yellow-500'}>
+            {connected?'● Firebase 已連線':'○ 連線中…'}
+          </span>
+          <span className="text-gray-600">📰 {news.length} 則新聞</span>
+          {updatedStr && <span className="text-gray-600">更新 {updatedStr}</span>}
+          {self && (
+            <span className="text-gray-500">
+              2451 <span className={`font-semibold ${self.changePct>=0?'text-green-400':'text-red-400'}`}>
+                ${self.price} {self.changePct>=0?'▲':'▼'}{Math.abs(self.changePct??0).toFixed(2)}%
+              </span>
+            </span>
+          )}
+          {COMPETITORS.filter(c=>c.stock&&stocks[c.stock]).map(c => {
+            const s = stocks[c.stock];
+            return (
+              <span key={c.stock} className="text-gray-500">
+                {c.stock} <span className={`font-semibold ${s.changePct>=0?'text-green-400':'text-red-400'}`}>
+                  ${s.price} {s.changePct>=0?'▲':'▼'}{Math.abs(s.changePct??0).toFixed(2)}%
+                </span>
+              </span>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ─────────── MAIN ─────────── */}
+      <main className="max-w-7xl mx-auto px-4 py-5">
+        {tab==='pr' ? <PRTab news={news} /> : <IRTab news={news} stocks={stocks} />}
+      </main>
+
+      {/* ─────────── AI MODAL ─────────── */}
+      {aiOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background:'rgba(0,0,0,0.7)', backdropFilter:'blur(4px)' }}
+          onClick={e => { if(e.target===e.currentTarget) setAiOpen(false); }}>
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
+              <h2 className="font-semibold text-white flex items-center gap-2">✨ AI 新聞摘要 <span className="text-xs text-purple-400">(Gemini 2.0 Flash)</span></h2>
+              <button onClick={() => setAiOpen(false)} className="text-gray-500 hover:text-white text-xl leading-none">×</button>
+            </div>
+            <div className="p-5 max-h-[60vh] overflow-y-auto">
+              {aiLoading
+                ? <div className="flex flex-col items-center gap-3 py-10"><Spinner size="lg" /><p className="text-gray-500 text-sm">Gemini 分析中…</p></div>
+                : <pre className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed font-sans">{aiText}</pre>
+              }
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
-init();
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
 </body>
 </html>
