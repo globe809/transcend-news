@@ -10,6 +10,7 @@ import hashlib
 import datetime
 import sys
 import time
+import requests
 import feedparser
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -141,12 +142,18 @@ def get_sources(mode):
         {'label': '瑞昱 Realtek',    'url': 'https://news.google.com/rss/search?q=瑞昱+Realtek&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'supplier', 'brand': 'Realtek'},
     ]
 
+    community = [
+        # ─── 社群觀測（PTT Stock，過濾含創見/2451的討論）───
+        {'label': 'PTT Stock-創見', 'url': 'https://www.ptt.cc/bbs/Stock/index.rss', 'cat': 'community', 'filter': '創見'},
+        {'label': 'PTT Stock-2451', 'url': 'https://www.ptt.cc/bbs/Stock/index.rss', 'cat': 'community', 'filter': '2451'},
+    ]
+
     if mode == 'morning':
-        return transcend + competitors + suppliers
+        return transcend + competitors + suppliers + community
     elif mode == 'afternoon':
-        return us_market + competitors + suppliers
+        return us_market + competitors + suppliers + community
     else:  # all
-        return transcend + us_market + competitors + suppliers
+        return transcend + us_market + competitors + suppliers + community
 
 
 def analyze_sentiment(title, content=''):
@@ -329,6 +336,7 @@ def fetch_stock_prices(db):
         '3260': ('威剛科技', 'tse'),
         '6248': ('廣穎電通', 'tse'),
         '5483': ('宜鼎國際', 'tse'),
+        '4967': ('十銓科技', 'tse'),
     }
     print("\n📈 抓取台股行情（台灣證交所）...")
     ex_ch = '|'.join(f"{ex}_{code}.tw" for code, (_, ex) in STOCKS.items())

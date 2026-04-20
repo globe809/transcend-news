@@ -128,32 +128,31 @@ const COMPETITORS = [
 ];
 
 const STOCK_META = {
-  '2451':{ name:'創見', isSelf:true  },
-  '3260':{ name:'威剛', isSelf:false },
-  '6248':{ name:'廣穎', isSelf:false },
-  '5483':{ name:'宜鼎', isSelf:false },
+  '2451':{ name:'創見',    isSelf:true  },
+  '3260':{ name:'威剛',    isSelf:false },
+  '6248':{ name:'廣穎',    isSelf:false },
+  '5483':{ name:'宜鼎',    isSelf:false },
+  '4967':{ name:'十銓科技', isSelf:false },
 };
 
 // ═══════════════════════════════════════════════════════════
-// MOCK — 社群觀測站（示意，未來接 RSS）
+// MOCK — 社群觀測站（示意，PTT RSS 抓到後自動替換）
 // ═══════════════════════════════════════════════════════════
 const MOCK_COMMUNITY = [
-  { id:1, src:'PTT Stock',  title:'[情報] 創見元月EPS 6.49元，年增15倍，今年挑戰20元有望',    s:'positive', time:'3h前',  author:'investor2451'  },
-  { id:2, src:'Dcard 理財',  title:'創見配息11.8元，殖利率約4%，長期持有值得嗎？',              s:'neutral',  time:'5h前',  author:'stock_newbie'   },
-  { id:3, src:'股市同學會', title:'記憶體漲價週期啟動，2451後市看法 + 技術分析整理',            s:'positive', time:'8h前',  author:'memory_trader'  },
-  { id:4, src:'PTT Stock',  title:'[新聞] 創見Q1淡季不淡，外資持續加碼',                       s:'positive', time:'12h前', author:'bull_tw88'      },
-  { id:5, src:'CMoney',     title:'威剛 vs 創見：Q1財報誰更強？記憶體廠大比較',                 s:'neutral',  time:'1天前', author:'compare_master' },
-  { id:6, src:'PTT Stock',  title:'記憶體股近期回檔，是買點還是轉弱訊號？',                    s:'negative', time:'1天前', author:'risk_mgr'       },
+  { id:1, src:'PTT Stock', title:'[情報] 創見元月EPS 6.49元，年增15倍，今年挑戰20元有望', link:'https://www.ptt.cc/bbs/Stock/index.html', s:'positive', time:'3h前',  author:'investor2451'  },
+  { id:4, src:'PTT Stock', title:'[新聞] 創見Q1淡季不淡，外資持續加碼',                    link:'https://www.ptt.cc/bbs/Stock/index.html', s:'positive', time:'12h前', author:'bull_tw88'      },
+  { id:5, src:'CMoney',    title:'威剛 vs 創見：Q1財報誰更強？記憶體廠大比較',              link:'https://www.cmoney.tw/forum/stock/2451',  s:'neutral',  time:'1天前', author:'compare_master' },
+  { id:6, src:'PTT Stock', title:'記憶體股近期回檔，是買點還是轉弱訊號？',                  link:'https://www.ptt.cc/bbs/Stock/index.html', s:'negative', time:'1天前', author:'risk_mgr'       },
 ];
 
-const SRC_COLOR = { 'PTT Stock':'#f97316','Dcard 理財':'#8b5cf6','股市同學會':'#06b6d4','CMoney':'#10b981' };
+const SRC_COLOR = { 'PTT Stock':'#f97316', 'CMoney':'#10b981' };
 
 // ═══════════════════════════════════════════════════════════
 // MOCK — 股價歷史走勢（示意，未來接每日收盤紀錄）
 // ═══════════════════════════════════════════════════════════
 const MOCK_STOCK_HISTORY = (() => {
-  const base  = { '2451':255, '3260':84, '6248':133, '5483':190 };
-  const trend = { '2451':1.5, '3260':0.3,'6248':0.5, '5483':0.4 };
+  const base  = { '2451':255, '3260':84, '6248':133, '5483':190, '4967':58 };
+  const trend = { '2451':1.5, '3260':0.3,'6248':0.5, '5483':0.4, '4967':0.2 };
   return Array.from({ length:20 }, (_,i) => {
     const d = new Date('2026-03-24'); d.setDate(d.getDate()+i);
     const row = { date:`${d.getMonth()+1}/${d.getDate()}` };
@@ -412,21 +411,57 @@ function SentimentPie({ news }) {
 // ═══════════════════════════════════════════════════════════
 // IR TAB — 社群觀測站
 // ═══════════════════════════════════════════════════════════
-function CommunityMonitor() {
+function CommunityMonitor({ community }) {
   const [filter, setFilter] = useState('all');
-  const posts = filter==='all' ? MOCK_COMMUNITY : MOCK_COMMUNITY.filter(p=>p.s===filter);
+
+  // 優先用 Firebase 真實資料，否則顯示示意資料
+  const allPosts = community && community.length > 0
+    ? sortByDate(community).slice(0,10).map(n => ({
+        id:     n.id,
+        src:    'PTT Stock',
+        title:  n.title,
+        link:   n.link || 'https://www.ptt.cc/bbs/Stock/index.html',
+        s:      n.sentiment || getSentiment(n.title, n.content),
+        time:   fmtDate(n.pubDate),
+        author: n.rawAuthor || 'PTT',
+      }))
+    : MOCK_COMMUNITY;
+
+  const posts = filter==='all' ? allPosts : allPosts.filter(p=>p.s===filter);
+  const isReal = community && community.length > 0;
+
   return (
     <Card title="社群即時觀測站" icon="💬">
+      {/* 論壇快速連結 */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        <a href="https://www.ptt.cc/bbs/Stock/index.html" target="_blank" rel="noreferrer"
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-orange-700/50 bg-orange-900/10 text-orange-400 hover:bg-orange-900/25 transition-all">
+          PTT Stock 看板 ↗
+        </a>
+        <a href="https://www.facebook.com/groups/stockmkforum" target="_blank" rel="noreferrer"
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-cyan-700/50 bg-cyan-900/10 text-cyan-400 hover:bg-cyan-900/25 transition-all">
+          股市爆料同學會 ↗
+        </a>
+        <a href="https://www.cmoney.tw/forum/stock/2451" target="_blank" rel="noreferrer"
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-700/50 bg-emerald-900/10 text-emerald-400 hover:bg-emerald-900/25 transition-all">
+          CMoney 論壇 ↗
+        </a>
+      </div>
+
+      {/* 情緒篩選 */}
       <div className="flex gap-1.5 mb-3">
         {[['all','全部'],['positive','正面'],['neutral','中立'],['negative','負面']].map(([v,l]) => (
           <TabBtn key={v} active={filter===v} onClick={()=>setFilter(v)}>{l}</TabBtn>
         ))}
       </div>
+
+      {/* 文章列表（可點擊） */}
       <div className="space-y-2">
-        {posts.map(p => (
-          <div key={p.id} className="p-3 rounded-xl bg-gray-800/40 border border-gray-700/40 hover:border-gray-600 transition-all">
+        {posts.length > 0 ? posts.map(p => (
+          <a key={p.id} href={p.link||'#'} target="_blank" rel="noreferrer"
+            className="block p-3 rounded-xl bg-gray-800/40 border border-gray-700/40 hover:border-gray-600 transition-all group">
             <div className="flex items-start gap-2.5">
-              <p className="text-sm text-gray-200 line-clamp-2 flex-1 leading-snug">{p.title}</p>
+              <p className="text-sm text-gray-200 group-hover:text-white line-clamp-2 flex-1 leading-snug">{p.title}</p>
               <SentBadge s={p.s} />
             </div>
             <div className="flex items-center gap-1.5 mt-2 text-xs">
@@ -436,10 +471,14 @@ function CommunityMonitor() {
               <span className="text-gray-700">·</span>
               <span className="text-gray-500">{p.time}</span>
             </div>
-          </div>
-        ))}
+          </a>
+        )) : (
+          <p className="text-sm text-gray-600 text-center py-6">目前無相關討論</p>
+        )}
       </div>
-      <p className="text-xs text-gray-700 text-center mt-3">示意資料 · 正式版接入 PTT / CMoney RSS 後自動更新</p>
+      {!isReal && (
+        <p className="text-xs text-gray-700 text-center mt-3">示意資料 · PTT Stock RSS 啟用後自動更新</p>
+      )}
     </Card>
   );
 }
@@ -449,10 +488,11 @@ function CommunityMonitor() {
 // ═══════════════════════════════════════════════════════════
 function StockTrendChart() {
   const LINES = [
-    { code:'2451', name:'創見', color:BRAND,     w:2.5 },
-    { code:'3260', name:'威剛', color:'#ef4444', w:1.5 },
-    { code:'6248', name:'廣穎', color:'#3b82f6', w:1.5 },
-    { code:'5483', name:'宜鼎', color:'#eab308', w:1.5 },
+    { code:'2451', name:'創見',    color:BRAND,     w:2.5 },
+    { code:'3260', name:'威剛',    color:'#ef4444', w:1.5 },
+    { code:'6248', name:'廣穎',    color:'#3b82f6', w:1.5 },
+    { code:'5483', name:'宜鼎',    color:'#eab308', w:1.5 },
+    { code:'4967', name:'十銓科技', color:'#a78bfa', w:1.5 },
   ];
   return (
     <Card title="競品股價走勢對比（近 20 個交易日）" icon="📉">
@@ -479,20 +519,58 @@ function StockTrendChart() {
 // ═══════════════════════════════════════════════════════════
 // PR TAB
 // ═══════════════════════════════════════════════════════════
+const TIME_FILTERS = [
+  { id:'today', label:'今天' },
+  { id:'week',  label:'本週' },
+  { id:'month', label:'本月' },
+  { id:'year',  label:'本年' },
+  { id:'all',   label:'全部' },
+];
+
 function PRTab({ news }) {
-  const transcend = useMemo(() =>
-    sortByDate(news.filter(n => n.cat==='transcend')).slice(0, 15),
-    [news]
-  );
+  const [timeFilter, setTimeFilter] = useState('month');
+
+  const transcend = useMemo(() => {
+    const now = new Date();
+    const cutoffs = {
+      today: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+      week:  new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+      month: new Date(now.getFullYear(), now.getMonth(), 1),
+      year:  new Date(now.getFullYear(), 0, 1),
+      all:   null,
+    };
+    const cutoff = cutoffs[timeFilter];
+    return sortByDate(news.filter(n => {
+      if (n.cat !== 'transcend') return false;
+      // 標題或內文必須包含「創見」或「Transcend」
+      const text = (n.title + ' ' + (n.content || '')).toLowerCase();
+      if (!text.includes('創見') && !text.includes('transcend')) return false;
+      // 時間篩選
+      if (cutoff) {
+        const d = n.pubDate?.toDate ? n.pubDate.toDate() : new Date(n.pubDate || 0);
+        if (d < cutoff) return false;
+      }
+      return true;
+    })).slice(0, 50);
+  }, [news, timeFilter]);
+
   return (
     <div className="space-y-4 fade-in">
       <MediaExposureChart news={news} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card title="創見最新報導" icon="📰" className="h-full">
+          {/* 時間篩選 */}
+          <div className="flex gap-1.5 mb-3">
+            {TIME_FILTERS.map(f => (
+              <TabBtn key={f.id} active={timeFilter===f.id} onClick={() => setTimeFilter(f.id)}>
+                {f.label}
+              </TabBtn>
+            ))}
+          </div>
           {transcend.length > 0
             ? <div className="space-y-2">{transcend.map((n,i) => <NewsCard key={n.id||i} article={n} />)}</div>
             : <div className="h-32 flex items-center justify-center text-gray-600 text-sm">
-                載入中…
+                {news.length > 0 ? '此區間暫無符合報導' : '載入中…'}
               </div>
           }
         </Card>
@@ -505,11 +583,11 @@ function PRTab({ news }) {
 // ═══════════════════════════════════════════════════════════
 // IR TAB
 // ═══════════════════════════════════════════════════════════
-function IRTab({ news, stocks }) {
+function IRTab({ news, stocks, community }) {
   return (
     <div className="space-y-4 fade-in">
       {/* Stock cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {Object.keys(STOCK_META).map(code => (
           stocks[code]
             ? <StockCard key={code} code={code} data={stocks[code]} />
@@ -522,7 +600,7 @@ function IRTab({ news, stocks }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <SentimentPie news={news} />
-        <CommunityMonitor />
+        <CommunityMonitor community={community} />
       </div>
 
       <StockTrendChart />
@@ -608,6 +686,12 @@ function App() {
     setAiLoading(false);
   }
 
+  // 社群資料（cat=community，PTT Stock 討論創見/2451）
+  const community = useMemo(() =>
+    sortByDate(news.filter(n => n.cat === 'community')),
+    [news]
+  );
+
   const self = stocks['2451'];
   const updatedStr = updated ? updated.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}) : '';
 
@@ -690,7 +774,7 @@ function App() {
 
       {/* ─────────── MAIN ─────────── */}
       <main className="max-w-7xl mx-auto px-4 py-5">
-        {tab==='pr' ? <PRTab news={news} /> : <IRTab news={news} stocks={stocks} />}
+        {tab==='pr' ? <PRTab news={news} /> : <IRTab news={news} stocks={stocks} community={community} />}
       </main>
 
       {/* ─────────── AI MODAL ─────────── */}
