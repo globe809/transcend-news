@@ -474,6 +474,11 @@ def fetch_ptt_stock_forum(limit=20):
                             tag.decompose()
                         content = main.get_text(separator=' ', strip=True)[:500]
 
+                    # 標題或內文都沒有關鍵字 → 跳過
+                    combined = title + ' ' + content
+                    if not any(kw in combined for kw in KW):
+                        continue
+
                     # 日期
                     metas = psoup.select('.article-meta-value')
                     pub_date = datetime.datetime.now(datetime.timezone.utc)
@@ -545,37 +550,62 @@ def fetch_monthly_revenue(db, stock_code='2451'):
         return r
 
     html = None
+    BASE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
 
-    # ── 方法 1：MOPS IFRS ajax POST ──────────────────────────
+    # ── 方法 1：Session POST（先 GET 建立 cookie，再 POST ajax）──
     try:
-        r = try_fetch(
+        sess = requests.Session()
+        sess.get('https://mops.twse.com.tw/mops/web/t05st10_ifrs',
+                 headers={'User-Agent': BASE_UA, 'Accept-Language': 'zh-TW,zh;q=0.9'},
+                 timeout=15)
+        r = sess.post(
             'https://mops.twse.com.tw/mops/web/ajax_t05st10_ifrs',
-            payload=(
+            data=(
                 'encodeURIComponent=1&step=1&firstin=1&off=1'
                 '&keyword4=&code1=&TYPEK2=&checkbtn='
                 '&queryName=co_id&inpuType=co_id&TYPEK=sii'
                 f'&co_id={stock_code}'
-            )
+            ),
+            headers={
+                'User-Agent': BASE_UA,
+                'Accept-Language': 'zh-TW,zh;q=0.9',
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Referer': 'https://mops.twse.com.tw/mops/web/t05st10_ifrs',
+                'Origin':  'https://mops.twse.com.tw',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            timeout=20
         )
-        print(f"  [方法1] HTTP {r.status_code}，回應 {len(r.text)} chars")
-        if r.status_code == 200 and len(r.text) > 500:
+        r.encoding = 'utf-8'
+        has_table = '<table' in r.text.lower()
+        print(f"  [方法1] HTTP {r.status_code}, {len(r.text)} chars, has_table={has_table}")
+        print(f"  [方法1] 內容預覽: {r.text[:300]}")
+        if r.status_code == 200 and has_table:
             html = r.text
     except Exception as e:
         print(f"  [方法1] 失敗: {e}")
 
-    # ── 方法 2：server-java GET（備援）───────────────────────
+    # ── 方法 2：server-java GET（備援，嘗試多種 encoding）────
     if not html:
         try:
             now_tw = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
             roc_yr = now_tw.year - 1911
-            r = try_fetch(
-                f'https://mops.twse.com.tw/server-java/t05st10'
-                f'?TYPEK=sii&co_id={stock_code}&year={roc_yr}&mon=',
-                method='GET', encoding='big5'
-            )
-            print(f"  [方法2] HTTP {r.status_code}，回應 {len(r.text)} chars")
-            if r.status_code == 200 and len(r.text) > 500:
-                html = r.text
+            url2 = (f'https://mops.twse.com.tw/server-java/t05st10'
+                    f'?TYPEK=sii&co_id={stock_code}&year={roc_yr}&mon=')
+            r2 = requests.get(url2, headers={'User-Agent': BASE_UA}, timeout=20)
+            for enc in ['utf-8', 'big5', 'cp950']:
+                try:
+                    r2.encoding = enc
+                    txt = r2.text
+                    if '<table' in txt.lower() and len(txt) > 800:
+                        print(f"  [方法2] HTTP {r2.status_code}, {len(txt)} chars, enc={enc}")
+                        html = txt
+                        break
+                except Exception:
+                    continue
+            if not html:
+                print(f"  [方法2] HTTP {r2.status_code}, {len(r2.content)} bytes，無法解析")
+                print(f"  [方法2] 內容預覽: {r2.content[:200]}")
         except Exception as e:
             print(f"  [方法2] 失敗: {e}")
 
@@ -669,6 +699,7 @@ def fetch_stock_prices(db):
         '4973': ('廣穎電通',  'auto'),  # 自動偵測
         '5289': ('宜鼎國際',  'auto'),  # 自動偵測
         '4967': ('十銓科技',  'tse'),   # 上市
+        '8271': ('宇瞻科技',  'tse'),   # 上市
     }
     print("\n📈 抓取台股行情（台灣證交所）...")
     # auto 模式：同時帶入 tse_ 和 otc_ 前綴，API 會自動忽略不存在的那個

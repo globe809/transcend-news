@@ -140,7 +140,7 @@ const COMPETITORS = [
   { id:'ADATA',         name:'ADATA 威剛',        stock:'3260', color:'#ef4444' },
   { id:'Kingston',      name:'Kingston',           stock:null,   color:'#f97316' },
   { id:'Innodisk',      name:'Innodisk 宜鼎',     stock:'5289', color:'#eab308' },
-  { id:'Apacer',        name:'Apacer 宇瞻',       stock:null,   color:'#22c55e' },
+  { id:'Apacer',        name:'Apacer 宇瞻',       stock:'8271', color:'#22c55e' },
   { id:'Silicon Power', name:'Silicon Power 廣穎', stock:'4973', color:'#3b82f6' },
 ];
 
@@ -150,6 +150,7 @@ const STOCK_META = {
   '4973':{ name:'廣穎',    isSelf:false },
   '5289':{ name:'宜鼎',    isSelf:false },
   '4967':{ name:'十銓科技', isSelf:false },
+  '8271':{ name:'宇瞻',    isSelf:false },
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -172,8 +173,8 @@ const SRC_COLOR = {
 // MOCK — 股價歷史走勢（示意，未來接每日收盤紀錄）
 // ═══════════════════════════════════════════════════════════
 const MOCK_STOCK_HISTORY = (() => {
-  const base  = { '2451':255, '3260':84, '4973':133, '5289':190, '4967':58 };
-  const trend = { '2451':1.5, '3260':0.3,'4973':0.5, '5289':0.4, '4967':0.2 };
+  const base  = { '2451':255, '3260':84, '4973':133, '5289':190, '4967':58, '8271':72 };
+  const trend = { '2451':1.5, '3260':0.3,'4973':0.5, '5289':0.4, '4967':0.2,'8271':0.2 };
   return Array.from({ length:20 }, (_,i) => {
     const d = new Date('2026-03-24'); d.setDate(d.getDate()+i);
     const row = { date:`${d.getMonth()+1}/${d.getDate()}` };
@@ -562,17 +563,26 @@ function SentimentPie({ news }) {
 function CommunityMonitor({ community }) {
   const [filter, setFilter] = useState('all');
 
+  const COMM_KW = ['創見', '2451', 'Transcend'];
+
   // 優先用 Firebase 真實資料，否則顯示示意資料
+  // 前端再過濾一次：標題或內文必須含創見/2451
   const allPosts = community && community.length > 0
-    ? sortByDate(community).slice(0,10).map(n => ({
-        id:     n.id,
-        src:    'PTT Stock',
-        title:  n.title,
-        link:   n.link || 'https://www.ptt.cc/bbs/Stock/index.html',
-        s:      n.sentiment || getSentiment(n.title, n.content),
-        time:   fmtDate(n.pubDate),
-        author: n.rawAuthor || 'PTT',
-      }))
+    ? sortByDate(community)
+        .filter(n => {
+          const t = (n.title + ' ' + (n.content || '')).toLowerCase();
+          return COMM_KW.some(kw => t.includes(kw.toLowerCase()));
+        })
+        .slice(0, 10)
+        .map(n => ({
+          id:     n.id,
+          src:    n.mediaName || n.sourceName || 'PTT Stock',
+          title:  n.title,
+          link:   n.link || 'https://www.ptt.cc/bbs/Stock/index.html',
+          s:      n.sentiment || getSentiment(n.title, n.content),
+          time:   fmtDate(n.pubDate),
+          author: n.rawAuthor || '',
+        }))
     : MOCK_COMMUNITY;
 
   const posts = filter==='all' ? allPosts : allPosts.filter(p=>p.s===filter);
@@ -716,6 +726,7 @@ function StockTrendChart() {
     { code:'4973', name:'廣穎',    color:'#3b82f6', w:1.5 },
     { code:'5289', name:'宜鼎',    color:'#eab308', w:1.5 },
     { code:'4967', name:'十銓科技', color:'#a78bfa', w:1.5 },
+    { code:'8271', name:'宇瞻',    color:'#22c55e', w:1.5 },
   ];
   return (
     <Card title="競品股價走勢對比（近 20 個交易日）" icon="📉">
@@ -809,7 +820,7 @@ function IRTab({ news, stocks, community, revenue }) {
   return (
     <div className="space-y-4 fade-in">
       {/* Stock cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {Object.keys(STOCK_META).map(code => (
           stocks[code]
             ? <StockCard key={code} code={code} data={stocks[code]} />
