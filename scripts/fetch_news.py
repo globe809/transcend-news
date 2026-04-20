@@ -328,6 +328,192 @@ def save_to_firestore(db, articles):
     return saved
 
 
+def fetch_cmoney_forum(stock_code='2451', limit=30):
+    """從 CMoney 股市爆料同學會抓取指定股票討論"""
+    import re, json
+    from bs4 import BeautifulSoup
+
+    url = f'https://www.cmoney.tw/forum/stock/{stock_code}'
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Referer': 'https://www.cmoney.tw/',
+    }
+    articles = []
+    try:
+        r = requests.get(url, headers=headers, timeout=15)
+        r.raise_for_status()
+
+        # ── 方法 1：Next.js __NEXT_DATA__ SSR JSON ──────────────
+        match = re.search(
+            r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
+            r.text, re.DOTALL
+        )
+        if match:
+            data = json.loads(match.group(1))
+            props = data.get('props', {}).get('pageProps', {})
+            posts = (props.get('articles') or props.get('posts') or
+                     props.get('data', {}).get('articles') or
+                     props.get('initialData', {}).get('articles') or [])
+            for p in posts[:limit]:
+                title   = (p.get('title') or p.get('content', '')[:80]).strip()
+                content = str(p.get('content') or p.get('body') or '')[:500]
+                link    = p.get('url') or p.get('link') or f'{url}#{p.get("id","")}'
+                created = p.get('createdAt') or p.get('created_at') or p.get('publishTime') or ''
+                try:
+                    pub_date = datetime.datetime.fromisoformat(
+                        str(created).replace('Z', '+00:00')
+                    ) if created else datetime.datetime.now(datetime.timezone.utc)
+                except Exception:
+                    pub_date = datetime.datetime.now(datetime.timezone.utc)
+                articles.append(_cmoney_article(title, content, link, pub_date,
+                                                p.get('author') or p.get('userName') or ''))
+
+        # ── 方法 2：BeautifulSoup HTML 解析（備援）──────────────
+        if not articles:
+            soup = BeautifulSoup(r.text, 'lxml')
+            for sel in ['.forum-post', '.article-item', '[class*="PostItem"]',
+                        '[class*="post-item"]', '[class*="articleItem"]']:
+                post_els = soup.select(sel)
+                if post_els:
+                    for el in post_els[:limit]:
+                        title_el   = el.select_one('h2,h3,.title,[class*="title"],[class*="Title"]')
+                        content_el = el.select_one('p,.content,[class*="content"],[class*="Content"]')
+                        link_el    = el.select_one('a[href]')
+                        title   = title_el.get_text(strip=True)   if title_el   else ''
+                        content = content_el.get_text(strip=True)[:500] if content_el else ''
+                        href    = link_el['href'] if link_el else ''
+                        if href.startswith('/'):
+                            href = 'https://www.cmoney.tw' + href
+                        if not title and not content:
+                            continue
+                        articles.append(_cmoney_article(
+                            title or content[:80], content,
+                            href or url, datetime.datetime.now(datetime.timezone.utc), ''))
+                    break
+
+        print(f'  ✓ CMoney 爆料同學會: {len(articles)} 則討論')
+    except Exception as e:
+        print(f'  ✗ CMoney 抓取失敗: {e}')
+    return articles
+
+
+def _cmoney_article(title, content, link, pub_date, author):
+    return {
+        'id':         make_article_id(link, title),
+        'title':      title[:200],
+        'content':    content[:500],
+        'link':       link,
+        'pubDate':    pub_date,
+        'sentiment':  analyze_sentiment(title, content),
+        'cat':        'community',
+        'brand':      None,
+        'sourceName': '股市爆料同學會',
+        'mediaName':  '股市爆料同學會 (CMoney)',
+        'rawAuthor':  str(author),
+        'fetchedAt':  datetime.datetime.now(datetime.timezone.utc),
+        'fetchMode':  'community',
+    }
+
+
+def fetch_ptt_stock_forum(limit=20):
+    """從 PTT Stock 版抓取標題含創見/2451 的文章（含推文數）"""
+    import re
+    from bs4 import BeautifulSoup
+
+    HEADERS = {
+        'Cookie': 'over18=1',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    }
+    KW = ['創見', '2451']
+    articles = []
+
+    try:
+        # 取得最新頁碼
+        r = requests.get('https://www.ptt.cc/bbs/Stock/index.html',
+                         headers=HEADERS, timeout=10)
+        soup = BeautifulSoup(r.text, 'lxml')
+        prev = soup.select_one('.btn-group-paging a:nth-child(2)')
+        latest_idx = 0
+        if prev:
+            m = re.search(r'index(\d+)', prev.get('href', ''))
+            if m:
+                latest_idx = int(m.group(1)) + 1
+
+        # 掃最近 15 頁（約 3 天）
+        for idx in range(latest_idx, max(latest_idx - 15, 1), -1):
+            if len(articles) >= limit:
+                break
+            try:
+                pr = requests.get(
+                    f'https://www.ptt.cc/bbs/Stock/index{idx}.html',
+                    headers=HEADERS, timeout=10)
+                page_soup = BeautifulSoup(pr.text, 'lxml')
+            except Exception:
+                continue
+
+            for entry in page_soup.select('.r-ent'):
+                title_el = entry.select_one('.title a')
+                if not title_el:
+                    continue
+                title = title_el.get_text(strip=True)
+                if not any(kw in title for kw in KW):
+                    continue
+
+                post_url = 'https://www.ptt.cc' + title_el['href']
+                try:
+                    ar = requests.get(post_url, headers=HEADERS, timeout=10)
+                    psoup = BeautifulSoup(ar.text, 'lxml')
+
+                    # 內文（移除 metadata 行）
+                    main = psoup.select_one('#main-content')
+                    content = ''
+                    if main:
+                        for tag in main.select('.article-metaline,.article-metaline-right,.push'):
+                            tag.decompose()
+                        content = main.get_text(separator=' ', strip=True)[:500]
+
+                    # 日期
+                    metas = psoup.select('.article-meta-value')
+                    pub_date = datetime.datetime.now(datetime.timezone.utc)
+                    if len(metas) >= 4:
+                        try:
+                            pub_date = datetime.datetime.strptime(
+                                metas[3].get_text(strip=True), '%a %b %d %H:%M:%S %Y'
+                            ).replace(tzinfo=datetime.timezone.utc)
+                        except Exception:
+                            pass
+
+                    author     = metas[0].get_text(strip=True) if metas else ''
+                    push_count = len(psoup.select('.push'))
+
+                    articles.append({
+                        'id':         make_article_id(post_url, title),
+                        'title':      title,
+                        'content':    content,
+                        'link':       post_url,
+                        'pubDate':    pub_date,
+                        'sentiment':  analyze_sentiment(title, content),
+                        'cat':        'community',
+                        'brand':      None,
+                        'sourceName': 'PTT Stock',
+                        'mediaName':  'PTT Stock',
+                        'rawAuthor':  author,
+                        'fetchedAt':  datetime.datetime.now(datetime.timezone.utc),
+                        'fetchMode':  'community',
+                        'pushCount':  push_count,
+                    })
+                    time.sleep(1)   # PTT rate limiting
+                except Exception as e:
+                    print(f'  ⚠ PTT 文章失敗: {e}')
+
+        print(f'  ✓ PTT Stock: {len(articles)} 則創見相關討論')
+    except Exception as e:
+        print(f'  ✗ PTT 抓取失敗: {e}')
+    return articles
+
+
 def fetch_stock_prices(db):
     """抓取台股行情（使用台灣證交所官方 API）並存入 Firebase stocks/latest"""
     # tse = 上市（TWSE），otc = 上櫃（TPEx）
@@ -476,6 +662,23 @@ def main():
     neg = sum(1 for a in all_articles if a['sentiment'] == 'negative')
     neu = sum(1 for a in all_articles if a['sentiment'] == 'neutral')
     print(f"\n📈 情緒分佈: 正面 {pos} / 負面 {neg} / 中立 {neu}")
+
+    # ─── 社群討論抓取（CMoney + PTT）───
+    print(f"\n💬 抓取社群討論...")
+    community_articles = []
+    community_articles += fetch_cmoney_forum('2451')
+    community_articles += fetch_ptt_stock_forum()
+
+    # 社群文章去重後加入儲存清單
+    for a in community_articles:
+        if a['link'] and a['link'] not in seen_links:
+            seen_links.add(a['link'])
+            all_articles.append(a)
+
+    if community_articles:
+        print(f"\n💾 儲存社群討論到 Firebase...")
+        save_to_firestore(db, community_articles)
+        print(f"✅ 社群討論已儲存 {len(community_articles)} 則")
 
     # ─── 股價抓取 ───
     fetch_stock_prices(db)
