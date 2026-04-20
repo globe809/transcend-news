@@ -250,41 +250,96 @@ function NewsCard({ article }) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// PR TAB — 媒體曝光橫條圖
+// PR 過濾函式 — 排除 CMoney / 股市爆料同學會 / 券商明細
 // ═══════════════════════════════════════════════════════════
-function MediaExposureChart({ news }) {
-  const data = useMemo(() => {
+function isValidTranscendPR(n) {
+  if (n.cat !== 'transcend') return false;
+  // 標題或內文必須含創見 / Transcend
+  const text = (n.title + ' ' + (n.content || '')).toLowerCase();
+  if (!text.includes('創見') && !text.includes('transcend')) return false;
+  // 排除 CMoney / 股市爆料同學會
+  const link  = (n.link || '').toLowerCase();
+  const media = (n.mediaName || n.sourceName || '').toLowerCase();
+  if (link.includes('cmoney') || media.includes('cmoney') || media.includes('爆料')) return false;
+  // 排除券商個股歷史明細類頁面
+  const title = n.title || '';
+  const BLOCKED = ['明細','歷史明細','庫存','個股異動','集保','買賣明細','交割明細','籌碼'];
+  if (BLOCKED.some(k => title.includes(k))) return false;
+  return true;
+}
+
+// ═══════════════════════════════════════════════════════════
+// PR TAB — 統計卡片 + 各媒體曝光篇數圖
+// ═══════════════════════════════════════════════════════════
+function PRStatsPanel({ articles }) {
+  const now        = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const weekStart  = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const yearStart  = new Date(now.getFullYear(), 0, 1);
+  const getD = n => n.pubDate?.toDate ? n.pubDate.toDate() : new Date(n.pubDate || 0);
+
+  const counts = useMemo(() => ({
+    today: articles.filter(n => getD(n) >= todayStart).length,
+    week:  articles.filter(n => getD(n) >= weekStart).length,
+    month: articles.filter(n => getD(n) >= monthStart).length,
+    year:  articles.filter(n => getD(n) >= yearStart).length,
+  }), [articles]);
+
+  const mediaData = useMemo(() => {
     const map = {};
-    news.forEach(n => {
+    articles.filter(n => getD(n) >= yearStart).forEach(n => {
       const m = n.mediaName || n.sourceName || '其他';
-      if (!map[m]) map[m] = { media:m, transcend:0, competitor:0 };
-      if (n.cat==='transcend') map[m].transcend++;
-      else if (n.cat==='competitor') map[m].competitor++;
+      if (m === '未知媒體' || m === '其他') return;
+      map[m] = (map[m] || 0) + 1;
     });
-    return Object.values(map)
-      .filter(r => r.transcend+r.competitor > 0)
-      .sort((a,b) => (b.transcend+b.competitor)-(a.transcend+a.competitor))
-      .slice(0,8);
-  }, [news]);
+    return Object.entries(map)
+      .map(([media, count]) => ({ media, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 12);
+  }, [articles]);
+
+  const PERIODS = [
+    { label:'今天', val:counts.today, color:'#f87171' },
+    { label:'本週', val:counts.week,  color:'#fb923c' },
+    { label:'本月', val:counts.month, color:'#facc15' },
+    { label:'本年', val:counts.year,  color:'#4ade80' },
+  ];
 
   return (
-    <Card title="媒體曝光佔比 — 創見 vs 競品（近 30 天）" icon="📊">
-      {data.length > 0 ? (
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={data} layout="vertical" margin={{ top:0, right:12, left:0, bottom:0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
-            <XAxis type="number" tick={{ fill:'#6b7280', fontSize:11 }} axisLine={false} tickLine={false} />
-            <YAxis type="category" dataKey="media" tick={{ fill:'#9ca3af', fontSize:11 }} width={64} axisLine={false} tickLine={false} />
-            <Tooltip {...TT} />
-            <Legend wrapperStyle={{ fontSize:11, color:'#9ca3af', paddingTop:8 }} />
-            <Bar dataKey="transcend" name="創見" fill={BRAND}    radius={[0,4,4,0]} maxBarSize={12} />
-            <Bar dataKey="competitor" name="競品" fill="#374151" radius={[0,4,4,0]} maxBarSize={12} />
-          </BarChart>
-        </ResponsiveContainer>
-      ) : (
-        <div className="h-40 flex items-center justify-center text-gray-600 text-sm">資料載入中…</div>
-      )}
-    </Card>
+    <div className="space-y-4">
+      {/* 4 個統計卡片 */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {PERIODS.map(p => (
+          <div key={p.label} className="bg-gray-900 border border-gray-700/60 rounded-2xl p-4 text-center">
+            <p className="text-xs text-gray-500 mb-1">媒體曝光｜{p.label}</p>
+            <p className="text-3xl font-bold tabular-nums leading-none mt-1" style={{ color:p.color }}>
+              {p.val}
+            </p>
+            <p className="text-xs text-gray-600 mt-1">篇</p>
+          </div>
+        ))}
+      </div>
+
+      {/* 各媒體曝光篇數橫條圖（本年） */}
+      <Card title="各媒體曝光創見篇數（本年累計）" icon="📊">
+        {mediaData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={Math.max(200, mediaData.length * 26)}>
+            <BarChart data={mediaData} layout="vertical" margin={{ top:0, right:36, left:0, bottom:0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
+              <XAxis type="number" tick={{ fill:'#6b7280', fontSize:11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <YAxis type="category" dataKey="media" tick={{ fill:'#9ca3af', fontSize:11 }} width={80} axisLine={false} tickLine={false} />
+              <Tooltip {...TT} formatter={v => [`${v} 篇`, '曝光次數']} />
+              <Bar dataKey="count" name="篇數" radius={[0,4,4,0]} maxBarSize={14}>
+                {mediaData.map((_, i) => <Cell key={i} fill={i === 0 ? '#ef4444' : BRAND} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-40 flex items-center justify-center text-gray-600 text-sm">資料載入中…</div>
+        )}
+      </Card>
+    </div>
   );
 }
 
@@ -526,6 +581,10 @@ const TIME_FILTERS = [
 function PRTab({ news }) {
   const [timeFilter, setTimeFilter] = useState('month');
 
+  // 所有有效創見 PR 文章（已排除 CMoney / 券商明細）
+  const validTranscend = useMemo(() => news.filter(isValidTranscendPR), [news]);
+
+  // 依時間篩選的新聞列表
   const transcend = useMemo(() => {
     const now = new Date();
     const cutoffs = {
@@ -536,23 +595,18 @@ function PRTab({ news }) {
       all:   null,
     };
     const cutoff = cutoffs[timeFilter];
-    return sortByDate(news.filter(n => {
-      if (n.cat !== 'transcend') return false;
-      // 標題或內文必須包含「創見」或「Transcend」
-      const text = (n.title + ' ' + (n.content || '')).toLowerCase();
-      if (!text.includes('創見') && !text.includes('transcend')) return false;
-      // 時間篩選
-      if (cutoff) {
-        const d = n.pubDate?.toDate ? n.pubDate.toDate() : new Date(n.pubDate || 0);
-        if (d < cutoff) return false;
-      }
-      return true;
+    return sortByDate(validTranscend.filter(n => {
+      if (!cutoff) return true;
+      const d = n.pubDate?.toDate ? n.pubDate.toDate() : new Date(n.pubDate || 0);
+      return d >= cutoff;
     })).slice(0, 50);
-  }, [news, timeFilter]);
+  }, [validTranscend, timeFilter]);
 
   return (
     <div className="space-y-4 fade-in">
-      <MediaExposureChart news={news} />
+      {/* 統計卡片 + 各媒體篇數圖 */}
+      <PRStatsPanel articles={validTranscend} />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card title="創見最新報導" icon="📰" className="h-full">
           {/* 時間篩選 */}
