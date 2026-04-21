@@ -1010,6 +1010,7 @@ function DividendHistory({ dividends }) {
 // ═══════════════════════════════════════════════════════════
 function CompetitorMaterial({ material }) {
   const COMP_META = {
+    '2451':{ name:'創見資訊',  color: BRAND },
     '3260':{ name:'威剛科技',  color:'#ef4444' },
     '4967':{ name:'十銓科技',  color:'#f97316' },
     '4973':{ name:'廣穎電通',  color:'#3b82f6' },
@@ -1041,7 +1042,7 @@ function CompetitorMaterial({ material }) {
   );
 
   return (
-    <Card title="競品 IR 新訊" icon="📢">
+    <Card title="創見與競品 IR 新訊" icon="📢">
       {/* 股票篩選 tabs */}
       <div className="flex flex-wrap gap-1.5 mb-3">
         <TabBtn active={filterCode==='all'} onClick={() => setFilterCode('all')}>全部</TabBtn>

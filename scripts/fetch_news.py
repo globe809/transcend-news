@@ -973,16 +973,17 @@ def fetch_quarterly_financials(db, stock_code='2451'):
     quarters = []
     for date, q in quarters_by_date.items():
         try:
-            def _i(v): return int(str(v or 0).replace(',', '') or 0)
+            # FinMind value 是 float（如 462739000.0），須先轉 float 再 int
+            def _i(v): return int(float(str(v or 0).replace(',', '') or 0))
             def _f(v): return float(v or 0)
-            # 使用 FinMind 實際回傳的 origin_name（已從 log 確認）
+            # 使用 FinMind 實際回傳的 origin_name（半形括號，已從 log 確認）
             rev     = _i(q.get('營業收入') or q.get('Revenue') or q.get('OperatingRevenue'))
-            gross   = _i(q.get('營業毛利（毛損）') or q.get('GrossProfit') or q.get('毛利'))
-            op_inc  = _i(q.get('營業利益（損失）') or q.get('OperatingIncome') or q.get('營業利益'))
+            gross   = _i(q.get('營業毛利(毛損)') or q.get('GrossProfit') or q.get('毛利'))
+            op_inc  = _i(q.get('營業利益(損失)') or q.get('OperatingIncome') or q.get('營業利益'))
             # 淨利優先取歸屬於母公司業主，再取合併淨利
-            net_inc = _i(q.get('淨利（淨損）歸屬於母公司業主') or
-                         q.get('本期淨利（淨損）') or q.get('本期淨利(淨損)') or
-                         q.get('繼續營業單位本期淨利（淨損）') or
+            net_inc = _i(q.get('淨利(淨損)歸屬於母公司業主') or
+                         q.get('本期淨利(淨損)') or
+                         q.get('繼續營業單位本期淨利(淨損)') or
                          q.get('NetIncome') or q.get('ProfitAfterTax'))
             eps     = _f(q.get('基本每股盈餘') or q.get('EPS') or q.get('BasicEPS') or
                          q.get('每股盈餘'))
@@ -1017,6 +1018,7 @@ def fetch_material_news(db):
     import urllib.parse
 
     COMP_STOCKS = {
+        '2451': ('創見資訊',  '創見資訊 2451'),
         '3260': ('威剛科技',  '威剛 3260'),
         '4967': ('十銓科技',  '十銓科技 4967'),
         '4973': ('廣穎電通',  '廣穎電通 4973'),
