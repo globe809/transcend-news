@@ -559,7 +559,7 @@ def fetch_monthly_revenue(db, stock_code='2451'):
     try:
         import json as _json
         now_tw = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
-        start_date = f'{now_tw.year - 5}-01-01'
+        start_date = f'{now_tw.year - 10}-01-01'
         url1 = (
             'https://api.finmindtrade.com/api/v4/data'
             f'?dataset=TaiwanStockMonthRevenue&data_id={stock_code}'
@@ -975,20 +975,17 @@ def fetch_quarterly_financials(db, stock_code='2451'):
         try:
             def _i(v): return int(str(v or 0).replace(',', '') or 0)
             def _f(v): return float(v or 0)
-            # 嘗試英文 type 名稱、常見中文名稱（含括號變體）
-            rev     = _i(q.get('Revenue') or q.get('OperatingRevenue') or
-                         q.get('營業收入') or q.get('營業收入合計'))
-            gross   = _i(q.get('GrossProfit') or q.get('毛利') or q.get('毛利(損)'))
-            op_inc  = _i(q.get('OperatingIncome') or q.get('營業利益') or q.get('營業利益(損失)'))
-            net_inc = _i(q.get('NetIncome') or q.get('ProfitAfterTax') or
-                         q.get('稅後淨利') or q.get('本期淨利(淨損)') or
-                         q.get('本期淨利') or q.get('淨利(損)') or
-                         q.get('NetIncomeAfterTax') or
-                         q.get('NetIncomeAttributableToOwnersOfParent') or
-                         q.get('母公司業主淨利(損)'))
-            eps     = _f(q.get('EPS') or q.get('BasicEPS') or
-                         q.get('每股盈餘') or q.get('基本每股盈餘(元)') or
-                         q.get('基本每股盈餘'))
+            # 使用 FinMind 實際回傳的 origin_name（已從 log 確認）
+            rev     = _i(q.get('營業收入') or q.get('Revenue') or q.get('OperatingRevenue'))
+            gross   = _i(q.get('營業毛利（毛損）') or q.get('GrossProfit') or q.get('毛利'))
+            op_inc  = _i(q.get('營業利益（損失）') or q.get('OperatingIncome') or q.get('營業利益'))
+            # 淨利優先取歸屬於母公司業主，再取合併淨利
+            net_inc = _i(q.get('淨利（淨損）歸屬於母公司業主') or
+                         q.get('本期淨利（淨損）') or q.get('本期淨利(淨損)') or
+                         q.get('繼續營業單位本期淨利（淨損）') or
+                         q.get('NetIncome') or q.get('ProfitAfterTax'))
+            eps     = _f(q.get('基本每股盈餘') or q.get('EPS') or q.get('BasicEPS') or
+                         q.get('每股盈餘'))
 
             gross_margin = round(gross   / rev * 100, 2) if rev else 0
             op_margin    = round(op_inc  / rev * 100, 2) if rev else 0

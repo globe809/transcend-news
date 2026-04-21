@@ -1041,7 +1041,7 @@ function CompetitorMaterial({ material }) {
   );
 
   return (
-    <Card title="競品重大訊息彙整" icon="📢">
+    <Card title="競品 IR 新訊" icon="📢">
       {/* 股票篩選 tabs */}
       <div className="flex flex-wrap gap-1.5 mb-3">
         <TabBtn active={filterCode==='all'} onClick={() => setFilterCode('all')}>全部</TabBtn>
@@ -1186,11 +1186,6 @@ function IRTab({ news, stocks, community, revenue, financials, dividends, materi
           ⚠ 尚未取得股價 — 請先在 GitHub Actions 手動執行一次 fetch-news workflow，確認 Firebase stocks/latest 文件已建立。
         </div>
       )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SentimentPie news={news} />
-        <CommunityMonitor community={community} />
-      </div>
 
       <RevenueChart revenue={revenue} />
       <QuarterlyPnL financials={financials} />
