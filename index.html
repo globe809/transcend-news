@@ -137,11 +137,11 @@ const MEDIA_MAP = {
 // COMPETITOR CONFIG
 // ═══════════════════════════════════════════════════════════
 const COMPETITORS = [
-  { id:'ADATA',         name:'ADATA 威剛',        stock:'3260', color:'#ef4444' },
-  { id:'Kingston',      name:'Kingston',           stock:null,   color:'#f97316' },
-  { id:'Innodisk',      name:'Innodisk 宜鼎',     stock:'5289', color:'#eab308' },
-  { id:'Apacer',        name:'Apacer 宇瞻',       stock:'8271', color:'#22c55e' },
-  { id:'Silicon Power', name:'Silicon Power 廣穎', stock:'4973', color:'#3b82f6' },
+  { id:'ADATA',         name:'ADATA 威剛',          stock:'3260', color:'#ef4444' },
+  { id:'Teamgroup',     name:'Teamgroup 十銓',       stock:'4967', color:'#f97316' },
+  { id:'Innodisk',      name:'Innodisk 宜鼎',       stock:'5289', color:'#eab308' },
+  { id:'Apacer',        name:'Apacer 宇瞻',         stock:'8271', color:'#22c55e' },
+  { id:'Silicon Power', name:'Silicon Power 廣穎',  stock:'4973', color:'#3b82f6' },
 ];
 
 const STOCK_META = {
@@ -666,7 +666,7 @@ function RevenueChart({ revenue }) {
     });
   }, [revenue, revMap]);
 
-  // 近 5 年年度彙總
+  // 近 10 年年度彙總（取 11 筆讓最早那年也能算 YoY）
   const annualData = useMemo(() => {
     if (!revenue || !revenue.length) return [];
     const byYear = {};
@@ -676,13 +676,14 @@ function RevenueChart({ revenue }) {
       byYear[r.year].months += 1;
     });
     const years = Object.values(byYear).sort((a, b) => a.year - b.year);
-    return years.slice(-5).map((y, i, arr) => {
+    const base  = years.slice(-11);  // 取 11 筆以計算最早年的 YoY
+    return base.map((y, i, arr) => {
       const prev = arr[i - 1];
       const yoy  = prev && prev.total > 0
         ? +((y.total - prev.total) / prev.total * 100).toFixed(2)
         : null;
       return { ...y, yoy };
-    });
+    }).slice(-10);  // 最終只顯示 10 年
   }, [revenue]);
 
   const hasData = data.length > 0;
@@ -755,41 +756,60 @@ function RevenueChart({ revenue }) {
       )}
     </Card>
 
-    {/* 近 5 年年度財務摘要 */}
+    {/* 近 10 年年度營收趨勢 */}
     {annualData.length > 0 && (
-    <Card title="近 5 年年度營收彙總（2451 創見）" icon="📊">
-      <div className="overflow-x-auto">
+    <Card title="年度營收趨勢（近 10 年，2451 創見）" icon="📊">
+      {/* 折線圖 */}
+      <ResponsiveContainer width="100%" height={200}>
+        <ComposedChart data={annualData} margin={{ top:4, right:20, left:4, bottom:0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+          <XAxis dataKey="year" tick={{ fill:'#6b7280', fontSize:10 }} axisLine={false} tickLine={false} />
+          <YAxis yAxisId="l" tick={{ fill:'#6b7280', fontSize:10 }} width={56} axisLine={false} tickLine={false}
+            tickFormatter={v => v >= 1e10 ? `${(v/1e10).toFixed(1)}百億` : v >= 1e9 ? `${(v/1e9).toFixed(1)}B` : `${(v/1e6).toFixed(0)}M`} />
+          <YAxis yAxisId="r" orientation="right" tick={{ fill:'#6b7280', fontSize:10 }} width={36}
+            axisLine={false} tickLine={false} unit="%" />
+          <Tooltip {...TT}
+            formatter={(v, name) =>
+              name === 'YoY%' ? [v != null ? (v > 0 ? '+' : '') + v + '%' : '—', '年增率']
+                              : [fmtRev(v) + ' 元', '全年營收']
+            } />
+          <Legend wrapperStyle={{ fontSize:11, color:'#9ca3af', paddingTop:6 }} />
+          <Bar  yAxisId="l" dataKey="total" name="全年營收" fill={BRAND} opacity={0.85} radius={[3,3,0,0]} maxBarSize={32} />
+          <Line yAxisId="r" type="monotone" dataKey="yoy" name="YoY%"
+            stroke="#4ade80" strokeWidth={2} dot={{ fill:'#4ade80', r:3 }} connectNulls={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+
+      {/* 明細表 */}
+      <div className="mt-3 overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-gray-700/60 text-gray-500">
               <th className="text-left pb-1.5 pr-3 font-medium">年度</th>
               <th className="text-right pb-1.5 pr-3 font-medium">全年營收（元）</th>
-              <th className="text-right pb-1.5 pr-3 font-medium">較前一年</th>
-              <th className="text-right pb-1.5 font-medium">已涵蓋月數</th>
+              <th className="text-right pb-1.5 pr-3 font-medium">年增率</th>
+              <th className="text-right pb-1.5 font-medium">涵蓋月數</th>
             </tr>
           </thead>
           <tbody>
             {[...annualData].reverse().map((y, i) => (
               <tr key={i} className="border-b border-gray-800/40 hover:bg-gray-800/20">
-                <td className="py-1.5 pr-3 text-gray-300 font-medium">{y.year}</td>
-                <td className="text-right py-1.5 pr-3 text-white tabular-nums font-medium">
-                  {fmtRev(y.total)}
-                </td>
-                <td className={`text-right py-1.5 pr-3 font-bold tabular-nums ${y.yoy==null?'text-gray-500':y.yoy>0?'text-green-400':y.yoy<0?'text-red-400':'text-gray-400'}`}>
+                <td className="py-1.5 pr-3 text-gray-300 font-medium tabular-nums">{y.year}</td>
+                <td className="text-right py-1.5 pr-3 text-white tabular-nums font-medium">{fmtRev(y.total)}</td>
+                <td className={`text-right py-1.5 pr-3 font-bold tabular-nums ${y.yoy==null?'text-gray-600':y.yoy>0?'text-green-400':y.yoy<0?'text-red-400':'text-gray-400'}`}>
                   {y.yoy == null ? '—' : (y.yoy > 0 ? '+' : '') + y.yoy + '%'}
                 </td>
-                <td className="text-right py-1.5 text-gray-500 tabular-nums">
+                <td className="text-right py-1.5 tabular-nums">
                   {y.months < 12
                     ? <span className="text-yellow-500">{y.months} 月（統計中）</span>
-                    : <span className="text-gray-500">12 月</span>
-                  }
+                    : <span className="text-gray-600">12 月</span>}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-gray-600 mt-2">* 資料來源：FinMind 月營收彙總，單位：新台幣元</p>
+      <p className="text-xs text-gray-700 mt-2">* 資料來源：FinMind 月營收加總，單位：新台幣元</p>
     </Card>
     )}
     </>
@@ -986,6 +1006,95 @@ function DividendHistory({ dividends }) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// IR TAB — 競品重大訊息
+// ═══════════════════════════════════════════════════════════
+function CompetitorMaterial({ material }) {
+  const COMP_META = {
+    '3260':{ name:'威剛科技',  color:'#ef4444' },
+    '4967':{ name:'十銓科技',  color:'#f97316' },
+    '4973':{ name:'廣穎電通',  color:'#3b82f6' },
+    '5289':{ name:'宜鼎國際',  color:'#eab308' },
+    '8271':{ name:'宇瞻科技',  color:'#22c55e' },
+  };
+  const BADGE_COLOR = {
+    '董事會':    'bg-red-900/60 text-red-300 border-red-700/50',
+    '股東會':    'bg-purple-900/60 text-purple-300 border-purple-700/50',
+    '法人說明會':'bg-blue-900/60 text-blue-300 border-blue-700/50',
+    '股利':      'bg-yellow-900/60 text-yellow-300 border-yellow-700/50',
+    '盈餘分配':  'bg-yellow-900/60 text-yellow-300 border-yellow-700/50',
+    '現金增資':  'bg-orange-900/60 text-orange-300 border-orange-700/50',
+    '減資':      'bg-pink-900/60 text-pink-300 border-pink-700/50',
+    '下市':      'bg-gray-800/80 text-gray-400 border-gray-600/50',
+    '合併':      'bg-cyan-900/60 text-cyan-300 border-cyan-700/50',
+  };
+
+  const records = useMemo(() => {
+    if (!material || !material.length) return [];
+    return [...material].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  }, [material]);
+
+  const [filterCode, setFilterCode] = useState('all');
+
+  const filtered = useMemo(() =>
+    filterCode === 'all' ? records : records.filter(r => r.code === filterCode),
+    [records, filterCode]
+  );
+
+  return (
+    <Card title="競品重大訊息彙整" icon="📢">
+      {/* 股票篩選 tabs */}
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        <TabBtn active={filterCode==='all'} onClick={() => setFilterCode('all')}>全部</TabBtn>
+        {Object.entries(COMP_META).map(([code, m]) => (
+          <TabBtn key={code} active={filterCode===code} onClick={() => setFilterCode(code)}>
+            <span className="inline-block w-2 h-2 rounded-full mr-1" style={{ background: m.color }} />
+            {code} {m.name}
+          </TabBtn>
+        ))}
+      </div>
+
+      {filtered.length > 0 ? (
+        <div className="space-y-1.5 max-h-[480px] overflow-y-auto pr-1">
+          {filtered.map((r, i) => {
+            const meta = COMP_META[r.code] || {};
+            return (
+              <div key={i} className={`rounded-xl px-3 py-2.5 text-xs border ${r.highlight ? 'border-gray-600/60 bg-gray-800/40' : 'border-gray-800/40 bg-gray-900/30'}`}>
+                <div className="flex items-start gap-2">
+                  <span className="font-bold shrink-0 tabular-nums" style={{ color: meta.color || '#9ca3af' }}>
+                    {r.code}
+                  </span>
+                  <span className="text-gray-500 shrink-0 tabular-nums">{r.date}</span>
+                  <span className="text-gray-300 flex-1 leading-relaxed">{r.summary}</span>
+                </div>
+                {r.highlight && r.highlightKw && r.highlightKw.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5 pl-14">
+                    {r.highlightKw.map(kw => (
+                      <span key={kw} className={`px-1.5 py-0.5 rounded text-[10px] border font-medium ${BADGE_COLOR[kw] || 'bg-gray-700 text-gray-300 border-gray-600'}`}>
+                        {kw}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="h-28 flex items-center justify-center text-gray-600 text-sm">
+          {material === null ? '載入中…' : '尚無重大訊息資料（Actions 跑完後自動更新）'}
+        </div>
+      )}
+      <p className="text-xs text-gray-700 mt-2">
+        * 資料來源：FinMind TaiwanStockMaterial ·
+        <span className="text-red-400/70"> 董事會</span>
+        <span className="text-purple-400/70"> 股東會</span>
+        <span className="text-blue-400/70"> 法人說明會</span> 特別標注
+      </p>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // PR TAB
 // ═══════════════════════════════════════════════════════════
 const TIME_FILTERS = [
@@ -1051,7 +1160,7 @@ function PRTab({ news }) {
 // ═══════════════════════════════════════════════════════════
 // IR TAB
 // ═══════════════════════════════════════════════════════════
-function IRTab({ news, stocks, community, revenue, financials, dividends }) {
+function IRTab({ news, stocks, community, revenue, financials, dividends, material }) {
   return (
     <div className="space-y-4 fade-in">
       {/* Stock cards */}
@@ -1080,6 +1189,7 @@ function IRTab({ news, stocks, community, revenue, financials, dividends }) {
       <RevenueChart revenue={revenue} />
       <QuarterlyPnL financials={financials} />
       <DividendHistory dividends={dividends} />
+      <CompetitorMaterial material={material} />
     </div>
   );
 }
@@ -1094,6 +1204,7 @@ function App() {
   const [revenue,    setRevenue]    = useState(null);
   const [financials, setFinancials] = useState(null);
   const [dividends,  setDividends]  = useState(null);
+  const [material,   setMaterial]   = useState(null);
   const [loading,    setLoading]    = useState(true);
   const [connected,  setConnected]  = useState(false);
   const [updated,    setUpdated]    = useState(null);
@@ -1116,7 +1227,7 @@ function App() {
 
   async function fetchAll() {
     setLoading(true);
-    await Promise.all([ fetchNews(), fetchStocks(), fetchRevenue(), fetchFinancials(), fetchDividends() ]);
+    await Promise.all([ fetchNews(), fetchStocks(), fetchRevenue(), fetchFinancials(), fetchDividends(), fetchMaterial() ]);
     setLoading(false);
     setUpdated(new Date());
   }
@@ -1161,6 +1272,14 @@ function App() {
       if (doc.exists) setDividends(doc.data().records || []);
       else setDividends([]);
     } catch(e) { console.error('Dividends:', e); setDividends([]); }
+  }
+
+  async function fetchMaterial() {
+    try {
+      const doc = await window._db.collection('material').doc('competitors').get();
+      if (doc.exists) setMaterial(doc.data().records || []);
+      else setMaterial([]);
+    } catch(e) { console.error('Material:', e); setMaterial([]); }
   }
 
   // ─── AI Summary (Gemini) ─────────────────────────────────
@@ -1277,7 +1396,7 @@ function App() {
 
       {/* ─────────── MAIN ─────────── */}
       <main className="max-w-7xl mx-auto px-4 py-5">
-        {tab==='pr' ? <PRTab news={news} /> : <IRTab news={news} stocks={stocks} community={community} revenue={revenue} financials={financials} dividends={dividends} />}
+        {tab==='pr' ? <PRTab news={news} /> : <IRTab news={news} stocks={stocks} community={community} revenue={revenue} financials={financials} dividends={dividends} material={material} />}
       </main>
 
       {/* ─────────── AI MODAL ─────────── */}

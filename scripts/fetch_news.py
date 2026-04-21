@@ -102,6 +102,7 @@ def get_sources(mode):
         {'label': 'Google-Newtalk創見',        'url': 'https://news.google.com/rss/search?q=創見+site:newtalk.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'transcend'},
         {'label': 'Google-ETtoday財經創見',    'url': 'https://news.google.com/rss/search?q=創見+site:finance.ettoday.net&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'transcend'},
         {'label': 'Google-自由時報財經創見',   'url': 'https://news.google.com/rss/search?q=創見+site:ec.ltn.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'transcend'},
+        {'label': 'Google-非凡財經創見',       'url': 'https://news.google.com/rss/search?q=創見+site:ustv.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'transcend'},
     ]
     us_market = [
         # ─── 上游供應商（英文）───
@@ -126,7 +127,8 @@ def get_sources(mode):
         {'label': 'Innodisk 宜鼎',      'url': 'https://news.google.com/rss/search?q=宜鼎+Innodisk&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Innodisk'},
         {'label': 'Apacer 宇瞻',        'url': 'https://news.google.com/rss/search?q=宇瞻+Apacer&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Apacer'},
         {'label': 'Silicon Power 廣穎', 'url': 'https://news.google.com/rss/search?q=廣穎+Silicon+Power&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Silicon Power'},
-        {'label': 'Kingston 金士頓',    'url': 'https://news.google.com/rss/search?q=金士頓+Kingston&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Kingston'},
+        {'label': '十銓科技 Teamgroup',  'url': 'https://news.google.com/rss/search?q=十銓科技+Teamgroup&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Teamgroup'},
+        {'label': 'Teamgroup EN',        'url': 'https://news.google.com/rss/search?q=Teamgroup+(SSD+OR+DRAM+OR+Industrial+OR+Embedded)&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Teamgroup'},
         {'label': 'Lexar 雷克沙',       'url': 'https://news.google.com/rss/search?q=Lexar+雷克沙&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Lexar'},
         {'label': 'PNY 必恩威',         'url': 'https://news.google.com/rss/search?q=PNY+必恩威&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'PNY'},
     ]
@@ -895,74 +897,170 @@ def main():
     # ─── 股利資料抓取 ───
     fetch_dividend_data(db, '2451')
 
+    # ─── 競品重大訊息抓取 ───
+    fetch_material_news(db)
+
     print(f"\n{'='*50}")
     print("抓取完成！")
     print(f"{'='*50}\n")
 
 
 def fetch_quarterly_financials(db, stock_code='2451'):
-    """從 FinMind 抓取季度損益並存入 Firebase financials/{stock_code}"""
+    """從 FinMind 抓取季度損益並存入 Firebase financials/{stock_code}
+    依序嘗試多個 dataset 名稱，同時支援寬格式與長格式。
+    """
     import json as _json
     print(f"\n📋 抓取 {stock_code} 季度損益（FinMind）...")
     BASE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    try:
-        url = (
-            'https://api.finmindtrade.com/api/v4/data'
-            f'?dataset=TaiwanStockProfitLossStatement&data_id={stock_code}'
-            f'&start_date=2019-01-01&token='
-        )
-        r = requests.get(url, headers={'User-Agent': BASE_UA}, timeout=20)
-        print(f"  HTTP {r.status_code}, {len(r.content)} bytes")
-        if r.status_code != 200:
-            return
-        data = _json.loads(r.text)
-        rows = data.get('data', [])
-        print(f"  取得 {len(rows)} 筆")
-        if rows:
-            print(f"  第一筆 keys: {list(rows[0].keys())}")
-            print(f"  第一筆範例: {rows[0]}")
 
-        quarters = []
-        for row in rows:
-            try:
-                date = row.get('date', '')
-                rev     = int(str(row.get('Revenue', 0) or 0).replace(',', ''))
-                gross   = int(str(row.get('GrossProfit', 0) or row.get('Gross_Profit', 0) or 0).replace(',', ''))
-                op_inc  = int(str(row.get('OperatingIncome', 0) or row.get('Operating_Income', 0) or 0).replace(',', ''))
-                net_inc = int(str(row.get('NetIncome', 0) or row.get('Net_Income', 0) or
-                               row.get('NetIncomeAfterTax', 0) or row.get('NetIncomeAttributableToOwnersOfParent', 0) or 0).replace(',', ''))
-                eps     = float(row.get('EPS', 0) or row.get('eps', 0) or 0)
+    # FinMind 可能的 dataset 名稱（依照成功機率排序）
+    DATASETS = [
+        'TaiwanStockFinancialStatements',
+        'TaiwanStockProfitLossStatement',
+        'TaiwanStockProfitLoss',
+    ]
 
-                gross_margin = round(gross   / rev * 100, 2) if rev else 0
-                op_margin    = round(op_inc  / rev * 100, 2) if rev else 0
-                net_margin   = round(net_inc / rev * 100, 2) if rev else 0
+    quarters_by_date = {}  # date -> dict of metrics
 
-                quarters.append({
-                    'date':        date,
-                    'revenue':     rev,
-                    'grossProfit': gross,
-                    'opIncome':    op_inc,
-                    'netIncome':   net_inc,
-                    'eps':         eps,
-                    'grossMargin': gross_margin,
-                    'opMargin':    op_margin,
-                    'netMargin':   net_margin,
-                })
-            except Exception:
+    for dataset in DATASETS:
+        try:
+            url = (
+                'https://api.finmindtrade.com/api/v4/data'
+                f'?dataset={dataset}&data_id={stock_code}'
+                f'&start_date=2019-01-01&token='
+            )
+            r = requests.get(url, headers={'User-Agent': BASE_UA}, timeout=20)
+            print(f"  [{dataset}] HTTP {r.status_code}, {len(r.content)} bytes")
+            if r.status_code != 200:
                 continue
+            data = _json.loads(r.text)
+            rows = data.get('data', [])
+            print(f"  [{dataset}] 取得 {len(rows)} 筆")
+            if not rows:
+                continue
+            print(f"  [{dataset}] 第一筆 keys: {list(rows[0].keys())}")
+            print(f"  [{dataset}] 第一筆: {rows[0]}")
 
-        if quarters:
-            quarters.sort(key=lambda x: x['date'])
-            db.collection('financials').document(stock_code).set({
-                'quarters':  quarters,
-                'stockCode': stock_code,
-                'updatedAt': firestore.SERVER_TIMESTAMP,
+            # 自動判斷格式：長格式(有 'type' key) 或 寬格式
+            if 'type' in rows[0]:
+                # 長格式：每行是一個指標，需 pivot
+                for row in rows:
+                    date   = row.get('date', '')
+                    metric = row.get('type', '')
+                    val    = row.get('value', 0)
+                    if date not in quarters_by_date:
+                        quarters_by_date[date] = {'date': date}
+                    quarters_by_date[date][metric] = val
+            else:
+                # 寬格式：每行是一季的所有指標
+                for row in rows:
+                    date = row.get('date', '')
+                    quarters_by_date[date] = dict(row)
+
+            if quarters_by_date:
+                break  # 成功，不再嘗試其他 dataset
+        except Exception as e:
+            print(f"  [{dataset}] 失敗: {e}")
+
+    # 轉換成標準格式並計算利潤率
+    quarters = []
+    for date, q in quarters_by_date.items():
+        try:
+            def _i(v): return int(str(v or 0).replace(',', '') or 0)
+            def _f(v): return float(v or 0)
+            rev     = _i(q.get('Revenue') or q.get('revenue') or q.get('營業收入'))
+            gross   = _i(q.get('GrossProfit') or q.get('gross_profit') or q.get('毛利'))
+            op_inc  = _i(q.get('OperatingIncome') or q.get('operating_income') or q.get('營業利益'))
+            net_inc = _i(q.get('NetIncome') or q.get('net_income') or
+                         q.get('NetIncomeAfterTax') or q.get('稅後淨利') or
+                         q.get('NetIncomeAttributableToOwnersOfParent'))
+            eps     = _f(q.get('EPS') or q.get('eps') or q.get('每股盈餘'))
+
+            gross_margin = round(gross   / rev * 100, 2) if rev else 0
+            op_margin    = round(op_inc  / rev * 100, 2) if rev else 0
+            net_margin   = round(net_inc / rev * 100, 2) if rev else 0
+
+            quarters.append({
+                'date': date, 'revenue': rev, 'grossProfit': gross,
+                'opIncome': op_inc, 'netIncome': net_inc, 'eps': eps,
+                'grossMargin': gross_margin, 'opMargin': op_margin, 'netMargin': net_margin,
             })
-            print(f"  ✅ 季度損益已儲存 {len(quarters)} 筆（{quarters[0]['date']} ～ {quarters[-1]['date']}）")
-        else:
-            print("  ⚠ 未解析到季度損益（請把上方除錯輸出貼給開發者）")
-    except Exception as e:
-        print(f"  [季度損益] 失敗: {e}")
+        except Exception:
+            continue
+
+    if quarters:
+        quarters.sort(key=lambda x: x['date'])
+        db.collection('financials').document(stock_code).set({
+            'quarters': quarters, 'stockCode': stock_code,
+            'updatedAt': firestore.SERVER_TIMESTAMP,
+        })
+        print(f"  ✅ 季度損益已儲存 {len(quarters)} 筆（{quarters[0]['date']} ～ {quarters[-1]['date']}）")
+    else:
+        print("  ⚠ 未解析到季度損益（請把上方除錯輸出貼給開發者）")
+
+
+def fetch_material_news(db):
+    """從 FinMind TaiwanStockMaterial 抓取競品重大訊息，存入 Firebase material/competitors"""
+    import json as _json
+    COMP_STOCKS = {
+        '3260': '威剛科技',
+        '4967': '十銓科技',
+        '4973': '廣穎電通',
+        '5289': '宜鼎國際',
+        '8271': '宇瞻科技',
+    }
+    HIGHLIGHT_KW = ['董事會', '股東會', '法人說明會', '股利', '盈餘分配', '現金增資', '減資', '下市', '合併']
+    BASE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    now_tw = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
+    start  = f'{now_tw.year - 1}-01-01'  # 近一年
+
+    print(f"\n📢 抓取競品重大訊息（FinMind TaiwanStockMaterial）...")
+    all_records = []
+
+    for code, name in COMP_STOCKS.items():
+        try:
+            url = (
+                'https://api.finmindtrade.com/api/v4/data'
+                f'?dataset=TaiwanStockMaterial&data_id={code}'
+                f'&start_date={start}&token='
+            )
+            r = requests.get(url, headers={'User-Agent': BASE_UA}, timeout=20)
+            print(f"  [{code} {name}] HTTP {r.status_code}, {len(r.content)} bytes")
+            if r.status_code != 200:
+                continue
+            data  = _json.loads(r.text)
+            rows  = data.get('data', [])
+            print(f"  [{code}] 取得 {len(rows)} 筆")
+            if rows:
+                print(f"  [{code}] 第一筆 keys: {list(rows[0].keys())}")
+                print(f"  [{code}] 第一筆: {rows[0]}")
+
+            for row in rows:
+                date    = row.get('date', '')
+                summary = (row.get('summary') or row.get('content') or
+                           row.get('title') or row.get('name') or str(row))[:300]
+                highlight    = any(kw in summary for kw in HIGHLIGHT_KW)
+                highlight_kw = [kw for kw in HIGHLIGHT_KW if kw in summary]
+                all_records.append({
+                    'code':        code,
+                    'name':        name,
+                    'date':        date,
+                    'summary':     summary,
+                    'highlight':   highlight,
+                    'highlightKw': highlight_kw,
+                })
+        except Exception as e:
+            print(f"  [{code}] 失敗: {e}")
+
+    if all_records:
+        all_records.sort(key=lambda x: x['date'], reverse=True)
+        db.collection('material').document('competitors').set({
+            'records':   all_records[:300],
+            'updatedAt': firestore.SERVER_TIMESTAMP,
+        })
+        print(f"  ✅ 重大訊息已儲存 {len(all_records)} 筆")
+    else:
+        print("  ⚠ 未取得重大訊息（請確認 FinMind TaiwanStockMaterial 是否可用）")
 
 
 def fetch_dividend_data(db, stock_code='2451'):
