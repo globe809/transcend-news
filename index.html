@@ -646,8 +646,8 @@ function RevenueChart({ revenue }) {
     if (!revenue || !revenue.length) return [];
     return revenue.slice(-24).map(r => ({
       label:   `${String(r.year).slice(2)}/${r.month}`,
-      rev:     +(r.revenue   / 1000).toFixed(0),   // 百萬元
-      prevYr:  +(r.prevYr    / 1000).toFixed(0),
+      rev:     r.revenue,    // 仟元
+      prevYr:  r.prevYr,
       yoyPct:  r.yoyPct,
     }));
   }, [revenue]);
@@ -663,12 +663,12 @@ function RevenueChart({ revenue }) {
             <ComposedChart data={data} margin={{ top:4, right:44, left:0, bottom:0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
               <XAxis dataKey="label" tick={{ fill:'#6b7280', fontSize:10 }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="l" tick={{ fill:'#6b7280', fontSize:10 }} width={44} axisLine={false} tickLine={false}
-                tickFormatter={v => `${v}M`} />
+              <YAxis yAxisId="l" tick={{ fill:'#6b7280', fontSize:10 }} width={52} axisLine={false} tickLine={false}
+                tickFormatter={v => v >= 1000000 ? `${(v/1000000).toFixed(1)}B` : v >= 1000 ? `${(v/1000).toFixed(0)}M` : v} />
               <YAxis yAxisId="r" orientation="right" tick={{ fill:'#6b7280', fontSize:10 }} width={36}
                 axisLine={false} tickLine={false} unit="%" />
               <Tooltip {...TT}
-                formatter={(v, name) => name === '年增率%' ? [`${v}%`, name] : [`${v} 百萬`, name]} />
+                formatter={(v, name) => name === '年增率%' ? [`${v}%`, name] : [Number(v).toLocaleString() + ' 仟元', name]} />
               <Legend wrapperStyle={{ fontSize:11, color:'#9ca3af', paddingTop:8 }} />
               <Bar yAxisId="l" dataKey="rev"    name="當月營收" fill={BRAND}   radius={[2,2,0,0]} maxBarSize={16} />
               <Bar yAxisId="l" dataKey="prevYr" name="去年同期" fill="#374151" radius={[2,2,0,0]} maxBarSize={16} />
@@ -693,10 +693,10 @@ function RevenueChart({ revenue }) {
                   <tr key={i} className="border-b border-gray-800/40 hover:bg-gray-800/20">
                     <td className="py-1.5 pr-3 text-gray-300 tabular-nums">{r.label}</td>
                     <td className="text-right py-1.5 pr-3 text-white tabular-nums font-medium">
-                      {(r.revenue/1000).toFixed(0)} 百萬
+                      {Number(r.revenue).toLocaleString()} 仟元
                     </td>
                     <td className="text-right py-1.5 pr-3 text-gray-500 tabular-nums">
-                      {(r.prevYr/1000).toFixed(0)} 百萬
+                      {Number(r.prevYr).toLocaleString()} 仟元
                     </td>
                     <td className={`text-right py-1.5 font-bold tabular-nums ${r.yoyPct>0?'text-green-400':r.yoyPct<0?'text-red-400':'text-gray-400'}`}>
                       {r.yoyPct > 0 ? '+' : ''}{r.yoyPct}%
