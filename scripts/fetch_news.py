@@ -550,130 +550,156 @@ def fetch_monthly_revenue(db, stock_code='2451'):
         return r
 
     html = None
-    BASE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    filter_code = stock_code  # 用於表格過濾
+    BASE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 
-    # ── 方法 1：Session POST（先 GET 建立 cookie，再 POST ajax）──
+    # ── 方法 1：FinMind 開源 API（不受 IP 限制，免費無需 token）────
     try:
-        sess = requests.Session()
-        sess.get('https://mops.twse.com.tw/mops/web/t05st10_ifrs',
-                 headers={'User-Agent': BASE_UA, 'Accept-Language': 'zh-TW,zh;q=0.9'},
-                 timeout=15)
-        r = sess.post(
-            'https://mops.twse.com.tw/mops/web/ajax_t05st10_ifrs',
-            data=(
-                'encodeURIComponent=1&step=1&firstin=1&off=1'
-                '&keyword4=&code1=&TYPEK2=&checkbtn='
-                '&queryName=co_id&inpuType=co_id&TYPEK=sii'
-                f'&co_id={stock_code}'
-            ),
-            headers={
-                'User-Agent': BASE_UA,
-                'Accept-Language': 'zh-TW,zh;q=0.9',
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Referer': 'https://mops.twse.com.tw/mops/web/t05st10_ifrs',
-                'Origin':  'https://mops.twse.com.tw',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            timeout=20
+        import json as _json
+        now_tw = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
+        start_date = f'{now_tw.year - 5}-01-01'
+        url1 = (
+            'https://api.finmindtrade.com/api/v4/data'
+            f'?dataset=TaiwanStockMonthRevenue&data_id={stock_code}'
+            f'&start_date={start_date}&token='
         )
-        r.encoding = 'utf-8'
-        has_table = '<table' in r.text.lower()
-        print(f"  [方法1] HTTP {r.status_code}, {len(r.text)} chars, has_table={has_table}")
-        print(f"  [方法1] 內容預覽: {r.text[:300]}")
-        if r.status_code == 200 and has_table:
-            html = r.text
+        r1 = requests.get(url1, headers={'User-Agent': BASE_UA}, timeout=20)
+        print(f"  [方法1 FinMind] HTTP {r1.status_code}, {len(r1.content)} bytes")
+        if r1.status_code == 200:
+            data = _json.loads(r1.text)
+            rows = data.get('data', [])
+            print(f"  [方法1] 取得 {len(rows)} 筆記錄")
+            if rows:
+                print(f"  [方法1] 第一筆 keys: {list(rows[0].keys())}")
+            for row in rows:
+                try:
+                    # FinMind 欄位: date(YYYY-MM), revenue, last_year_revenue, last_month_revenue, MoM, YoY
+                    date_str = str(row.get('date', ''))  # e.g. "2024-03"
+                    yr  = int(date_str[:4])
+                    mon = int(date_str[5:7])
+                    rev     = int(str(row.get('revenue', 0)).replace(',', '') or 0)
+                    prev_yr = int(str(row.get('last_year_revenue', 0)).replace(',', '') or 0)
+                    cumrev  = int(str(row.get('revenue_month', 0) or row.get('cumRevenue', 0)).replace(',', '') or 0)
+                    yoy_pct = float(row.get('revenue_year_difference', 0) or row.get('YoY', 0) or 0)
+                    mom_pct = float(row.get('revenue_month_difference', 0) or row.get('MoM', 0) or 0)
+                    if yr < 2000 or not (1 <= mon <= 12):
+                        continue
+                    key = f'{yr}-{mon:02d}'
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    all_records.append({
+                        'year': yr, 'month': mon, 'revenue': rev,
+                        'cumRevenue': cumrev, 'prevYr': prev_yr,
+                        'momPct': mom_pct, 'yoyPct': yoy_pct,
+                        'label': key,
+                    })
+                except Exception:
+                    continue
     except Exception as e:
         print(f"  [方法1] 失敗: {e}")
 
-    # ── 方法 2：server-java GET（備援，嘗試多種 encoding）────
-    if not html:
+    # ── 方法 2：MOPS NAS 靜態 HTML（不同 subdomain，較少受限）─
+    if not all_records:
         try:
             now_tw = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
             roc_yr = now_tw.year - 1911
-            url2 = (f'https://mops.twse.com.tw/server-java/t05st10'
-                    f'?TYPEK=sii&co_id={stock_code}&year={roc_yr}&mon=')
-            r2 = requests.get(url2, headers={'User-Agent': BASE_UA}, timeout=20)
-            for enc in ['utf-8', 'big5', 'cp950']:
-                try:
-                    r2.encoding = enc
-                    txt = r2.text
-                    if '<table' in txt.lower() and len(txt) > 800:
-                        print(f"  [方法2] HTTP {r2.status_code}, {len(txt)} chars, enc={enc}")
-                        html = txt
-                        break
-                except Exception:
-                    continue
-            if not html:
-                print(f"  [方法2] HTTP {r2.status_code}, {len(r2.content)} bytes，無法解析")
-                print(f"  [方法2] 內容預覽: {r2.content[:200]}")
+            # 嘗試每年靜態檔
+            for yr_offset in range(3):
+                if all_records:
+                    break
+                yr = roc_yr - yr_offset
+                for url_try in [
+                    f'https://mops.twse.com.tw/nas/t05/t05st10_{yr}.html',
+                    f'https://mops.twse.com.tw/nas/t05/t05st10.html',
+                ]:
+                    try:
+                        r2 = requests.get(url_try, headers={'User-Agent': BASE_UA}, timeout=15)
+                        print(f"  [方法2] {url_try} → HTTP {r2.status_code}, {len(r2.content)} bytes")
+                        for enc in ['big5', 'utf-8', 'cp950']:
+                            try:
+                                r2.encoding = enc
+                                if '<table' in r2.text.lower() and stock_code in r2.text:
+                                    print(f"  [方法2] 找到表格 (enc={enc})")
+                                    html = r2.text
+                                    break
+                            except Exception:
+                                continue
+                        if html:
+                            break
+                    except Exception as e:
+                        print(f"  [方法2] {url_try} 失敗: {e}")
         except Exception as e:
-            print(f"  [方法2] 失敗: {e}")
+            print(f"  [方法2] 整體失敗: {e}")
 
-    if not html:
+    # 方法 1 已直接填入 all_records，不需 HTML 解析
+    if all_records:
+        print(f"  [方法1 直接 JSON] 已取得 {len(all_records)} 筆，跳過 HTML 解析")
+    elif not html:
         print("  ✗ 無法取得 MOPS 資料")
         return
+    else:
+        soup = BeautifulSoup(html, 'lxml')
+        tables = soup.find_all('table')
+        print(f"  找到 {len(tables)} 個 <table>")
 
-    soup = BeautifulSoup(html, 'lxml')
-    tables = soup.find_all('table')
-    print(f"  找到 {len(tables)} 個 <table>")
-
-    for ti, table in enumerate(tables):
-        rows = table.find_all('tr')
-        if len(rows) < 2:
-            continue
-        # 印出前兩列幫助除錯
-        for ri in range(min(2, len(rows))):
-            sample = [c.get_text(strip=True) for c in rows[ri].find_all(['th','td'])]
-            print(f"  Table[{ti}] Row[{ri}]: {sample[:10]}")
-
-        for row in rows:
-            cols = [td.get_text(strip=True) for td in row.find_all('td')]
-            if len(cols) < 6:
+        for ti, table in enumerate(tables):
+            rows = table.find_all('tr')
+            if len(rows) < 2:
                 continue
+            # 印出前兩列幫助除錯
+            for ri in range(min(2, len(rows))):
+                sample = [c.get_text(strip=True) for c in rows[ri].find_all(['th','td'])]
+                print(f"  Table[{ti}] Row[{ri}]: {sample[:10]}")
 
-            # ── 自動找 ROC 年份欄（值介於 100~200）和月份欄（值 1~12 且緊接在年後）
-            year_idx = month_idx = None
-            for i, c in enumerate(cols):
-                v = parse_num(c)
-                if 100 <= v <= 200 and year_idx is None:
-                    year_idx = i
-                elif year_idx is not None and 1 <= v <= 12 and month_idx is None:
-                    month_idx = i
-                    break
-
-            if year_idx is None or month_idx is None:
-                continue
-
-            try:
-                roc_year = parse_num(cols[year_idx])
-                month    = int(parse_num(cols[month_idx]))
-                ad_year  = int(roc_year) + 1911
-                base     = month_idx + 1        # 當月營收欄起始
-                if base >= len(cols):
+            for row in rows:
+                cols = [td.get_text(strip=True) for td in row.find_all('td')]
+                if len(cols) < 6:
                     continue
 
-                revenue = parse_num(cols[base])
-                cumrev  = parse_num(cols[base+1]) if base+1 < len(cols) else 0
-                prev_yr = parse_num(cols[base+2]) if base+2 < len(cols) else 0
-                mom_pct = parse_num(cols[base+4]) if base+4 < len(cols) else 0
-                yoy_pct = parse_num(cols[base+5]) if base+5 < len(cols) else 0
+                # ── 自動找 ROC 年份欄（值介於 100~200）和月份欄（值 1~12 且緊接在年後）
+                year_idx = month_idx = None
+                for i, c in enumerate(cols):
+                    v = parse_num(c)
+                    if 100 <= v <= 200 and year_idx is None:
+                        year_idx = i
+                    elif year_idx is not None and 1 <= v <= 12 and month_idx is None:
+                        month_idx = i
+                        break
 
-                key = f'{ad_year}-{month:02d}'
-                if key in seen:
+                if year_idx is None or month_idx is None:
                     continue
-                seen.add(key)
-                all_records.append({
-                    'year':       ad_year,
-                    'month':      month,
-                    'revenue':    int(revenue),
-                    'cumRevenue': int(cumrev),
-                    'prevYr':     int(prev_yr),
-                    'momPct':     float(mom_pct),
-                    'yoyPct':     float(yoy_pct),
-                    'label':      key,
-                })
-            except Exception:
-                continue
+
+                try:
+                    roc_year = parse_num(cols[year_idx])
+                    month    = int(parse_num(cols[month_idx]))
+                    ad_year  = int(roc_year) + 1911
+                    base     = month_idx + 1        # 當月營收欄起始
+                    if base >= len(cols):
+                        continue
+
+                    revenue = parse_num(cols[base])
+                    cumrev  = parse_num(cols[base+1]) if base+1 < len(cols) else 0
+                    prev_yr = parse_num(cols[base+2]) if base+2 < len(cols) else 0
+                    mom_pct = parse_num(cols[base+4]) if base+4 < len(cols) else 0
+                    yoy_pct = parse_num(cols[base+5]) if base+5 < len(cols) else 0
+
+                    key = f'{ad_year}-{month:02d}'
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    all_records.append({
+                        'year':       ad_year,
+                        'month':      month,
+                        'revenue':    int(revenue),
+                        'cumRevenue': int(cumrev),
+                        'prevYr':     int(prev_yr),
+                        'momPct':     float(mom_pct),
+                        'yoyPct':     float(yoy_pct),
+                        'label':      key,
+                    })
+                except Exception:
+                    continue
 
     all_records.sort(key=lambda x: (x['year'], x['month']))
 
