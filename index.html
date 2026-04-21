@@ -343,27 +343,6 @@ function PRStatsPanel({ articles }) {
         ))}
       </div>
 
-      {/* 各媒體曝光篇數橫條圖（本年） */}
-      <Card title="各媒體曝光創見篇數（本年累計）" icon="📊">
-        {mediaData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={Math.max(200, mediaData.length * 26)}>
-            <BarChart data={mediaData} layout="vertical" margin={{ top:0, right:36, left:0, bottom:0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
-              <XAxis type="number" tick={{ fill:'#6b7280', fontSize:11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <YAxis type="category" dataKey="media" tick={{ fill:'#9ca3af', fontSize:11 }} width={80} axisLine={false} tickLine={false} />
-              <Tooltip {...TT} formatter={v => [`${v} 篇`, '曝光次數']} />
-              <Bar dataKey="count" name="篇數" radius={[0,4,4,0]} maxBarSize={14}>
-                {mediaData.map((_, i) => <Cell key={i} fill={i === 0 ? '#ef4444' : BRAND} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="h-40 flex items-center justify-center text-gray-600 text-sm">資料載入中…</div>
-        )}
-      </Card>
-
-      {/* 重點媒體曝光分析 */}
-      <KeyMediaPanel articles={articles} />
     </div>
   );
 }
@@ -638,11 +617,32 @@ function CommunityMonitor({ community }) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// 自訂 Hook：量測容器寬度，讓 Recharts 不依賴 ResponsiveContainer
+// ═══════════════════════════════════════════════════════════
+function useContainerWidth(fallback = 600) {
+  const ref = React.useRef(null);
+  const [width, setWidth] = React.useState(0);
+  React.useEffect(() => {
+    if (!ref.current) return;
+    const measure = () => {
+      const w = ref.current ? ref.current.offsetWidth : 0;
+      if (w > 0) setWidth(w);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(ref.current);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, width || fallback];
+}
+
+// ═══════════════════════════════════════════════════════════
 // IR TAB — 月營收圖表
 // ═══════════════════════════════════════════════════════════
 function RevenueChart({ revenue }) {
-  // revenue: array of { year, month, revenue(元), label }
   const fmtRev = v => Number(v).toLocaleString();  // 千分位，單位：元
+  const [chartRef1, chartW1] = useContainerWidth();
+  const [chartRef2, chartW2] = useContainerWidth();
 
   // 自行建立 lookup map，對照去年同期（不依賴 FinMind 的 revenue_year 欄位）
   const revMap = useMemo(() => {
@@ -701,8 +701,9 @@ function RevenueChart({ revenue }) {
     <Card title="創見月營收（近 24 個月）" icon="💰">
       {hasData ? (
         <>
-          <ResponsiveContainer width="100%" height={230}>
-            <ComposedChart data={data} margin={{ top:4, right:44, left:4, bottom:0 }}>
+          <div ref={chartRef1} className="w-full">
+            {chartW1 > 0 && (
+            <ComposedChart width={chartW1} height={230} data={data} margin={{ top:4, right:44, left:4, bottom:0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
               <XAxis dataKey="label" tick={{ fill:'#6b7280', fontSize:10 }} axisLine={false} tickLine={false} />
               <YAxis yAxisId="l" tick={{ fill:'#6b7280', fontSize:10 }} width={52} axisLine={false} tickLine={false}
@@ -717,7 +718,8 @@ function RevenueChart({ revenue }) {
               <Line yAxisId="r" type="monotone" dataKey="yoyPct" name="年增率%"
                 stroke="#4ade80" strokeWidth={2} dot={false} />
             </ComposedChart>
-          </ResponsiveContainer>
+            )}
+          </div>
 
           {/* 近 12 個月明細表 */}
           <div className="mt-3 overflow-x-auto">
@@ -758,10 +760,11 @@ function RevenueChart({ revenue }) {
 
     {/* 近 10 年年度營收趨勢 */}
     {annualData.length > 0 && (
-    <Card title="年度營收趨勢（近 10 年，2451 創見）" icon="📊">
+    <Card title="年度營收趨勢（近 10 年，創見）" icon="📊">
       {/* 折線圖 */}
-      <ResponsiveContainer width="100%" height={200}>
-        <ComposedChart data={annualData} margin={{ top:4, right:20, left:4, bottom:0 }}>
+      <div ref={chartRef2} className="w-full">
+        {chartW2 > 0 && (
+        <ComposedChart width={chartW2} height={200} data={annualData} margin={{ top:4, right:20, left:4, bottom:0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
           <XAxis dataKey="year" tick={{ fill:'#6b7280', fontSize:10 }} axisLine={false} tickLine={false} />
           <YAxis yAxisId="l" tick={{ fill:'#6b7280', fontSize:10 }} width={56} axisLine={false} tickLine={false}
@@ -778,7 +781,8 @@ function RevenueChart({ revenue }) {
           <Line yAxisId="r" type="monotone" dataKey="yoy" name="YoY%"
             stroke="#4ade80" strokeWidth={2} dot={{ fill:'#4ade80', r:3 }} connectNulls={false} />
         </ComposedChart>
-      </ResponsiveContainer>
+        )}
+      </div>
 
       {/* 明細表 */}
       <div className="mt-3 overflow-x-auto">
@@ -854,25 +858,43 @@ function StockTrendChart() {
 // IR TAB — 財務名詞 Tooltip
 // ═══════════════════════════════════════════════════════════
 function TermTip({ label, tip }) {
-  const [show, setShow] = React.useState(false);
+  const [pos, setPos] = React.useState(null);
+  const btnRef = React.useRef(null);
+
+  const showTip = () => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setPos({ x: r.left + r.width / 2, y: r.top });
+  };
+  const hideTip = () => setPos(null);
+
   return (
-    <span className="inline-flex items-center gap-1">
-      <span>{label}</span>
-      <span className="relative"
-        onMouseEnter={() => setShow(true)}
-        onMouseLeave={() => setShow(false)}
-        onClick={() => setShow(v => !v)}>
-        <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] font-bold cursor-help select-none"
-          style={{ background:'#374151', color:'#9ca3af' }}>?</span>
-        {show && (
-          <span className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-60 rounded-xl p-3 text-xs leading-relaxed text-left pointer-events-none whitespace-normal font-normal normal-case"
-            style={{ background:'#1f2937', border:'1px solid #374151', color:'#d1d5db', boxShadow:'0 8px 32px rgba(0,0,0,0.5)' }}>
-            {tip}
-            <span className="absolute top-full left-1/2 -translate-x-1/2"
-              style={{ width:0, height:0, borderLeft:'5px solid transparent', borderRight:'5px solid transparent', borderTop:'5px solid #374151' }} />
-          </span>
-        )}
-      </span>
+    <span className="inline-flex items-center gap-1.5">
+      {label && <span>{label}</span>}
+      <span ref={btnRef}
+        onMouseEnter={showTip}
+        onMouseLeave={hideTip}
+        onClick={() => pos ? hideTip() : showTip()}
+        className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold cursor-help select-none shrink-0"
+        style={{ background:'#1e3a5f', color:'#93c5fd', border:'1px solid rgba(37,99,235,0.4)' }}>?</span>
+      {pos && ReactDOM.createPortal(
+        <span style={{
+          position:'fixed', left:`${pos.x}px`, top:`${pos.y - 10}px`,
+          transform:'translate(-50%, -100%)', zIndex:9999, width:'260px',
+          background:'#1f2937', border:'1px solid #374151', color:'#d1d5db',
+          borderRadius:'12px', padding:'12px', fontSize:'12px', lineHeight:'1.6',
+          boxShadow:'0 8px 32px rgba(0,0,0,0.7)', pointerEvents:'none',
+          whiteSpace:'normal', textAlign:'left', fontWeight:'normal',
+        }}>
+          {tip}
+          <span style={{
+            position:'absolute', top:'100%', left:'50%', transform:'translateX(-50%)',
+            width:0, height:0, borderLeft:'5px solid transparent',
+            borderRight:'5px solid transparent', borderTop:'5px solid #374151',
+          }} />
+        </span>,
+        document.body
+      )}
     </span>
   );
 }
@@ -909,7 +931,10 @@ function QuarterlyPnL({ financials }) {
                 <th className="text-left pb-2 pr-3 font-medium">季度</th>
                 {['grossMargin','opMargin','netMargin','eps'].map(k => (
                   <th key={k} className="text-right pb-2 pr-3 font-medium last:pr-0">
-                    <TermTip label={TERM_TIPS[k].label} tip={TERM_TIPS[k].tip} />
+                    <span className="inline-flex items-center justify-end gap-1">
+                      <span>{TERM_TIPS[k].label}</span>
+                      <TermTip tip={TERM_TIPS[k].tip} />
+                    </span>
                   </th>
                 ))}
               </tr>
@@ -1160,6 +1185,9 @@ function PRTab({ news }) {
         </Card>
         <CompetitorNews news={news} />
       </div>
+
+      {/* 重點媒體曝光監控：移至最下方 */}
+      <KeyMediaPanel articles={validTranscend} />
     </div>
   );
 }
@@ -1378,16 +1406,17 @@ function App() {
           {updatedStr && <span className="text-gray-600">更新 {updatedStr}</span>}
           {self && (
             <span className="text-gray-500">
-              2451 <span className={`font-semibold ${self.changePct>=0?'text-green-400':'text-red-400'}`}>
+              創見 <span className={`font-semibold ${self.changePct>=0?'text-green-400':'text-red-400'}`}>
                 ${self.price} {self.changePct>=0?'▲':'▼'}{Math.abs(self.changePct??0).toFixed(2)}%
               </span>
             </span>
           )}
           {COMPETITORS.filter(c=>c.stock&&stocks[c.stock]).map(c => {
             const s = stocks[c.stock];
+            const shortName = STOCK_META[c.stock]?.name || c.name;
             return (
               <span key={c.stock} className="text-gray-500">
-                {c.stock} <span className={`font-semibold ${s.changePct>=0?'text-green-400':'text-red-400'}`}>
+                {shortName} <span className={`font-semibold ${s.changePct>=0?'text-green-400':'text-red-400'}`}>
                   ${s.price} {s.changePct>=0?'▲':'▼'}{Math.abs(s.changePct??0).toFixed(2)}%
                 </span>
               </span>
