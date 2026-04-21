@@ -573,15 +573,16 @@ def fetch_monthly_revenue(db, stock_code='2451'):
                 print(f"  [方法1] 第一筆 keys: {list(rows[0].keys())}")
             for row in rows:
                 try:
-                    # FinMind 欄位: date(YYYY-MM), revenue, last_year_revenue, last_month_revenue, MoM, YoY
+                    # FinMind 欄位: date(YYYY-MM), revenue(元), revenue_year(去年同期,元),
+                    #   revenue_month(累計,元), revenue_year_difference(YoY%), revenue_month_difference(MoM%)
                     date_str = str(row.get('date', ''))  # e.g. "2024-03"
                     yr  = int(date_str[:4])
                     mon = int(date_str[5:7])
-                    rev     = int(str(row.get('revenue', 0)).replace(',', '') or 0)
-                    prev_yr = int(str(row.get('last_year_revenue', 0)).replace(',', '') or 0)
-                    cumrev  = int(str(row.get('revenue_month', 0) or row.get('cumRevenue', 0)).replace(',', '') or 0)
-                    yoy_pct = float(row.get('revenue_year_difference', 0) or row.get('YoY', 0) or 0)
-                    mom_pct = float(row.get('revenue_month_difference', 0) or row.get('MoM', 0) or 0)
+                    rev     = int(str(row.get('revenue', 0) or 0).replace(',', '') or 0)
+                    prev_yr = int(str(row.get('revenue_year', 0) or row.get('last_year_revenue', 0) or 0).replace(',', '') or 0)
+                    cumrev  = int(str(row.get('revenue_month', 0) or 0).replace(',', '') or 0)
+                    yoy_pct = float(row.get('revenue_year_difference', 0) or 0)
+                    mom_pct = float(row.get('revenue_month_difference', 0) or 0)
                     if yr < 2000 or not (1 <= mon <= 12):
                         continue
                     key = f'{yr}-{mon:02d}'

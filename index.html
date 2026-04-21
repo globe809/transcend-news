@@ -641,34 +641,56 @@ function CommunityMonitor({ community }) {
 // IR TAB — 月營收圖表
 // ═══════════════════════════════════════════════════════════
 function RevenueChart({ revenue }) {
-  // revenue: array of { year, month, revenue(千元), prevYr, yoyPct, label }
+  // revenue: array of { year, month, revenue(元), prevYr(元), yoyPct, label }
+  const fmtRev = v => Number(v).toLocaleString();  // 千分位，單位：元
+
   const data = useMemo(() => {
     if (!revenue || !revenue.length) return [];
     return revenue.slice(-24).map(r => ({
       label:   `${String(r.year).slice(2)}/${r.month}`,
-      rev:     r.revenue,    // 仟元
+      rev:     r.revenue,
       prevYr:  r.prevYr,
       yoyPct:  r.yoyPct,
     }));
+  }, [revenue]);
+
+  // 近 5 年年度彙總
+  const annualData = useMemo(() => {
+    if (!revenue || !revenue.length) return [];
+    const byYear = {};
+    revenue.forEach(r => {
+      if (!byYear[r.year]) byYear[r.year] = { year: r.year, total: 0, months: 0 };
+      byYear[r.year].total  += r.revenue;
+      byYear[r.year].months += 1;
+    });
+    const years = Object.values(byYear).sort((a, b) => a.year - b.year);
+    return years.slice(-5).map((y, i, arr) => {
+      const prev = arr[i - 1];
+      const yoy  = prev && prev.total > 0
+        ? +((y.total - prev.total) / prev.total * 100).toFixed(2)
+        : null;
+      return { ...y, yoy };
+    });
   }, [revenue]);
 
   const hasData = data.length > 0;
   const recent12 = useMemo(() => (revenue || []).slice(-12).reverse(), [revenue]);
 
   return (
+    <>
     <Card title="創見月營收（近 24 個月）" icon="💰">
       {hasData ? (
         <>
           <ResponsiveContainer width="100%" height={230}>
-            <ComposedChart data={data} margin={{ top:4, right:44, left:0, bottom:0 }}>
+            <ComposedChart data={data} margin={{ top:4, right:44, left:4, bottom:0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
               <XAxis dataKey="label" tick={{ fill:'#6b7280', fontSize:10 }} axisLine={false} tickLine={false} />
               <YAxis yAxisId="l" tick={{ fill:'#6b7280', fontSize:10 }} width={52} axisLine={false} tickLine={false}
-                tickFormatter={v => v >= 1000000 ? `${(v/1000000).toFixed(1)}B` : v >= 1000 ? `${(v/1000).toFixed(0)}M` : v} />
+                tickFormatter={v => v >= 1e9 ? `${(v/1e9).toFixed(1)}B` : v >= 1e6 ? `${(v/1e6).toFixed(0)}M` : v} />
               <YAxis yAxisId="r" orientation="right" tick={{ fill:'#6b7280', fontSize:10 }} width={36}
                 axisLine={false} tickLine={false} unit="%" />
               <Tooltip {...TT}
-                formatter={(v, name) => name === '年增率%' ? [`${v}%`, name] : [Number(v).toLocaleString() + ' 仟元', name]} />
+                formatter={(v, name) => name === '年增率%' ? [`${v}%`, name] : [fmtRev(v) + ' 元', name]} />
               <Legend wrapperStyle={{ fontSize:11, color:'#9ca3af', paddingTop:8 }} />
               <Bar yAxisId="l" dataKey="rev"    name="當月營收" fill={BRAND}   radius={[2,2,0,0]} maxBarSize={16} />
               <Bar yAxisId="l" dataKey="prevYr" name="去年同期" fill="#374151" radius={[2,2,0,0]} maxBarSize={16} />
@@ -683,8 +705,8 @@ function RevenueChart({ revenue }) {
               <thead>
                 <tr className="border-b border-gray-700/60 text-gray-500">
                   <th className="text-left pb-1.5 pr-3 font-medium">年月</th>
-                  <th className="text-right pb-1.5 pr-3 font-medium">當月營收</th>
-                  <th className="text-right pb-1.5 pr-3 font-medium">去年同期</th>
+                  <th className="text-right pb-1.5 pr-3 font-medium">當月營收（元）</th>
+                  <th className="text-right pb-1.5 pr-3 font-medium">去年同期（元）</th>
                   <th className="text-right pb-1.5 font-medium">年增率</th>
                 </tr>
               </thead>
@@ -693,10 +715,10 @@ function RevenueChart({ revenue }) {
                   <tr key={i} className="border-b border-gray-800/40 hover:bg-gray-800/20">
                     <td className="py-1.5 pr-3 text-gray-300 tabular-nums">{r.label}</td>
                     <td className="text-right py-1.5 pr-3 text-white tabular-nums font-medium">
-                      {Number(r.revenue).toLocaleString()} 仟元
+                      {fmtRev(r.revenue)}
                     </td>
                     <td className="text-right py-1.5 pr-3 text-gray-500 tabular-nums">
-                      {Number(r.prevYr).toLocaleString()} 仟元
+                      {r.prevYr > 0 ? fmtRev(r.prevYr) : '—'}
                     </td>
                     <td className={`text-right py-1.5 font-bold tabular-nums ${r.yoyPct>0?'text-green-400':r.yoyPct<0?'text-red-400':'text-gray-400'}`}>
                       {r.yoyPct > 0 ? '+' : ''}{r.yoyPct}%
@@ -713,6 +735,45 @@ function RevenueChart({ revenue }) {
         </div>
       )}
     </Card>
+
+    {/* 近 5 年年度財務摘要 */}
+    {annualData.length > 0 && (
+    <Card title="近 5 年年度營收彙總（2451 創見）" icon="📊">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-gray-700/60 text-gray-500">
+              <th className="text-left pb-1.5 pr-3 font-medium">年度</th>
+              <th className="text-right pb-1.5 pr-3 font-medium">全年營收（元）</th>
+              <th className="text-right pb-1.5 pr-3 font-medium">較前一年</th>
+              <th className="text-right pb-1.5 font-medium">已涵蓋月數</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...annualData].reverse().map((y, i) => (
+              <tr key={i} className="border-b border-gray-800/40 hover:bg-gray-800/20">
+                <td className="py-1.5 pr-3 text-gray-300 font-medium">{y.year}</td>
+                <td className="text-right py-1.5 pr-3 text-white tabular-nums font-medium">
+                  {fmtRev(y.total)}
+                </td>
+                <td className={`text-right py-1.5 pr-3 font-bold tabular-nums ${y.yoy==null?'text-gray-500':y.yoy>0?'text-green-400':y.yoy<0?'text-red-400':'text-gray-400'}`}>
+                  {y.yoy == null ? '—' : (y.yoy > 0 ? '+' : '') + y.yoy + '%'}
+                </td>
+                <td className="text-right py-1.5 text-gray-500 tabular-nums">
+                  {y.months < 12
+                    ? <span className="text-yellow-500">{y.months} 月（統計中）</span>
+                    : <span className="text-gray-500">12 月</span>
+                  }
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-gray-600 mt-2">* 資料來源：FinMind 月營收彙總，單位：新台幣元</p>
+    </Card>
+    )}
+    </>
   );
 }
 
