@@ -580,6 +580,12 @@ def fetch_monthly_revenue(db, stock_code='2451'):
                     date_str = str(row.get('date', ''))  # e.g. "2024-03"
                     yr  = int(date_str[:4])
                     mon = int(date_str[5:7])
+                    # FinMind date = 申報月（比實際營收月多 1 個月），需減 1 還原
+                    if mon == 1:
+                        mon = 12
+                        yr -= 1
+                    else:
+                        mon -= 1
                     rev     = int(str(row.get('revenue', 0) or 0).replace(',', '') or 0)
                     prev_yr = int(str(row.get('revenue_year', 0) or row.get('last_year_revenue', 0) or 0).replace(',', '') or 0)
                     cumrev  = int(str(row.get('revenue_month', 0) or 0).replace(',', '') or 0)
