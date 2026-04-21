@@ -421,17 +421,33 @@ function KeyMediaPanel({ articles }) {
 // ═══════════════════════════════════════════════════════════
 function CompetitorNews({ news }) {
   const [active, setActive] = useState('ADATA');
+  const [timeFilter, setTimeFilter] = useState('month');
   const comp = COMPETITORS.find(c => c.id===active);
 
-  const filtered = useMemo(() =>
-    sortByDate(news.filter(n => n.cat==='competitor' && n.brand===active)).slice(0,10),
-    [news, active]
-  );
+  const filtered = useMemo(() => {
+    const now = new Date();
+    const cutoffs = {
+      today: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+      week:  new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+      month: new Date(now.getFullYear(), now.getMonth(), 1),
+      year:  new Date(now.getFullYear(), 0, 1),
+      all:   null,
+    };
+    const cutoff = cutoffs[timeFilter];
+    return sortByDate(
+      news.filter(n => {
+        if (n.cat !== 'competitor' || n.brand !== active) return false;
+        if (!cutoff) return true;
+        const d = n.pubDate?.toDate ? n.pubDate.toDate() : new Date(n.pubDate || 0);
+        return d >= cutoff;
+      })
+    ).slice(0, 50);
+  }, [news, active, timeFilter]);
 
   return (
     <Card title="競品動態監測" icon="🔍" className="h-full">
       {/* Brand tabs */}
-      <div className="flex flex-wrap gap-1.5 mb-3">
+      <div className="flex flex-wrap gap-1.5 mb-2">
         {COMPETITORS.map(c => (
           <TabBtn key={c.id} active={active===c.id} onClick={() => setActive(c.id)}>
             {c.name}
@@ -439,14 +455,13 @@ function CompetitorNews({ news }) {
         ))}
       </div>
 
-      {/* Search query badge */}
-      <div className="mb-3 px-3 py-2 rounded-lg bg-gray-800/60 border border-gray-700/40">
-        <p className="text-xs text-gray-500 leading-snug">
-          後端搜尋：
-          <span className="text-green-400/80 font-mono">
-            {comp?.name} (SSD OR DRAM OR Industrial OR Embedded) -shopee -ruten -amazon
-          </span>
-        </p>
+      {/* Time filter — same as 創見最新報導 */}
+      <div className="flex gap-1.5 mb-3">
+        {TIME_FILTERS.map(f => (
+          <TabBtn key={f.id} active={timeFilter===f.id} onClick={() => setTimeFilter(f.id)}>
+            {f.label}
+          </TabBtn>
+        ))}
       </div>
 
       {filtered.length > 0
@@ -617,23 +632,69 @@ function CommunityMonitor({ community }) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 自訂 Hook：量測容器寬度，讓 Recharts 不依賴 ResponsiveContainer
+// IR TAB — 月營收 SVG 圖表（純 SVG，無外部依賴，viewBox 自動縮放）
 // ═══════════════════════════════════════════════════════════
-function useContainerWidth(fallback = 600) {
-  const ref = React.useRef(null);
-  const [width, setWidth] = React.useState(0);
-  React.useEffect(() => {
-    if (!ref.current) return;
-    const measure = () => {
-      const w = ref.current ? ref.current.offsetWidth : 0;
-      if (w > 0) setWidth(w);
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(ref.current);
-    return () => ro.disconnect();
-  }, []);
-  return [ref, width || fallback];
+function MonthRevSVG({ data }) {
+  if (!data || !data.length) return null;
+  const PL=60,PR=52,PT=10,PB=36,VW=800,VH=210,CW=VW-PL-PR,CH=VH-PT-PB;
+  const maxR = Math.max(...data.map(d=>Math.max(d.rev||0,d.prevYr||0)),1);
+  const yv = data.map(d=>d.yoyPct).filter(v=>v!=null);
+  const minY=yv.length?Math.min(...yv,0):-10, maxY=yv.length?Math.max(...yv,0):10;
+  const rY=Math.max(maxY-minY,1);
+  const step=CW/data.length, bw=step*0.38;
+  const toH=v=>((v||0)/maxR)*CH;
+  const toLY=v=>v==null?null:PT+CH*(1-(v-minY)/rY);
+  const fR=v=>v>=1e9?`${(v/1e9).toFixed(1)}B`:v>=1e6?`${(v/1e6).toFixed(0)}M`:`${(v/1e3).toFixed(0)}K`;
+  const rT=[.25,.5,.75,1].map(t=>({y:PT+CH*(1-t),v:maxR*t}));
+  let lp=''; data.forEach((d,i)=>{const y=toLY(d.yoyPct);if(y!=null)lp+=`${lp?'L':'M'}${PL+i*step+step/2},${y}`;});
+  return (
+    <svg viewBox={`0 0 ${VW} ${VH}`} width="100%" height={VH} style={{display:'block'}}>
+      {rT.map((t,i)=><line key={i} x1={PL} x2={VW-PR} y1={t.y} y2={t.y} stroke="#1f2937" strokeWidth="1"/>)}
+      {minY<0&&maxY>0&&<line x1={PL} x2={VW-PR} y1={toLY(0)} y2={toLY(0)} stroke="#374151" strokeWidth="1" strokeDasharray="4,4"/>}
+      {data.map((d,i)=>{const cx=PL+i*step+step/2;return(<g key={i}>
+        <rect x={cx-bw*1.1} y={PT+CH-toH(d.rev)} width={bw} height={toH(d.rev)} fill="#960014" rx="1" opacity="0.9"/>
+        <rect x={cx+bw*0.1} y={PT+CH-toH(d.prevYr)} width={bw} height={toH(d.prevYr)} fill="#374151" rx="1" opacity="0.75"/>
+      </g>);})}
+      {lp&&<path d={lp} fill="none" stroke="#4ade80" strokeWidth="2" strokeLinecap="round"/>}
+      {data.map((d,i)=><text key={i} x={PL+i*step+step/2} y={VH-PB+14} textAnchor="middle" fill="#6b7280" fontSize={data.length>16?7:9}>{d.label}</text>)}
+      {rT.map((t,i)=><text key={i} x={PL-5} y={t.y+4} textAnchor="end" fill="#6b7280" fontSize="9">{fR(t.v)}</text>)}
+      {[minY,(minY+maxY)/2,maxY].map((v,i)=><text key={i} x={VW-PR+5} y={(toLY(v)||0)+4} textAnchor="start" fill="#6b7280" fontSize="9">{v>0?'+':''}{v.toFixed(0)}%</text>)}
+      <rect x={PL} y={VH-5} width={10} height={5} fill="#960014" rx="1"/>
+      <text x={PL+13} y={VH} fill="#9ca3af" fontSize="9">當月營收</text>
+      <rect x={PL+65} y={VH-5} width={10} height={5} fill="#374151" rx="1"/>
+      <text x={PL+78} y={VH} fill="#9ca3af" fontSize="9">去年同期</text>
+      <line x1={PL+135} x2={PL+145} y1={VH-2} y2={VH-2} stroke="#4ade80" strokeWidth="2"/>
+      <text x={PL+148} y={VH} fill="#9ca3af" fontSize="9">年增率</text>
+    </svg>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// IR TAB — 年度營收 SVG 圖表（純 SVG，無外部依賴）
+// ═══════════════════════════════════════════════════════════
+function AnnualRevSVG({ data }) {
+  if (!data || !data.length) return null;
+  const PL=68,PR=8,PT=22,PB=28,VW=800,VH=200,CW=VW-PL-PR,CH=VH-PT-PB;
+  const maxR=Math.max(...data.map(d=>d.total||0),1);
+  const step=CW/data.length, bw=step*0.65;
+  const toH=v=>((v||0)/maxR)*CH;
+  const fR=v=>v>=1e10?`${(v/1e10).toFixed(0)}百億`:v>=1e9?`${(v/1e9).toFixed(1)}B`:`${(v/1e6).toFixed(0)}M`;
+  const rT=[.25,.5,.75,1].map(t=>({y:PT+CH*(1-t),v:maxR*t}));
+  return (
+    <svg viewBox={`0 0 ${VW} ${VH}`} width="100%" height={VH} style={{display:'block'}}>
+      {rT.map((t,i)=><line key={i} x1={PL} x2={VW-PR} y1={t.y} y2={t.y} stroke="#1f2937" strokeWidth="1"/>)}
+      {data.map((d,i)=>{
+        const x=PL+i*step+(step-bw)/2, bh=toH(d.total), y=PT+CH-bh;
+        const c=d.yoy==null?'#960014':d.yoy>=0?'#960014':'#4b5563';
+        return(<g key={i}>
+          <rect x={x} y={y} width={bw} height={bh} fill={c} rx="2" opacity="0.85"/>
+          {d.yoy!=null&&<text x={x+bw/2} y={y-5} textAnchor="middle" fill={d.yoy>=0?'#4ade80':'#f87171'} fontSize="8">{d.yoy>0?'+':''}{d.yoy.toFixed(1)}%</text>}
+        </g>);
+      })}
+      {data.map((d,i)=><text key={i} x={PL+i*step+step/2} y={VH-PB+14} textAnchor="middle" fill="#6b7280" fontSize="10">{d.year}</text>)}
+      {rT.map((t,i)=><text key={i} x={PL-5} y={t.y+4} textAnchor="end" fill="#6b7280" fontSize="9">{fR(t.v)}</text>)}
+    </svg>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -641,8 +702,6 @@ function useContainerWidth(fallback = 600) {
 // ═══════════════════════════════════════════════════════════
 function RevenueChart({ revenue }) {
   const fmtRev = v => Number(v).toLocaleString();  // 千分位，單位：元
-  const [chartRef1, chartW1] = useContainerWidth();
-  const [chartRef2, chartW2] = useContainerWidth();
 
   // 自行建立 lookup map，對照去年同期（不依賴 FinMind 的 revenue_year 欄位）
   const revMap = useMemo(() => {
@@ -701,25 +760,7 @@ function RevenueChart({ revenue }) {
     <Card title="創見月營收（近 24 個月）" icon="💰">
       {hasData ? (
         <>
-          <div ref={chartRef1} className="w-full">
-            {chartW1 > 0 && (
-            <ComposedChart width={chartW1} height={230} data={data} margin={{ top:4, right:44, left:4, bottom:0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis dataKey="label" tick={{ fill:'#6b7280', fontSize:10 }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="l" tick={{ fill:'#6b7280', fontSize:10 }} width={52} axisLine={false} tickLine={false}
-                tickFormatter={v => v >= 1e9 ? `${(v/1e9).toFixed(1)}B` : v >= 1e6 ? `${(v/1e6).toFixed(0)}M` : v} />
-              <YAxis yAxisId="r" orientation="right" tick={{ fill:'#6b7280', fontSize:10 }} width={36}
-                axisLine={false} tickLine={false} unit="%" />
-              <Tooltip {...TT}
-                formatter={(v, name) => name === '年增率%' ? [`${v}%`, name] : [fmtRev(v) + ' 元', name]} />
-              <Legend wrapperStyle={{ fontSize:11, color:'#9ca3af', paddingTop:8 }} />
-              <Bar yAxisId="l" dataKey="rev"    name="當月營收" fill={BRAND}   radius={[2,2,0,0]} maxBarSize={16} />
-              <Bar yAxisId="l" dataKey="prevYr" name="去年同期" fill="#374151" radius={[2,2,0,0]} maxBarSize={16} />
-              <Line yAxisId="r" type="monotone" dataKey="yoyPct" name="年增率%"
-                stroke="#4ade80" strokeWidth={2} dot={false} />
-            </ComposedChart>
-            )}
-          </div>
+          <MonthRevSVG data={data} />
 
           {/* 近 12 個月明細表 */}
           <div className="mt-3 overflow-x-auto">
@@ -762,27 +803,7 @@ function RevenueChart({ revenue }) {
     {annualData.length > 0 && (
     <Card title="年度營收趨勢（近 10 年，創見）" icon="📊">
       {/* 折線圖 */}
-      <div ref={chartRef2} className="w-full">
-        {chartW2 > 0 && (
-        <ComposedChart width={chartW2} height={200} data={annualData} margin={{ top:4, right:20, left:4, bottom:0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-          <XAxis dataKey="year" tick={{ fill:'#6b7280', fontSize:10 }} axisLine={false} tickLine={false} />
-          <YAxis yAxisId="l" tick={{ fill:'#6b7280', fontSize:10 }} width={56} axisLine={false} tickLine={false}
-            tickFormatter={v => v >= 1e10 ? `${(v/1e10).toFixed(1)}百億` : v >= 1e9 ? `${(v/1e9).toFixed(1)}B` : `${(v/1e6).toFixed(0)}M`} />
-          <YAxis yAxisId="r" orientation="right" tick={{ fill:'#6b7280', fontSize:10 }} width={36}
-            axisLine={false} tickLine={false} unit="%" />
-          <Tooltip {...TT}
-            formatter={(v, name) =>
-              name === 'YoY%' ? [v != null ? (v > 0 ? '+' : '') + v + '%' : '—', '年增率']
-                              : [fmtRev(v) + ' 元', '全年營收']
-            } />
-          <Legend wrapperStyle={{ fontSize:11, color:'#9ca3af', paddingTop:6 }} />
-          <Bar  yAxisId="l" dataKey="total" name="全年營收" fill={BRAND} opacity={0.85} radius={[3,3,0,0]} maxBarSize={32} />
-          <Line yAxisId="r" type="monotone" dataKey="yoy" name="YoY%"
-            stroke="#4ade80" strokeWidth={2} dot={{ fill:'#4ade80', r:3 }} connectNulls={false} />
-        </ComposedChart>
-        )}
-      </div>
+      <AnnualRevSVG data={annualData} />
 
       {/* 明細表 */}
       <div className="mt-3 overflow-x-auto">
@@ -982,24 +1003,34 @@ function DividendHistory({ dividends }) {
       tip:   '現金股利 ÷ 當時股價 × 100%。代表「以此價格買進，一年的配息報酬率」。一般台股殖利率高於 5% 視為高殖利率股，創見近年殖利率約 5-8%。' },
   ];
 
+  const divTipMap = Object.fromEntries(DIV_TIPS.map(d=>[d.label,d.tip]));
+
   return (
     <Card title="歷年股利配息（近 10 年）" icon="💵">
-      <div className="flex flex-wrap gap-3 mb-3">
-        {DIV_TIPS.map(({ label, tip }) => (
-          <span key={label} className="text-xs text-gray-500">
-            <TermTip label={label} tip={tip} />
-          </span>
-        ))}
-      </div>
       {records.length > 0 ? (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-gray-700/60 text-gray-500">
                 <th className="text-left pb-2 pr-3 font-medium">配息年度</th>
-                <th className="text-right pb-2 pr-3 font-medium">現金股利（元）</th>
-                <th className="text-right pb-2 pr-3 font-medium">股票股利（元）</th>
-                <th className="text-right pb-2 font-medium">合計（元）</th>
+                <th className="text-right pb-2 pr-3 font-medium">
+                  <span className="inline-flex items-center justify-end gap-1">
+                    <span>現金股利（元）</span>
+                    <TermTip tip={divTipMap['現金股利']} />
+                  </span>
+                </th>
+                <th className="text-right pb-2 pr-3 font-medium">
+                  <span className="inline-flex items-center justify-end gap-1">
+                    <span>股票股利（元）</span>
+                    <TermTip tip={divTipMap['股票股利']} />
+                  </span>
+                </th>
+                <th className="text-right pb-2 font-medium">
+                  <span className="inline-flex items-center justify-end gap-1">
+                    <span>合計（元）</span>
+                    <TermTip tip={divTipMap['殖利率']} />
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -1086,8 +1117,8 @@ function CompetitorMaterial({ material }) {
             return (
               <div key={i} className={`rounded-xl px-3 py-2.5 text-xs border ${r.highlight ? 'border-gray-600/60 bg-gray-800/40' : 'border-gray-800/40 bg-gray-900/30'}`}>
                 <div className="flex items-start gap-2">
-                  <span className="font-bold shrink-0 tabular-nums" style={{ color: meta.color || '#9ca3af' }}>
-                    {r.code}
+                  <span className="font-bold shrink-0" style={{ color: meta.color || '#9ca3af' }}>
+                    {meta.name || r.name || r.code}
                   </span>
                   <span className="text-gray-500 shrink-0 tabular-nums">{r.date}</span>
                   {r.link
@@ -1193,9 +1224,104 @@ function PRTab({ news }) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// IR TAB — 每日交易資訊（開收盤、三大法人）
+// ═══════════════════════════════════════════════════════════
+function DailyTrading({ daily }) {
+  const fmtK = v => {
+    const n = Math.abs(Number(v||0));
+    if (n >= 10000) return `${(n/10000).toFixed(0)}萬`;
+    if (n >= 1000)  return `${(n/1000).toFixed(1)}千`;
+    return n.toLocaleString();
+  };
+  const netStr = (v, unit='') => {
+    if (v == null) return '—';
+    return (v > 0 ? '+' : '') + fmtK(v) + unit;
+  };
+  const nc = v => v == null ? 'text-gray-400' : v > 0 ? 'text-green-400' : v < 0 ? 'text-red-400' : 'text-gray-400';
+
+  if (!daily || (!daily.close && !daily.open)) return (
+    <Card title="創見 2451 每日交易資訊" icon="📊">
+      <div className="h-20 flex items-center justify-center text-gray-600 text-sm">
+        {daily === null ? '載入中…' : '尚無資料（Actions 跑完後自動更新）'}
+      </div>
+    </Card>
+  );
+
+  const change = (daily.close != null && daily.open != null)
+    ? +(daily.close - daily.open).toFixed(2) : null;
+
+  return (
+    <Card title="創見 2451 每日交易資訊" icon="📊">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* 股價 */}
+        <div className="bg-gray-800/40 rounded-xl p-3 border border-gray-700/40">
+          <p className="text-xs text-gray-500 mb-1">{daily.priceDate || ''} 股價</p>
+          {change != null && (
+            <p className={`text-2xl font-bold mb-2 ${nc(change)}`}>
+              {change > 0 ? '+' : ''}{change}
+            </p>
+          )}
+          <div className="space-y-1.5">
+            {[['開盤', daily.open], ['收盤', daily.close], ['最高', daily.high], ['最低', daily.low]].map(([k,v]) => (
+              <div key={k} className="flex justify-between text-xs">
+                <span className="text-gray-500">{k}</span>
+                <span className="text-white tabular-nums">{v != null ? v : '—'}</span>
+              </div>
+            ))}
+            <div className="flex justify-between text-xs border-t border-gray-700/40 pt-1 mt-1">
+              <span className="text-gray-500">交易量</span>
+              <span className="text-white tabular-nums">{daily.volume ? fmtK(daily.volume) + ' 股' : '—'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 外資 */}
+        <div className="bg-gray-800/40 rounded-xl p-3 border border-gray-700/40">
+          <p className="text-xs text-gray-500 mb-1">{daily.institutionalDate || daily.priceDate || ''} 外資</p>
+          <p className={`text-2xl font-bold mb-2 ${nc(daily.foreignNet)}`}>
+            {netStr(daily.foreignNet)}
+          </p>
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">買進</span>
+              <span className="text-green-400/80 tabular-nums">{daily.foreignBuy != null ? fmtK(daily.foreignBuy) : '—'}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">賣出</span>
+              <span className="text-red-400/80 tabular-nums">{daily.foreignSell != null ? fmtK(daily.foreignSell) : '—'}</span>
+            </div>
+          </div>
+          {daily.foreignBuy == null && <p className="text-xs text-gray-600 mt-2">暫無法人資料</p>}
+        </div>
+
+        {/* 投信 */}
+        <div className="bg-gray-800/40 rounded-xl p-3 border border-gray-700/40">
+          <p className="text-xs text-gray-500 mb-1">{daily.institutionalDate || daily.priceDate || ''} 投信</p>
+          <p className={`text-2xl font-bold mb-2 ${nc(daily.trustNet)}`}>
+            {netStr(daily.trustNet)}
+          </p>
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">買進</span>
+              <span className="text-green-400/80 tabular-nums">{daily.trustBuy != null ? fmtK(daily.trustBuy) : '—'}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">賣出</span>
+              <span className="text-red-400/80 tabular-nums">{daily.trustSell != null ? fmtK(daily.trustSell) : '—'}</span>
+            </div>
+          </div>
+          {daily.trustBuy == null && <p className="text-xs text-gray-600 mt-2">暫無法人資料</p>}
+        </div>
+      </div>
+      <p className="text-xs text-gray-700 mt-2">* 股價：TWSE 即時報價 · 法人：FinMind · 數量單位：股</p>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // IR TAB
 // ═══════════════════════════════════════════════════════════
-function IRTab({ news, stocks, community, revenue, financials, dividends, material }) {
+function IRTab({ news, stocks, community, revenue, financials, dividends, material, daily }) {
   return (
     <div className="space-y-4 fade-in">
       {/* Stock cards */}
@@ -1216,6 +1342,7 @@ function IRTab({ news, stocks, community, revenue, financials, dividends, materi
         </div>
       )}
 
+      <DailyTrading daily={daily} />
       <RevenueChart revenue={revenue} />
       <QuarterlyPnL financials={financials} />
       <DividendHistory dividends={dividends} />
@@ -1235,6 +1362,7 @@ function App() {
   const [financials, setFinancials] = useState(null);
   const [dividends,  setDividends]  = useState(null);
   const [material,   setMaterial]   = useState(null);
+  const [daily,      setDaily]      = useState(null);
   const [loading,    setLoading]    = useState(true);
   const [connected,  setConnected]  = useState(false);
   const [updated,    setUpdated]    = useState(null);
@@ -1257,7 +1385,7 @@ function App() {
 
   async function fetchAll() {
     setLoading(true);
-    await Promise.all([ fetchNews(), fetchStocks(), fetchRevenue(), fetchFinancials(), fetchDividends(), fetchMaterial() ]);
+    await Promise.all([ fetchNews(), fetchStocks(), fetchRevenue(), fetchFinancials(), fetchDividends(), fetchMaterial(), fetchDaily() ]);
     setLoading(false);
     setUpdated(new Date());
   }
@@ -1310,6 +1438,14 @@ function App() {
       if (doc.exists) setMaterial(doc.data().records || []);
       else setMaterial([]);
     } catch(e) { console.error('Material:', e); setMaterial([]); }
+  }
+
+  async function fetchDaily() {
+    try {
+      const doc = await window._db.collection('daily').doc('2451').get();
+      if (doc.exists) setDaily(doc.data());
+      else setDaily({});
+    } catch(e) { console.error('Daily:', e); setDaily({}); }
   }
 
   // ─── AI Summary (Gemini) ─────────────────────────────────
@@ -1427,7 +1563,7 @@ function App() {
 
       {/* ─────────── MAIN ─────────── */}
       <main className="max-w-7xl mx-auto px-4 py-5">
-        {tab==='pr' ? <PRTab news={news} /> : <IRTab news={news} stocks={stocks} community={community} revenue={revenue} financials={financials} dividends={dividends} material={material} />}
+        {tab==='pr' ? <PRTab news={news} /> : <IRTab news={news} stocks={stocks} community={community} revenue={revenue} financials={financials} dividends={dividends} material={material} daily={daily} />}
       </main>
 
       {/* ─────────── AI MODAL ─────────── */}

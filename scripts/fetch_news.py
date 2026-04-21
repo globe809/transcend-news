@@ -897,6 +897,9 @@ def main():
     # ─── 股利資料抓取 ───
     fetch_dividend_data(db, '2451')
 
+    # ─── 每日交易資料（開收盤 + 三大法人）───
+    fetch_daily_trading(db, '2451')
+
     # ─── 競品重大訊息抓取 ───
     fetch_material_news(db)
 
@@ -1084,6 +1087,85 @@ def fetch_material_news(db):
         print(f"  ✅ 重大訊息已儲存 {len(all_records)} 筆")
     else:
         print("  ⚠ 未取得重大訊息")
+
+
+def fetch_daily_trading(db, stock_code='2451'):
+    """抓取每日股價（開/收/高/低/量）及三大法人買賣資料，存入 Firebase daily/{stock_code}"""
+    import json as _json
+    print(f"\n📊 抓取 {stock_code} 每日交易資料...")
+    BASE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    now_tw  = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
+    start   = (now_tw - datetime.timedelta(days=10)).strftime('%Y-%m-%d')
+    result  = {'stockCode': stock_code}
+
+    # ── 1. TWSE 即時行情：開盤 / 收盤 / 高 / 低 / 量 ──────────
+    try:
+        url = ('https://mis.twse.com.tw/stock/api/getStockInfo.jsp'
+               f'?ex_ch=tse_{stock_code}.tw&json=1&delay=0')
+        r = requests.get(url, headers={
+            'Referer': 'https://mis.twse.com.tw/',
+            'User-Agent': BASE_UA,
+        }, timeout=15)
+        items = r.json().get('msgArray', [])
+        if items:
+            item = items[0]
+            def _fp(k):
+                v = item.get(k, '-')
+                try: return float(v) if v and v not in ('-', '') else None
+                except: return None
+            result['open']      = _fp('o')
+            result['close']     = _fp('z') or _fp('y')
+            result['high']      = _fp('h')
+            result['low']       = _fp('l')
+            result['priceDate'] = now_tw.strftime('%Y-%m-%d')
+            try:
+                result['volume'] = int(float(str(item.get('v','0')).replace(',','') or 0)) * 1000
+            except Exception:
+                result['volume'] = 0
+            print(f"  [TWSE] 開:{result['open']} 收:{result['close']} 量:{result['volume']:,}")
+    except Exception as e:
+        print(f"  [TWSE 行情] 失敗: {e}")
+
+    # ── 2. FinMind 三大法人 ────────────────────────────────────
+    try:
+        url2 = (f'https://api.finmindtrade.com/api/v4/data'
+                f'?dataset=TaiwanStockInstitutionalInvestorsBuySell'
+                f'&data_id={stock_code}&start_date={start}&token=')
+        r2 = requests.get(url2, headers={'User-Agent': BASE_UA}, timeout=20)
+        print(f"  [法人] HTTP {r2.status_code}, {len(r2.content)} bytes")
+        if r2.status_code == 200:
+            rows = _json.loads(r2.text).get('data', [])
+            if rows:
+                latest_date = max(row.get('date', '') for row in rows)
+                by_name = {row['name']: row for row in rows if row.get('date') == latest_date}
+                result['institutionalDate'] = latest_date
+                print(f"  [法人] 最新日期: {latest_date}, 機構: {list(by_name.keys())}")
+                # 外資
+                for fk in ['外資及陸資(不含外資自營商)', '外資及陸資', '外資']:
+                    if fk in by_name:
+                        f = by_name[fk]
+                        result['foreignBuy']  = int(float(f.get('buy',  0) or 0))
+                        result['foreignSell'] = int(float(f.get('sell', 0) or 0))
+                        result['foreignNet']  = result['foreignBuy'] - result['foreignSell']
+                        print(f"  外資淨: {result['foreignNet']:+,}")
+                        break
+                # 投信
+                if '投信' in by_name:
+                    t = by_name['投信']
+                    result['trustBuy']  = int(float(t.get('buy',  0) or 0))
+                    result['trustSell'] = int(float(t.get('sell', 0) or 0))
+                    result['trustNet']  = result['trustBuy'] - result['trustSell']
+                    print(f"  投信淨: {result['trustNet']:+,}")
+    except Exception as e:
+        print(f"  [法人] 失敗: {e}")
+
+    if any(k in result for k in ['open', 'close', 'foreignBuy', 'trustBuy']):
+        db.collection('daily').document(stock_code).set({
+            **result, 'updatedAt': firestore.SERVER_TIMESTAMP,
+        })
+        print(f"  ✅ 每日交易資料已儲存")
+    else:
+        print(f"  ⚠ 未取得任何交易資料")
 
 
 def fetch_dividend_data(db, stock_code='2451'):
