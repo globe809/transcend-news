@@ -944,13 +944,20 @@ def fetch_quarterly_financials(db, stock_code='2451'):
             # 自動判斷格式：長格式(有 'type' key) 或 寬格式
             if 'type' in rows[0]:
                 # 長格式：每行是一個指標，需 pivot
+                # 同時以 type（英文）與 origin_name（中文）為 key 儲存，方便後續取值
+                unique_types = sorted(set(r.get('origin_name','') for r in rows))
+                print(f"  [{dataset}] 所有 origin_name: {unique_types}")
                 for row in rows:
                     date   = row.get('date', '')
                     metric = row.get('type', '')
+                    origin = row.get('origin_name', '')
                     val    = row.get('value', 0)
                     if date not in quarters_by_date:
                         quarters_by_date[date] = {'date': date}
-                    quarters_by_date[date][metric] = val
+                    if metric:
+                        quarters_by_date[date][metric] = val      # 英文 key
+                    if origin:
+                        quarters_by_date[date][origin] = val      # 中文 key
             else:
                 # 寬格式：每行是一季的所有指標
                 for row in rows:
@@ -968,13 +975,20 @@ def fetch_quarterly_financials(db, stock_code='2451'):
         try:
             def _i(v): return int(str(v or 0).replace(',', '') or 0)
             def _f(v): return float(v or 0)
-            rev     = _i(q.get('Revenue') or q.get('revenue') or q.get('營業收入'))
-            gross   = _i(q.get('GrossProfit') or q.get('gross_profit') or q.get('毛利'))
-            op_inc  = _i(q.get('OperatingIncome') or q.get('operating_income') or q.get('營業利益'))
-            net_inc = _i(q.get('NetIncome') or q.get('net_income') or
-                         q.get('NetIncomeAfterTax') or q.get('稅後淨利') or
-                         q.get('NetIncomeAttributableToOwnersOfParent'))
-            eps     = _f(q.get('EPS') or q.get('eps') or q.get('每股盈餘'))
+            # 嘗試英文 type 名稱、常見中文名稱（含括號變體）
+            rev     = _i(q.get('Revenue') or q.get('OperatingRevenue') or
+                         q.get('營業收入') or q.get('營業收入合計'))
+            gross   = _i(q.get('GrossProfit') or q.get('毛利') or q.get('毛利(損)'))
+            op_inc  = _i(q.get('OperatingIncome') or q.get('營業利益') or q.get('營業利益(損失)'))
+            net_inc = _i(q.get('NetIncome') or q.get('ProfitAfterTax') or
+                         q.get('稅後淨利') or q.get('本期淨利(淨損)') or
+                         q.get('本期淨利') or q.get('淨利(損)') or
+                         q.get('NetIncomeAfterTax') or
+                         q.get('NetIncomeAttributableToOwnersOfParent') or
+                         q.get('母公司業主淨利(損)'))
+            eps     = _f(q.get('EPS') or q.get('BasicEPS') or
+                         q.get('每股盈餘') or q.get('基本每股盈餘(元)') or
+                         q.get('基本每股盈餘'))
 
             gross_margin = round(gross   / rev * 100, 2) if rev else 0
             op_margin    = round(op_inc  / rev * 100, 2) if rev else 0
@@ -1000,52 +1014,62 @@ def fetch_quarterly_financials(db, stock_code='2451'):
 
 
 def fetch_material_news(db):
-    """從 FinMind TaiwanStockMaterial 抓取競品重大訊息，存入 Firebase material/competitors"""
-    import json as _json
+    """從 Google News RSS 抓取競品重大訊息，存入 Firebase material/competitors
+    搜尋關鍵字包含：董事會、股東會、法人說明會、重大訊息
+    """
+    import urllib.parse
+
     COMP_STOCKS = {
-        '3260': '威剛科技',
-        '4967': '十銓科技',
-        '4973': '廣穎電通',
-        '5289': '宜鼎國際',
-        '8271': '宇瞻科技',
+        '3260': ('威剛科技',  '威剛 3260'),
+        '4967': ('十銓科技',  '十銓科技 4967'),
+        '4973': ('廣穎電通',  '廣穎電通 4973'),
+        '5289': ('宜鼎國際',  '宜鼎國際 5289'),
+        '8271': ('宇瞻科技',  '宇瞻科技 8271'),
     }
     HIGHLIGHT_KW = ['董事會', '股東會', '法人說明會', '股利', '盈餘分配', '現金增資', '減資', '下市', '合併']
-    BASE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    now_tw = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
-    start  = f'{now_tw.year - 1}-01-01'  # 近一年
 
-    print(f"\n📢 抓取競品重大訊息（FinMind TaiwanStockMaterial）...")
+    print(f"\n📢 抓取競品重大訊息（Google News RSS）...")
     all_records = []
+    seen_links  = set()
 
-    for code, name in COMP_STOCKS.items():
+    for code, (name, search_term) in COMP_STOCKS.items():
         try:
-            url = (
-                'https://api.finmindtrade.com/api/v4/data'
-                f'?dataset=TaiwanStockMaterial&data_id={code}'
-                f'&start_date={start}&token='
-            )
-            r = requests.get(url, headers={'User-Agent': BASE_UA}, timeout=20)
-            print(f"  [{code} {name}] HTTP {r.status_code}, {len(r.content)} bytes")
-            if r.status_code != 200:
-                continue
-            data  = _json.loads(r.text)
-            rows  = data.get('data', [])
-            print(f"  [{code}] 取得 {len(rows)} 筆")
-            if rows:
-                print(f"  [{code}] 第一筆 keys: {list(rows[0].keys())}")
-                print(f"  [{code}] 第一筆: {rows[0]}")
+            query   = f'{search_term} (董事會 OR 股東會 OR 法人說明會 OR 重大訊息 OR 股利)'
+            encoded = urllib.parse.quote(query)
+            url     = f'https://news.google.com/rss/search?q={encoded}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant'
 
-            for row in rows:
-                date    = row.get('date', '')
-                summary = (row.get('summary') or row.get('content') or
-                           row.get('title') or row.get('name') or str(row))[:300]
-                highlight    = any(kw in summary for kw in HIGHLIGHT_KW)
-                highlight_kw = [kw for kw in HIGHLIGHT_KW if kw in summary]
+            feed = feedparser.parse(url)
+            entries = feed.entries[:25]
+            print(f"  [{code} {name}] 取得 {len(entries)} 筆")
+
+            for entry in entries:
+                link  = entry.get('link', '')
+                if link in seen_links:
+                    continue
+                seen_links.add(link)
+
+                title = entry.get('title', '')
+                # 去掉 Google News 標題後的「- 媒體名稱」
+                title_clean = title.rsplit(' - ', 1)[0].strip()
+
+                # 解析發布日期
+                try:
+                    dt   = datetime.datetime(*entry.published_parsed[:6],
+                                             tzinfo=datetime.timezone.utc)
+                    dt_tw = dt.astimezone(datetime.timezone(datetime.timedelta(hours=8)))
+                    date  = dt_tw.strftime('%Y-%m-%d')
+                except Exception:
+                    date = ''
+
+                highlight_kw = [kw for kw in HIGHLIGHT_KW if kw in title_clean]
+                highlight    = len(highlight_kw) > 0
+
                 all_records.append({
                     'code':        code,
                     'name':        name,
                     'date':        date,
-                    'summary':     summary,
+                    'summary':     title_clean[:200],
+                    'link':        link,
                     'highlight':   highlight,
                     'highlightKw': highlight_kw,
                 })
@@ -1060,7 +1084,7 @@ def fetch_material_news(db):
         })
         print(f"  ✅ 重大訊息已儲存 {len(all_records)} 筆")
     else:
-        print("  ⚠ 未取得重大訊息（請確認 FinMind TaiwanStockMaterial 是否可用）")
+        print("  ⚠ 未取得重大訊息")
 
 
 def fetch_dividend_data(db, stock_code='2451'):

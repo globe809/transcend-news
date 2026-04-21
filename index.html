@@ -1064,7 +1064,13 @@ function CompetitorMaterial({ material }) {
                     {r.code}
                   </span>
                   <span className="text-gray-500 shrink-0 tabular-nums">{r.date}</span>
-                  <span className="text-gray-300 flex-1 leading-relaxed">{r.summary}</span>
+                  {r.link
+                    ? <a href={r.link} target="_blank" rel="noopener noreferrer"
+                        className="text-gray-300 flex-1 leading-relaxed hover:text-white hover:underline transition-colors">
+                        {r.summary}
+                      </a>
+                    : <span className="text-gray-300 flex-1 leading-relaxed">{r.summary}</span>
+                  }
                 </div>
                 {r.highlight && r.highlightKw && r.highlightKw.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-1.5 pl-14">
