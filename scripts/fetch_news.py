@@ -889,9 +889,137 @@ def main():
     # ─── 月營收抓取（每月 5 日後 MOPS 更新） ───
     fetch_monthly_revenue(db, '2451')
 
+    # ─── 季度損益抓取 ───
+    fetch_quarterly_financials(db, '2451')
+
+    # ─── 股利資料抓取 ───
+    fetch_dividend_data(db, '2451')
+
     print(f"\n{'='*50}")
     print("抓取完成！")
     print(f"{'='*50}\n")
+
+
+def fetch_quarterly_financials(db, stock_code='2451'):
+    """從 FinMind 抓取季度損益並存入 Firebase financials/{stock_code}"""
+    import json as _json
+    print(f"\n📋 抓取 {stock_code} 季度損益（FinMind）...")
+    BASE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    try:
+        url = (
+            'https://api.finmindtrade.com/api/v4/data'
+            f'?dataset=TaiwanStockProfitLossStatement&data_id={stock_code}'
+            f'&start_date=2019-01-01&token='
+        )
+        r = requests.get(url, headers={'User-Agent': BASE_UA}, timeout=20)
+        print(f"  HTTP {r.status_code}, {len(r.content)} bytes")
+        if r.status_code != 200:
+            return
+        data = _json.loads(r.text)
+        rows = data.get('data', [])
+        print(f"  取得 {len(rows)} 筆")
+        if rows:
+            print(f"  第一筆 keys: {list(rows[0].keys())}")
+            print(f"  第一筆範例: {rows[0]}")
+
+        quarters = []
+        for row in rows:
+            try:
+                date = row.get('date', '')
+                rev     = int(str(row.get('Revenue', 0) or 0).replace(',', ''))
+                gross   = int(str(row.get('GrossProfit', 0) or row.get('Gross_Profit', 0) or 0).replace(',', ''))
+                op_inc  = int(str(row.get('OperatingIncome', 0) or row.get('Operating_Income', 0) or 0).replace(',', ''))
+                net_inc = int(str(row.get('NetIncome', 0) or row.get('Net_Income', 0) or
+                               row.get('NetIncomeAfterTax', 0) or row.get('NetIncomeAttributableToOwnersOfParent', 0) or 0).replace(',', ''))
+                eps     = float(row.get('EPS', 0) or row.get('eps', 0) or 0)
+
+                gross_margin = round(gross   / rev * 100, 2) if rev else 0
+                op_margin    = round(op_inc  / rev * 100, 2) if rev else 0
+                net_margin   = round(net_inc / rev * 100, 2) if rev else 0
+
+                quarters.append({
+                    'date':        date,
+                    'revenue':     rev,
+                    'grossProfit': gross,
+                    'opIncome':    op_inc,
+                    'netIncome':   net_inc,
+                    'eps':         eps,
+                    'grossMargin': gross_margin,
+                    'opMargin':    op_margin,
+                    'netMargin':   net_margin,
+                })
+            except Exception:
+                continue
+
+        if quarters:
+            quarters.sort(key=lambda x: x['date'])
+            db.collection('financials').document(stock_code).set({
+                'quarters':  quarters,
+                'stockCode': stock_code,
+                'updatedAt': firestore.SERVER_TIMESTAMP,
+            })
+            print(f"  ✅ 季度損益已儲存 {len(quarters)} 筆（{quarters[0]['date']} ～ {quarters[-1]['date']}）")
+        else:
+            print("  ⚠ 未解析到季度損益（請把上方除錯輸出貼給開發者）")
+    except Exception as e:
+        print(f"  [季度損益] 失敗: {e}")
+
+
+def fetch_dividend_data(db, stock_code='2451'):
+    """從 FinMind 抓取股利配息並存入 Firebase dividends/{stock_code}"""
+    import json as _json
+    print(f"\n💵 抓取 {stock_code} 股利資料（FinMind）...")
+    BASE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    try:
+        url = (
+            'https://api.finmindtrade.com/api/v4/data'
+            f'?dataset=TaiwanStockDividend&data_id={stock_code}'
+            f'&start_date=2015-01-01&token='
+        )
+        r = requests.get(url, headers={'User-Agent': BASE_UA}, timeout=20)
+        print(f"  HTTP {r.status_code}, {len(r.content)} bytes")
+        if r.status_code != 200:
+            return
+        data = _json.loads(r.text)
+        rows = data.get('data', [])
+        print(f"  取得 {len(rows)} 筆")
+        if rows:
+            print(f"  第一筆 keys: {list(rows[0].keys())}")
+            print(f"  第一筆範例: {rows[0]}")
+
+        records = []
+        for row in rows:
+            try:
+                cash_earn    = float(row.get('CashEarningsDistribution', 0) or 0)
+                cash_reserve = float(row.get('CashStatutoryReserveTransfer', 0) or 0)
+                stock_earn   = float(row.get('StockEarningsDistribution', 0) or 0)
+                stock_reserve= float(row.get('StockStatutoryReserveTransfer', 0) or 0)
+                total_cash   = round(cash_earn + cash_reserve, 4)
+                total_stock  = round(stock_earn + stock_reserve, 4)
+                total        = float(row.get('Dividends', 0) or (total_cash + total_stock) or 0)
+
+                records.append({
+                    'date':          row.get('date', ''),
+                    'year':          str(row.get('year', '')),
+                    'cashDividend':  round(total_cash, 2),
+                    'stockDividend': round(total_stock, 2),
+                    'totalDividend': round(total, 2),
+                })
+            except Exception:
+                continue
+
+        if records:
+            records.sort(key=lambda x: x['year'])
+            db.collection('dividends').document(stock_code).set({
+                'records':   records,
+                'stockCode': stock_code,
+                'updatedAt': firestore.SERVER_TIMESTAMP,
+            })
+            print(f"  ✅ 股利已儲存 {len(records)} 筆（{records[0]['year']} ～ {records[-1]['year']}）")
+        else:
+            print("  ⚠ 未解析到股利資料（請把上方除錯輸出貼給開發者）")
+    except Exception as e:
+        print(f"  [股利] 失敗: {e}")
 
 
 if __name__ == '__main__':

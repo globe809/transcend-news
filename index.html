@@ -641,18 +641,30 @@ function CommunityMonitor({ community }) {
 // IR TAB — 月營收圖表
 // ═══════════════════════════════════════════════════════════
 function RevenueChart({ revenue }) {
-  // revenue: array of { year, month, revenue(元), prevYr(元), yoyPct, label }
+  // revenue: array of { year, month, revenue(元), label }
   const fmtRev = v => Number(v).toLocaleString();  // 千分位，單位：元
+
+  // 自行建立 lookup map，對照去年同期（不依賴 FinMind 的 revenue_year 欄位）
+  const revMap = useMemo(() => {
+    if (!revenue) return {};
+    const m = {};
+    revenue.forEach(r => { m[`${r.year}-${r.month}`] = r.revenue; });
+    return m;
+  }, [revenue]);
 
   const data = useMemo(() => {
     if (!revenue || !revenue.length) return [];
-    return revenue.slice(-24).map(r => ({
-      label:   `${String(r.year).slice(2)}/${r.month}`,
-      rev:     r.revenue,
-      prevYr:  r.prevYr,
-      yoyPct:  r.yoyPct,
-    }));
-  }, [revenue]);
+    return revenue.slice(-24).map(r => {
+      const prevYr = revMap[`${r.year - 1}-${r.month}`] || 0;
+      const yoyPct = prevYr > 0 ? +((r.revenue - prevYr) / prevYr * 100).toFixed(2) : null;
+      return {
+        label:   `${String(r.year).slice(2)}/${r.month}`,
+        rev:     r.revenue,
+        prevYr,
+        yoyPct,
+      };
+    });
+  }, [revenue, revMap]);
 
   // 近 5 年年度彙總
   const annualData = useMemo(() => {
@@ -674,7 +686,14 @@ function RevenueChart({ revenue }) {
   }, [revenue]);
 
   const hasData = data.length > 0;
-  const recent12 = useMemo(() => (revenue || []).slice(-12).reverse(), [revenue]);
+  const recent12 = useMemo(() => {
+    if (!revenue || !revenue.length) return [];
+    return [...revenue].slice(-12).reverse().map(r => {
+      const prevYr = revMap[`${r.year - 1}-${r.month}`] || 0;
+      const yoyPct = prevYr > 0 ? +((r.revenue - prevYr) / prevYr * 100).toFixed(2) : null;
+      return { ...r, prevYrCalc: prevYr, yoyPctCalc: yoyPct };
+    });
+  }, [revenue, revMap]);
 
   return (
     <>
@@ -718,10 +737,10 @@ function RevenueChart({ revenue }) {
                       {fmtRev(r.revenue)}
                     </td>
                     <td className="text-right py-1.5 pr-3 text-gray-500 tabular-nums">
-                      {r.prevYr > 0 ? fmtRev(r.prevYr) : '—'}
+                      {r.prevYrCalc > 0 ? fmtRev(r.prevYrCalc) : '—'}
                     </td>
-                    <td className={`text-right py-1.5 font-bold tabular-nums ${r.yoyPct>0?'text-green-400':r.yoyPct<0?'text-red-400':'text-gray-400'}`}>
-                      {r.yoyPct > 0 ? '+' : ''}{r.yoyPct}%
+                    <td className={`text-right py-1.5 font-bold tabular-nums ${r.yoyPctCalc==null?'text-gray-600':r.yoyPctCalc>0?'text-green-400':r.yoyPctCalc<0?'text-red-400':'text-gray-400'}`}>
+                      {r.yoyPctCalc == null ? '—' : (r.yoyPctCalc > 0 ? '+' : '') + r.yoyPctCalc + '%'}
                     </td>
                   </tr>
                 ))}
@@ -812,6 +831,161 @@ function StockTrendChart() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// IR TAB — 財務名詞 Tooltip
+// ═══════════════════════════════════════════════════════════
+function TermTip({ label, tip }) {
+  const [show, setShow] = React.useState(false);
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span>{label}</span>
+      <span className="relative"
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        onClick={() => setShow(v => !v)}>
+        <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] font-bold cursor-help select-none"
+          style={{ background:'#374151', color:'#9ca3af' }}>?</span>
+        {show && (
+          <span className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-60 rounded-xl p-3 text-xs leading-relaxed text-left pointer-events-none whitespace-normal font-normal normal-case"
+            style={{ background:'#1f2937', border:'1px solid #374151', color:'#d1d5db', boxShadow:'0 8px 32px rgba(0,0,0,0.5)' }}>
+            {tip}
+            <span className="absolute top-full left-1/2 -translate-x-1/2"
+              style={{ width:0, height:0, borderLeft:'5px solid transparent', borderRight:'5px solid transparent', borderTop:'5px solid #374151' }} />
+          </span>
+        )}
+      </span>
+    </span>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// IR TAB — 季度損益摘要
+// ═══════════════════════════════════════════════════════════
+function QuarterlyPnL({ financials }) {
+  const quarters = useMemo(() => {
+    if (!financials || !financials.length) return [];
+    return [...financials].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
+  }, [financials]);
+
+  const pctCell = v => {
+    if (v == null || v === 0) return <span className="text-gray-600">—</span>;
+    const cls = v >= 30 ? 'text-green-400' : v >= 15 ? 'text-yellow-400' : 'text-red-400';
+    return <span className={cls}>{v.toFixed(1)}%</span>;
+  };
+
+  const TERM_TIPS = {
+    grossMargin: { label: '毛利率', tip: '賣東西的收入，扣掉原料和直接製造成本後剩下的比例。毛利率越高，代表產品越有競爭力。例：毛利率 30% = 每賣 100 元有 30 元是毛利。' },
+    opMargin:    { label: '營業利益率', tip: '毛利再扣掉員工薪資、行銷廣告、管理費用後的比例。反映公司整體營運效率，能看出公司是否「賺了卻花光」。' },
+    netMargin:   { label: '稅後淨利率', tip: '全部費用和稅都扣完後，公司真正賺到的比例。這是最終「實際入袋」的錢，是評估獲利能力最關鍵的指標之一。' },
+    eps:         { label: 'EPS', tip: '每股盈餘 = 公司季度獲利 ÷ 發行總股數。EPS 越高代表每股賺越多。例：EPS $2 = 持有 1 張（1000 股）的股東，該季理論上貢獻公司獲利 2,000 元。' },
+  };
+
+  return (
+    <Card title="季度損益摘要（近 8 季）" icon="📋">
+      {quarters.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-gray-700/60 text-gray-500">
+                <th className="text-left pb-2 pr-3 font-medium">季度</th>
+                {['grossMargin','opMargin','netMargin','eps'].map(k => (
+                  <th key={k} className="text-right pb-2 pr-3 font-medium last:pr-0">
+                    <TermTip label={TERM_TIPS[k].label} tip={TERM_TIPS[k].tip} />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {quarters.map((q, i) => (
+                <tr key={i} className="border-b border-gray-800/40 hover:bg-gray-800/20">
+                  <td className="py-1.5 pr-3 text-gray-300 tabular-nums">{(q.date||'').slice(0,7)}</td>
+                  <td className="text-right py-1.5 pr-3 tabular-nums">{pctCell(q.grossMargin)}</td>
+                  <td className="text-right py-1.5 pr-3 tabular-nums">{pctCell(q.opMargin)}</td>
+                  <td className="text-right py-1.5 pr-3 tabular-nums">{pctCell(q.netMargin)}</td>
+                  <td className={`text-right py-1.5 pr-0 font-bold tabular-nums ${(q.eps||0)>0?'text-white':(q.eps||0)<0?'text-red-400':'text-gray-500'}`}>
+                    {q.eps != null ? `$${Number(q.eps).toFixed(2)}` : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="h-28 flex items-center justify-center text-gray-600 text-sm">
+          {financials === null ? '載入中…' : '尚無季度損益資料（Actions 跑完後自動更新）'}
+        </div>
+      )}
+      <p className="text-xs text-gray-700 mt-2">* 資料來源：FinMind 季度財報 · 顏色：≥30% 綠、15-30% 黃、&lt;15% 紅</p>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// IR TAB — 歷年股利配息
+// ═══════════════════════════════════════════════════════════
+function DividendHistory({ dividends }) {
+  const records = useMemo(() => {
+    if (!dividends || !dividends.length) return [];
+    return [...dividends].sort((a, b) => String(b.year).localeCompare(String(a.year))).slice(0, 10);
+  }, [dividends]);
+
+  const DIV_TIPS = [
+    { label: '現金股利',
+      tip:   '公司把獲利以現金方式發給股東，是投資人「實際拿到手」的報酬。例：持有 1 張（1000 股）、現金股利 $5 = 實拿 5,000 元現金。' },
+    { label: '股票股利',
+      tip:   '公司發給股東的是股票而非現金。股票張數增加，但每股價值同步稀釋，通常代表公司保留盈餘用於擴充。' },
+    { label: '殖利率',
+      tip:   '現金股利 ÷ 當時股價 × 100%。代表「以此價格買進，一年的配息報酬率」。一般台股殖利率高於 5% 視為高殖利率股，創見近年殖利率約 5-8%。' },
+  ];
+
+  return (
+    <Card title="歷年股利配息（近 10 年）" icon="💵">
+      <div className="flex flex-wrap gap-3 mb-3">
+        {DIV_TIPS.map(({ label, tip }) => (
+          <span key={label} className="text-xs text-gray-500">
+            <TermTip label={label} tip={tip} />
+          </span>
+        ))}
+      </div>
+      {records.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-gray-700/60 text-gray-500">
+                <th className="text-left pb-2 pr-3 font-medium">配息年度</th>
+                <th className="text-right pb-2 pr-3 font-medium">現金股利（元）</th>
+                <th className="text-right pb-2 pr-3 font-medium">股票股利（元）</th>
+                <th className="text-right pb-2 font-medium">合計（元）</th>
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((r, i) => (
+                <tr key={i} className="border-b border-gray-800/40 hover:bg-gray-800/20">
+                  <td className="py-1.5 pr-3 text-gray-300 font-medium tabular-nums">{r.year}</td>
+                  <td className="text-right py-1.5 pr-3 text-green-400 tabular-nums font-medium">
+                    {r.cashDividend > 0 ? `$${Number(r.cashDividend).toFixed(2)}` : '—'}
+                  </td>
+                  <td className="text-right py-1.5 pr-3 text-blue-400 tabular-nums">
+                    {r.stockDividend > 0 ? `$${Number(r.stockDividend).toFixed(2)}` : '—'}
+                  </td>
+                  <td className="text-right py-1.5 text-white tabular-nums font-bold">
+                    ${Number(r.totalDividend > 0 ? r.totalDividend : (r.cashDividend + r.stockDividend)).toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="h-28 flex items-center justify-center text-gray-600 text-sm">
+          {dividends === null ? '載入中…' : '尚無股利資料（Actions 跑完後自動更新）'}
+        </div>
+      )}
+      <p className="text-xs text-gray-700 mt-2">* 資料來源：FinMind 股利資料，金額為每股新台幣元</p>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // PR TAB
 // ═══════════════════════════════════════════════════════════
 const TIME_FILTERS = [
@@ -877,7 +1051,7 @@ function PRTab({ news }) {
 // ═══════════════════════════════════════════════════════════
 // IR TAB
 // ═══════════════════════════════════════════════════════════
-function IRTab({ news, stocks, community, revenue }) {
+function IRTab({ news, stocks, community, revenue, financials, dividends }) {
   return (
     <div className="space-y-4 fade-in">
       {/* Stock cards */}
@@ -904,7 +1078,8 @@ function IRTab({ news, stocks, community, revenue }) {
       </div>
 
       <RevenueChart revenue={revenue} />
-      <StockTrendChart />
+      <QuarterlyPnL financials={financials} />
+      <DividendHistory dividends={dividends} />
     </div>
   );
 }
@@ -913,16 +1088,18 @@ function IRTab({ news, stocks, community, revenue }) {
 // MAIN APP
 // ═══════════════════════════════════════════════════════════
 function App() {
-  const [tab,       setTab]       = useState('pr');
-  const [news,      setNews]      = useState([]);
-  const [stocks,    setStocks]    = useState({});
-  const [revenue,   setRevenue]   = useState(null);
-  const [loading,   setLoading]   = useState(true);
-  const [connected, setConnected] = useState(false);
-  const [updated,   setUpdated]   = useState(null);
-  const [aiOpen,    setAiOpen]    = useState(false);
-  const [aiText,    setAiText]    = useState('');
-  const [aiLoading, setAiLoading] = useState(false);
+  const [tab,        setTab]        = useState('pr');
+  const [news,       setNews]       = useState([]);
+  const [stocks,     setStocks]     = useState({});
+  const [revenue,    setRevenue]    = useState(null);
+  const [financials, setFinancials] = useState(null);
+  const [dividends,  setDividends]  = useState(null);
+  const [loading,    setLoading]    = useState(true);
+  const [connected,  setConnected]  = useState(false);
+  const [updated,    setUpdated]    = useState(null);
+  const [aiOpen,     setAiOpen]     = useState(false);
+  const [aiText,     setAiText]     = useState('');
+  const [aiLoading,  setAiLoading]  = useState(false);
 
   // ─── Firebase init ───────────────────────────────────────
   useEffect(() => {
@@ -939,7 +1116,7 @@ function App() {
 
   async function fetchAll() {
     setLoading(true);
-    await Promise.all([ fetchNews(), fetchStocks(), fetchRevenue() ]);
+    await Promise.all([ fetchNews(), fetchStocks(), fetchRevenue(), fetchFinancials(), fetchDividends() ]);
     setLoading(false);
     setUpdated(new Date());
   }
@@ -968,6 +1145,22 @@ function App() {
       if (doc.exists) setRevenue(doc.data().records || []);
       else setRevenue([]);
     } catch(e) { console.error('Revenue:', e); setRevenue([]); }
+  }
+
+  async function fetchFinancials() {
+    try {
+      const doc = await window._db.collection('financials').doc('2451').get();
+      if (doc.exists) setFinancials(doc.data().quarters || []);
+      else setFinancials([]);
+    } catch(e) { console.error('Financials:', e); setFinancials([]); }
+  }
+
+  async function fetchDividends() {
+    try {
+      const doc = await window._db.collection('dividends').doc('2451').get();
+      if (doc.exists) setDividends(doc.data().records || []);
+      else setDividends([]);
+    } catch(e) { console.error('Dividends:', e); setDividends([]); }
   }
 
   // ─── AI Summary (Gemini) ─────────────────────────────────
@@ -1084,7 +1277,7 @@ function App() {
 
       {/* ─────────── MAIN ─────────── */}
       <main className="max-w-7xl mx-auto px-4 py-5">
-        {tab==='pr' ? <PRTab news={news} /> : <IRTab news={news} stocks={stocks} community={community} revenue={revenue} />}
+        {tab==='pr' ? <PRTab news={news} /> : <IRTab news={news} stocks={stocks} community={community} revenue={revenue} financials={financials} dividends={dividends} />}
       </main>
 
       {/* ─────────── AI MODAL ─────────── */}
