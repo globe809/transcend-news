@@ -1142,26 +1142,52 @@ def fetch_daily_trading(db, stock_code='2451'):
         if r2.status_code == 200:
             rows = _json.loads(r2.text).get('data', [])
             if rows:
+                print(f"  [法人] 第一筆 keys: {list(rows[0].keys())}")
+                print(f"  [法人] 第一筆 name 範例: {rows[0].get('name','')}")
                 latest_date = max(row.get('date', '') for row in rows)
-                by_name = {row['name']: row for row in rows if row.get('date') == latest_date}
+                # 支援 name 欄位可能是字串或整數，統一轉 str
+                by_name = {str(row.get('name','')): row for row in rows if row.get('date') == latest_date}
                 result['institutionalDate'] = latest_date
-                print(f"  [法人] 最新日期: {latest_date}, 機構: {list(by_name.keys())}")
-                # 外資
-                for fk in ['外資及陸資(不含外資自營商)', '外資及陸資', '外資']:
+                print(f"  [法人] 最新日期: {latest_date}, 機構清單: {list(by_name.keys())}")
+
+                def _get_val(row, *keys):
+                    """嘗試多個欄位名取買賣量（FinMind 不同版本欄位名可能不同）"""
+                    for k in keys:
+                        v = row.get(k)
+                        if v is not None:
+                            try: return int(float(str(v).replace(',','') or 0))
+                            except: pass
+                    return 0
+
+                # ── 外資：精確比對 → 半形括號 → 全形括號 → 子字串比對 ──
+                foreign_row = None
+                for fk in ['外資及陸資(不含外資自營商)', '外資及陸資（不含外資自營商）',
+                           '外資及陸資', '外資']:
                     if fk in by_name:
-                        f = by_name[fk]
-                        result['foreignBuy']  = int(float(f.get('buy',  0) or 0))
-                        result['foreignSell'] = int(float(f.get('sell', 0) or 0))
-                        result['foreignNet']  = result['foreignBuy'] - result['foreignSell']
-                        print(f"  外資淨: {result['foreignNet']:+,}")
+                        foreign_row = by_name[fk]
                         break
-                # 投信
-                if '投信' in by_name:
-                    t = by_name['投信']
-                    result['trustBuy']  = int(float(t.get('buy',  0) or 0))
-                    result['trustSell'] = int(float(t.get('sell', 0) or 0))
+                if foreign_row is None:
+                    # 子字串 fallback：找名稱含「外資」且不含「自營商」的行
+                    foreign_row = next((r for k, r in by_name.items()
+                                        if '外資' in k and '自營商' not in k), None)
+                if foreign_row is not None:
+                    result['foreignBuy']  = _get_val(foreign_row, 'buy', 'buy_volume', 'Buy')
+                    result['foreignSell'] = _get_val(foreign_row, 'sell', 'sell_volume', 'Sell')
+                    result['foreignNet']  = result['foreignBuy'] - result['foreignSell']
+                    print(f"  外資 買:{result['foreignBuy']:,} 賣:{result['foreignSell']:,} 淨:{result['foreignNet']:+,}")
+                else:
+                    print(f"  ⚠ 找不到外資資料（機構清單: {list(by_name.keys())}）")
+
+                # ── 投信：精確比對 → 子字串 fallback ──
+                trust_row = by_name.get('投信') or next(
+                    (r for k, r in by_name.items() if '投信' in k), None)
+                if trust_row is not None:
+                    result['trustBuy']  = _get_val(trust_row, 'buy', 'buy_volume', 'Buy')
+                    result['trustSell'] = _get_val(trust_row, 'sell', 'sell_volume', 'Sell')
                     result['trustNet']  = result['trustBuy'] - result['trustSell']
-                    print(f"  投信淨: {result['trustNet']:+,}")
+                    print(f"  投信 買:{result['trustBuy']:,} 賣:{result['trustSell']:,} 淨:{result['trustNet']:+,}")
+                else:
+                    print(f"  ⚠ 找不到投信資料")
     except Exception as e:
         print(f"  [法人] 失敗: {e}")
 
@@ -1196,31 +1222,45 @@ def fetch_dividend_data(db, stock_code='2451'):
             print(f"  第一筆 keys: {list(rows[0].keys())}")
             print(f"  第一筆範例: {rows[0]}")
 
+        # 印出所有欄位名與第一筆完整數值，方便 debug
+        if rows:
+            print(f"  所有欄位: {list(rows[-1].keys())}")
+            print(f"  最新一筆: {rows[-1]}")
+
         records = []
         for row in rows:
             try:
-                # FinMind 現金股利三個來源：盈餘 + 法定公積 + 資本公積（三者須全部加總）
-                cash_earn    = float(row.get('CashEarningsDistribution', 0) or 0)
-                cash_stat    = float(row.get('CashStatutoryReserveTransfer', 0) or 0)
-                cash_capital = float(row.get('CashCapitalReserveTransfer', 0) or 0)
-                # 股票股利三個來源
-                stock_earn   = float(row.get('StockEarningsDistribution', 0) or 0)
-                stock_stat   = float(row.get('StockStatutoryReserveTransfer', 0) or 0)
-                stock_capital= float(row.get('StockCapitalReserveTransfer', 0) or 0)
-                total_cash   = round(cash_earn + cash_stat + cash_capital, 4)
-                total_stock  = round(stock_earn + stock_stat + stock_capital, 4)
-                # 若 FinMind 有直接給合計欄位則優先使用
-                finmind_total= float(row.get('Dividends', 0) or 0)
-                total        = finmind_total if finmind_total > 0 else round(total_cash + total_stock, 4)
+                def _f(v): return float(v or 0)
+
+                # ── 股票股利（分三項加總）────────────────────────────
+                stock_earn    = _f(row.get('StockEarningsDistribution'))
+                stock_stat    = _f(row.get('StockStatutoryReserveTransfer'))
+                stock_capital = _f(row.get('StockCapitalReserveTransfer'))
+                total_stock   = round(stock_earn + stock_stat + stock_capital, 4)
+
+                # ── 現金股利：優先用 Dividends 欄位反推，最可靠 ─────
+                # Dividends = 現金股利合計 + 股票股利合計（同樣單位：元/股）
+                # → 現金股利 = Dividends - total_stock
+                finmind_total = _f(row.get('Dividends'))
+                if finmind_total > 0:
+                    total_cash = round(max(0.0, finmind_total - total_stock), 4)
+                else:
+                    # 備援：逐項加總（若 Dividends 欄位缺值才用這條路）
+                    cash_earn    = _f(row.get('CashEarningsDistribution'))
+                    cash_stat    = _f(row.get('CashStatutoryReserveTransfer'))
+                    cash_capital = _f(row.get('CashCapitalReserveTransfer'))
+                    total_cash   = round(cash_earn + cash_stat + cash_capital, 4)
+                    finmind_total = round(total_cash + total_stock, 4)
 
                 records.append({
                     'date':          row.get('date', ''),
                     'year':          str(row.get('year', '')),
                     'cashDividend':  round(total_cash, 2),
                     'stockDividend': round(total_stock, 2),
-                    'totalDividend': round(total, 2),
+                    'totalDividend': round(finmind_total, 2),
                 })
-            except Exception:
+            except Exception as ex:
+                print(f"  [股利] 解析失敗: {ex} | row={row}")
                 continue
 
         if records:
