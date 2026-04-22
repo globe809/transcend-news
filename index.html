@@ -291,6 +291,171 @@ function isValidTranscendPR(n) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// 上游市場 TAB — 品牌輔助函式
+// ═══════════════════════════════════════════════════════════
+function getUSBrand(n) {
+  if (n.brand) return n.brand;           // supplier cat 已有 brand 欄位
+  const src = (n.sourceName || '') + ' ' + (n.mediaName || '');
+  if (/Samsung/i.test(src))   return 'Samsung';
+  if (/Micron/i.test(src))    return 'Micron';
+  if (/Hynix/i.test(src))     return 'SK Hynix';
+  if (/Kioxia/i.test(src))    return 'Kioxia';
+  if (/SanDisk|Western Digital|WD/i.test(src)) return 'SanDisk/WD';
+  if (/SMI|Silicon Motion|慧榮/i.test(src))    return 'SMI';
+  if (/Phison|群聯/i.test(src))                return 'Phison';
+  if (/Realtek|瑞昱/i.test(src))               return 'Realtek';
+  if (/DRAM/i.test(src))      return 'DRAM市場';
+  if (/NAND|Flash/i.test(src))return 'NAND Flash';
+  if (/Transcend/i.test(src)) return '創見(英文)';
+  return '其他';
+}
+
+const US_BRAND_CFG = [
+  { id:'all',          label:'全部' },
+  { id:'Samsung',      label:'Samsung',     color:'#1d4ed8' },
+  { id:'Micron',       label:'Micron',      color:'#dc2626' },
+  { id:'SK Hynix',     label:'SK Hynix',    color:'#16a34a' },
+  { id:'Kioxia',       label:'Kioxia',      color:'#7c3aed' },
+  { id:'SanDisk/WD',   label:'SanDisk/WD',  color:'#ea580c' },
+  { id:'SMI',          label:'SMI 慧榮',    color:'#0891b2' },
+  { id:'Phison',       label:'Phison 群聯', color:'#0e7490' },
+  { id:'Realtek',      label:'Realtek 瑞昱',color:'#0369a1' },
+  { id:'DRAM市場',     label:'DRAM市場',    color:'#ca8a04' },
+  { id:'NAND Flash',   label:'NAND Flash',  color:'#9333ea' },
+  { id:'創見(英文)',   label:'創見(英文)',  color:BRAND     },
+];
+
+function USNewsCard({ article }) {
+  const brand = getUSBrand(article);
+  const cfg   = US_BRAND_CFG.find(b => b.id === brand);
+  const color = cfg?.color || '#6b7280';
+  const s = article.sentiment || getSentiment(article.title, article.content);
+  const src = article.sourceName || article.mediaName || '';
+  return (
+    <a href={article.link||'#'} target="_blank" rel="noreferrer"
+      className="flex items-start gap-2.5 p-3 rounded-xl bg-gray-800/40 hover:bg-gray-800 border border-gray-700/40 hover:border-gray-600 transition-all group cursor-pointer">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-1">
+          <span className="text-xs font-bold px-1.5 py-0.5 rounded-md"
+            style={{ background:`${color}22`, color, border:`1px solid ${color}44` }}>
+            {brand}
+          </span>
+        </div>
+        <p className="text-sm text-gray-200 group-hover:text-white line-clamp-2 leading-snug">{article.title}</p>
+        <div className="flex items-center gap-1.5 mt-1.5 text-xs text-gray-500">
+          <span style={{ color:'#f87171' }}>{src}</span>
+          <span>·</span>
+          <span>{fmtDate(article.pubDate)}</span>
+        </div>
+      </div>
+      <SentBadge s={s} />
+    </a>
+  );
+}
+
+function USMarketTab({ news }) {
+  const [timeFilter,  setTimeFilter]  = useState('week');
+  const [brandFilter, setBrandFilter] = useState('all');
+
+  // usMarket (英文供應鏈 + DRAM/Flash 市場) + supplier (中文供應商動態)
+  const allUSNews = useMemo(() =>
+    news.filter(n => n.cat === 'usMarket' || n.cat === 'supplier'), [news]);
+
+  const timeFiltered = useMemo(() => {
+    const now = new Date();
+    const cutoffs = {
+      today: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+      week:  new Date(now.getTime() - 7*24*60*60*1000),
+      month: new Date(now.getFullYear(), now.getMonth(), 1),
+      year:  new Date(now.getFullYear(), 0, 1),
+      all:   null,
+    };
+    const cutoff = cutoffs[timeFilter];
+    return sortByDate(allUSNews.filter(n => {
+      if (!cutoff) return true;
+      const d = n.pubDate?.toDate ? n.pubDate.toDate() : new Date(n.pubDate||0);
+      return d >= cutoff;
+    }));
+  }, [allUSNews, timeFilter]);
+
+  const brandCounts = useMemo(() => {
+    const c = {};
+    timeFiltered.forEach(n => { const b = getUSBrand(n); c[b]=(c[b]||0)+1; });
+    return c;
+  }, [timeFiltered]);
+
+  const shown = useMemo(() => {
+    const base = brandFilter === 'all' ? timeFiltered : timeFiltered.filter(n => getUSBrand(n) === brandFilter);
+    return base.slice(0, 80);
+  }, [timeFiltered, brandFilter]);
+
+  const pos = timeFiltered.filter(n => (n.sentiment||getSentiment(n.title,n.content)) === 'positive').length;
+  const neg = timeFiltered.filter(n => (n.sentiment||getSentiment(n.title,n.content)) === 'negative').length;
+  const topBrand = Object.entries(brandCounts).sort((a,b)=>b[1]-a[1])[0];
+
+  return (
+    <div className="space-y-4 fade-in">
+      {/* 統計卡片 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label:'本期新聞', val:timeFiltered.length, sub:'供應鏈＋市場', cls:'text-white' },
+          { label:'正面消息', val:pos, sub:timeFiltered.length?`${Math.round(pos/timeFiltered.length*100)}% 佔比`:'', cls:'text-green-400' },
+          { label:'負面消息', val:neg, sub:timeFiltered.length?`${Math.round(neg/timeFiltered.length*100)}% 佔比`:'', cls:'text-red-400' },
+          { label:'最多討論', val:topBrand?.[0]||'—', sub:`${topBrand?.[1]||0} 則`, cls:'text-blue-300', big:false },
+        ].map((s,i) => (
+          <div key={i} className="bg-gray-900 rounded-2xl border border-gray-700/60 p-4">
+            <p className="text-xs text-gray-500 mb-1">{s.label}</p>
+            <p className={`${s.big===false?'text-lg':'text-2xl'} font-bold ${s.cls} truncate`}>{s.val}</p>
+            <p className="text-xs text-gray-600 mt-0.5">{s.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* 主要新聞卡 */}
+      <div className="bg-gray-900 rounded-2xl border border-gray-700/60 p-4">
+        <h3 className="text-sm font-semibold text-gray-200 mb-3 flex items-center gap-2">
+          <span>🌐</span>上游供應鏈 ＆ DRAM / Flash 市場新聞
+        </h3>
+
+        {/* 時間篩選 */}
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {TIME_FILTERS.map(f => (
+            <TabBtn key={f.id} active={timeFilter===f.id} onClick={() => setTimeFilter(f.id)}>{f.label}</TabBtn>
+          ))}
+        </div>
+
+        {/* 品牌篩選 pill */}
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {US_BRAND_CFG.map(b => {
+            const cnt = b.id === 'all' ? timeFiltered.length : (brandCounts[b.id]||0);
+            const active = brandFilter === b.id;
+            return (
+              <button key={b.id} onClick={() => setBrandFilter(b.id)}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                  active ? 'text-white' : 'bg-gray-800/60 text-gray-400 hover:text-gray-200'
+                }`}
+                style={active
+                  ? { background: b.color||BRAND, borderColor: b.color||BRAND }
+                  : { borderColor:'rgba(75,85,99,0.4)' }}>
+                {b.label}
+                {cnt > 0 && <span className={`ml-1 ${active?'text-white/70':'text-gray-600'}`}>{cnt}</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {shown.length > 0
+          ? <div className="space-y-2">{shown.map((n,i) => <USNewsCard key={n.id||i} article={n} />)}</div>
+          : <div className="h-32 flex items-center justify-center text-gray-600 text-sm">
+              {allUSNews.length > 0 ? '此區間暫無資料' : '載入中…'}
+            </div>
+        }
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // PR TAB — 統計卡片 + 各媒體曝光篇數圖
 // ═══════════════════════════════════════════════════════════
 function PRStatsPanel({ articles }) {
@@ -1503,9 +1668,13 @@ function App() {
             </div>
           </div>
 
-          {/* PR / IR tab switcher */}
+          {/* PR / IR / US tab switcher */}
           <nav className="flex gap-1 p-1 rounded-xl" style={{ background:'rgba(0,0,0,0.35)' }}>
-            {[{id:'pr',icon:'📡',label:'PR 媒體戰情'},{id:'ir',icon:'📈',label:'IR 投資情報'}].map(t => (
+            {[
+              {id:'pr', icon:'📡', label:'PR 媒體戰情'},
+              {id:'ir', icon:'📈', label:'IR 投資情報'},
+              {id:'us', icon:'🌐', label:'上游市場'},
+            ].map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
                 className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${tab===t.id?'text-white shadow':'text-red-200/60 hover:text-white'}`}
                 style={tab===t.id?{background:'rgba(0,0,0,0.5)'}:{}}>
@@ -1563,7 +1732,9 @@ function App() {
 
       {/* ─────────── MAIN ─────────── */}
       <main className="max-w-7xl mx-auto px-4 py-5">
-        {tab==='pr' ? <PRTab news={news} /> : <IRTab news={news} stocks={stocks} community={community} revenue={revenue} financials={financials} dividends={dividends} material={material} daily={daily} />}
+        {tab==='pr' ? <PRTab news={news} /> :
+         tab==='us' ? <USMarketTab news={news} /> :
+         <IRTab news={news} stocks={stocks} community={community} revenue={revenue} financials={financials} dividends={dividends} material={material} daily={daily} />}
       </main>
 
       {/* ─────────── AI MODAL ─────────── */}
