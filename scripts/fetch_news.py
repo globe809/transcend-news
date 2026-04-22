@@ -1159,17 +1159,17 @@ def fetch_daily_trading(db, stock_code='2451'):
                             except: pass
                     return 0
 
-                # ── 外資：精確比對 → 半形括號 → 全形括號 → 子字串比對 ──
-                foreign_row = None
-                for fk in ['外資及陸資(不含外資自營商)', '外資及陸資（不含外資自營商）',
-                           '外資及陸資', '外資']:
-                    if fk in by_name:
-                        foreign_row = by_name[fk]
-                        break
-                if foreign_row is None:
-                    # 子字串 fallback：找名稱含「外資」且不含「自營商」的行
-                    foreign_row = next((r for k, r in by_name.items()
-                                        if '外資' in k and '自營商' not in k), None)
+                # ── 外資：英文名（新 API）→ 中文名（舊 API）→ 子字串 fallback ──
+                foreign_row = (
+                    by_name.get('Foreign_Investor') or            # FinMind 新版英文
+                    by_name.get('外資及陸資(不含外資自營商)') or
+                    by_name.get('外資及陸資（不含外資自營商）') or
+                    by_name.get('外資及陸資') or
+                    by_name.get('外資') or
+                    next((r for k, r in by_name.items()
+                          if ('外資' in k or 'Foreign' in k) and
+                             ('自營' not in k and 'Dealer' not in k)), None)
+                )
                 if foreign_row is not None:
                     result['foreignBuy']  = _get_val(foreign_row, 'buy', 'buy_volume', 'Buy')
                     result['foreignSell'] = _get_val(foreign_row, 'sell', 'sell_volume', 'Sell')
@@ -1178,9 +1178,13 @@ def fetch_daily_trading(db, stock_code='2451'):
                 else:
                     print(f"  ⚠ 找不到外資資料（機構清單: {list(by_name.keys())}）")
 
-                # ── 投信：精確比對 → 子字串 fallback ──
-                trust_row = by_name.get('投信') or next(
-                    (r for k, r in by_name.items() if '投信' in k), None)
+                # ── 投信：英文名 → 中文名 → 子字串 fallback ──
+                trust_row = (
+                    by_name.get('Investment_Trust') or            # FinMind 新版英文
+                    by_name.get('投信') or
+                    next((r for k, r in by_name.items()
+                          if '投信' in k or 'Investment_Trust' in k), None)
+                )
                 if trust_row is not None:
                     result['trustBuy']  = _get_val(trust_row, 'buy', 'buy_volume', 'Buy')
                     result['trustSell'] = _get_val(trust_row, 'sell', 'sell_volume', 'Sell')
@@ -1252,9 +1256,13 @@ def fetch_dividend_data(db, stock_code='2451'):
                     total_cash   = round(cash_earn + cash_stat + cash_capital, 4)
                     finmind_total = round(total_cash + total_stock, 4)
 
+                # FinMind year 為民國年（如 113），轉成西元年（如 2024）
+                raw_year = int(row.get('year', 0) or 0)
+                year_ad  = raw_year + 1911 if raw_year < 1000 else raw_year
+
                 records.append({
                     'date':          row.get('date', ''),
-                    'year':          str(row.get('year', '')),
+                    'year':          str(year_ad),
                     'cashDividend':  round(total_cash, 2),
                     'stockDividend': round(total_stock, 2),
                     'totalDividend': round(finmind_total, 2),
