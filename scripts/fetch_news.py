@@ -1256,30 +1256,29 @@ def fetch_dividend_data(db, stock_code='2451'):
 
         for row in rows_d:
             try:
-                year_ad  = _roc_to_ad(row.get('year', 0))
+                # ── 年份：直接用 date 欄位前 4 碼，最可靠 ──────────
+                date_str = str(row.get('date', '') or '')
+                year_ad  = int(date_str[:4]) if len(date_str) >= 4 and date_str[:4].isdigit() else _roc_to_ad(row.get('year', 0))
                 year_str = str(year_ad)
                 if year_ad < 2010:
                     continue
 
-                # ── 現金股利：三項加總，完全不使用 Dividends ──
+                # ── 現金股利：FinMind 實際欄位名稱 ──────────────────
+                # CashEarningsDistribution  = 盈餘分配現金股利
+                # CashStatutorySurplus      = 法定公積轉入現金股利  ← 注意：是 Surplus 不是 ReserveTransfer
                 cash_e = _f(row.get('CashEarningsDistribution'))
-                cash_s = _f(row.get('CashStatutoryReserveTransfer'))
-                cash_c = _f(row.get('CashCapitalReserveTransfer'))
-                total_cash = round(cash_e + cash_s + cash_c, 2)
+                cash_s = _f(row.get('CashStatutorySurplus'))        # ← 正確欄位名
+                total_cash = round(cash_e + cash_s, 2)
 
-                # ── 股票股利：三項加總 ──
+                # ── 股票股利：FinMind 實際欄位名稱 ──────────────────
                 stk_e = _f(row.get('StockEarningsDistribution'))
-                stk_s = _f(row.get('StockStatutoryReserveTransfer'))
-                stk_c = _f(row.get('StockCapitalReserveTransfer'))
-                total_stock = round(stk_e + stk_s + stk_c, 2)
+                stk_s = _f(row.get('StockStatutorySurplus'))        # ← 正確欄位名
+                total_stock = round(stk_e + stk_s, 2)
 
                 print(
                     f"  [Dividend] {year_ad}: "
-                    f"CashEarnings={cash_e} CashStatutory={cash_s} CashCapital={cash_c} "
-                    f"→ cash={total_cash} | "
-                    f"StkEarnings={stk_e} StkStatutory={stk_s} StkCapital={stk_c} "
-                    f"→ stock={total_stock} | "
-                    f"Dividends(棄用)={row.get('Dividends')}"
+                    f"CashEarnings={cash_e} + CashStatutorySurplus={cash_s} → cash={total_cash} | "
+                    f"StkEarnings={stk_e} + StkStatutorySurplus={stk_s} → stock={total_stock}"
                 )
 
                 if total_cash == 0 and total_stock == 0:
