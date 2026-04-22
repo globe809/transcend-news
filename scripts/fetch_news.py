@@ -1226,33 +1226,25 @@ def fetch_dividend_data(db, stock_code='2451'):
             print(f"  第一筆 keys: {list(rows[0].keys())}")
             print(f"  第一筆範例: {rows[0]}")
 
-        # 印出最後兩筆原始資料，確認欄位格式
+        # 印出最後兩筆完整原始資料，確認欄位
         if rows:
+            print(f"  所有欄位: {list(rows[0].keys())}")
             for sample in rows[-2:]:
-                print(f"  raw row: {sample}")
+                print(f"  raw: {sample}")
 
         def _f(v):
             try: return float(v or 0)
             except: return 0.0
 
-        def _parse_year(val):
-            """
-            支援所有 FinMind year 格式：
-              '113年' → 113 → 2024
-              '113'   → 113 → 2024
-              113     → 113 → 2024
-              2024    → 2024
-            """
-            digits = ''.join(c for c in str(val or '') if c.isdigit())
-            n = int(digits) if digits else 0
-            return (n + 1911) if 0 < n < 1912 else n
-
         records = []
         for row in rows:
             try:
-                year_ad = _parse_year(row.get('year', 0))
-                if year_ad < 2000:
-                    print(f"  [股利] 跳過無效年份 raw={row.get('year')}")
+                # ── 年份：直接取 date 欄位的年份（除息年份 = 網站顯示年度）──
+                # date 欄格式 "2025-07-08" → 2025，與 FinMind 網站「年度」欄完全一致
+                date_str = str(row.get('date', '') or '')
+                year_ad  = int(date_str[:4]) if len(date_str) >= 4 and date_str[:4].isdigit() else 0
+                if year_ad < 2010:
+                    print(f"  [股利] 跳過：date={date_str}, year field={row.get('year')}")
                     continue
 
                 # ── 股票股利 ─────────────────────────────────────────
@@ -1261,26 +1253,27 @@ def fetch_dividend_data(db, stock_code='2451'):
                 stock_capital = _f(row.get('StockCapitalReserveTransfer'))
                 total_stock   = round(stock_earn + stock_stat + stock_capital, 4)
 
-                # ── 現金股利：Dividends 欄位反推（最可靠）→ 備援逐項加總 ──
-                # FinMind Dividends = 現金合計 + 股票合計 → 現金 = Dividends - total_stock
+                # ── 現金股利：Dividends 欄 = 所有現金+股票合計 → 現金 = Dividends - stock ──
                 finmind_total = _f(row.get('Dividends'))
                 if finmind_total > 0:
                     total_cash = round(max(0.0, finmind_total - total_stock), 4)
                 else:
-                    cash_earn    = _f(row.get('CashEarningsDistribution'))
-                    cash_stat    = _f(row.get('CashStatutoryReserveTransfer'))
-                    cash_capital = _f(row.get('CashCapitalReserveTransfer'))
-                    total_cash   = round(cash_earn + cash_stat + cash_capital, 4)
+                    # 備援：逐項加總（若 Dividends 欄缺值）
+                    total_cash = round(
+                        _f(row.get('CashEarningsDistribution')) +
+                        _f(row.get('CashStatutoryReserveTransfer')) +
+                        _f(row.get('CashCapitalReserveTransfer')), 4)
                     finmind_total = round(total_cash + total_stock, 4)
 
-                print(f"  {year_ad}: cash={total_cash} stock={total_stock} "
-                      f"[Dividends={row.get('Dividends')} "
+                # 每筆都印出關鍵欄位值，方便 debug
+                print(f"  {year_ad}({date_str}): cash={total_cash} stock={total_stock} "
+                      f"Dividends={row.get('Dividends')} "
                       f"CashEarnings={row.get('CashEarningsDistribution')} "
-                      f"CashCapital={row.get('CashCapitalReserveTransfer')}]")
+                      f"CashCapital={row.get('CashCapitalReserveTransfer')}")
 
                 records.append({
-                    'date':          row.get('date', ''),
-                    'year':          str(year_ad),   # 西元年，如 "2024"
+                    'date':          date_str,
+                    'year':          str(year_ad),   # 西元除息年份，如 "2025"
                     'cashDividend':  round(total_cash, 2),
                     'stockDividend': round(total_stock, 2),
                     'totalDividend': round(finmind_total, 2),
