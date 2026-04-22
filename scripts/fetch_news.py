@@ -1199,13 +1199,19 @@ def fetch_dividend_data(db, stock_code='2451'):
         records = []
         for row in rows:
             try:
+                # FinMind 現金股利三個來源：盈餘 + 法定公積 + 資本公積（三者須全部加總）
                 cash_earn    = float(row.get('CashEarningsDistribution', 0) or 0)
-                cash_reserve = float(row.get('CashStatutoryReserveTransfer', 0) or 0)
+                cash_stat    = float(row.get('CashStatutoryReserveTransfer', 0) or 0)
+                cash_capital = float(row.get('CashCapitalReserveTransfer', 0) or 0)
+                # 股票股利三個來源
                 stock_earn   = float(row.get('StockEarningsDistribution', 0) or 0)
-                stock_reserve= float(row.get('StockStatutoryReserveTransfer', 0) or 0)
-                total_cash   = round(cash_earn + cash_reserve, 4)
-                total_stock  = round(stock_earn + stock_reserve, 4)
-                total        = float(row.get('Dividends', 0) or (total_cash + total_stock) or 0)
+                stock_stat   = float(row.get('StockStatutoryReserveTransfer', 0) or 0)
+                stock_capital= float(row.get('StockCapitalReserveTransfer', 0) or 0)
+                total_cash   = round(cash_earn + cash_stat + cash_capital, 4)
+                total_stock  = round(stock_earn + stock_stat + stock_capital, 4)
+                # 若 FinMind 有直接給合計欄位則優先使用
+                finmind_total= float(row.get('Dividends', 0) or 0)
+                total        = finmind_total if finmind_total > 0 else round(total_cash + total_stock, 4)
 
                 records.append({
                     'date':          row.get('date', ''),
