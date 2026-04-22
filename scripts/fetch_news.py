@@ -1206,10 +1206,16 @@ def fetch_daily_trading(db, stock_code='2451'):
 
 def fetch_dividend_data(db, stock_code='2451'):
     """
-    從 FinMind 抓取股利配息並存入 Firebase dividends/{stock_code}
-    主資料源：TaiwanStockDividendResult（有正確現金股利合計 cash_dividend 欄）
-    備援：    TaiwanStockDividend（分項欄位加總，可能缺資本公積）
-    年份邏輯：FinMind ROC year + 1912 = 西元除息年份（如 113 + 1912 = 2025）
+    從 FinMind TaiwanStockDividend 抓取股利配息並存入 Firebase dividends/{stock_code}
+
+    ★ 現金股利計算規則：
+      CashEarningsDistribution        （盈餘分配）
+    + CashStatutoryReserveTransfer    （法定公積轉入）
+    + CashCapitalReserveTransfer      （資本公積轉入）
+    ────────────────────────────────────────────────
+      = 正確現金股利合計（不使用 Dividends 欄位，因其可能缺資本公積）
+
+    ★ 年份邏輯：ROC year + 1912 = 西元除息年（113 + 1912 = 2025）
     """
     import json as _json
     print(f"\n💵 抓取 {stock_code} 股利資料（FinMind）...")
@@ -1220,21 +1226,87 @@ def fetch_dividend_data(db, stock_code='2451'):
         except: return 0.0
 
     def _roc_to_ad(val):
-        """
-        ROC year → 西元除息年份（+1912）
-        '113年' / '113' / 113 → 2025
-        2025 → 2025
-        """
+        """ROC year → 西元除息年份（+1912）  '113年'/113 → 2025"""
         digits = ''.join(c for c in str(val or '') if c.isdigit())
         n = int(digits) if digits else 0
-        return (n + 1912) if 0 < n < 1912 else n   # +1912：盈餘年→除息年
+        return (n + 1912) if 0 < n < 1912 else n
 
-    records = {}   # key = year_str，確保同年份不重複
+    records = {}   # key = year_str
 
     # ══════════════════════════════════════════════════════════
-    # 主資料源：TaiwanStockDividendResult
-    #   欄位：date, stock_id, before_price, after_price,
-    #         stock_dividend（股票股利）, cash_dividend（現金股利，含所有來源）
+    # 主資料源：TaiwanStockDividend
+    #   現金股利 = Cash* 三項加總（不用 Dividends 欄位）
+    # ══════════════════════════════════════════════════════════
+    try:
+        url_d = (
+            'https://api.finmindtrade.com/api/v4/data'
+            f'?dataset=TaiwanStockDividend&data_id={stock_code}'
+            f'&start_date=2015-01-01&token='
+        )
+        r_d = requests.get(url_d, headers={'User-Agent': BASE_UA}, timeout=20)
+        print(f"  [Dividend] HTTP {r_d.status_code}, {len(r_d.content)} bytes")
+        rows_d = _json.loads(r_d.text).get('data', []) if r_d.status_code == 200 else []
+
+        # ── 除錯：印出所有欄位名稱及最新兩筆原始資料 ──────────────
+        if rows_d:
+            print(f"  [Dividend] 欄位名稱: {list(rows_d[0].keys())}")
+            print(f"  [Dividend] 最新 2 筆完整原始資料：")
+            for raw in rows_d[-2:]:
+                print(f"    {raw}")
+
+        for row in rows_d:
+            try:
+                year_ad  = _roc_to_ad(row.get('year', 0))
+                year_str = str(year_ad)
+                if year_ad < 2010:
+                    continue
+
+                # ── 現金股利：三項加總，完全不使用 Dividends ──
+                cash_e = _f(row.get('CashEarningsDistribution'))
+                cash_s = _f(row.get('CashStatutoryReserveTransfer'))
+                cash_c = _f(row.get('CashCapitalReserveTransfer'))
+                total_cash = round(cash_e + cash_s + cash_c, 2)
+
+                # ── 股票股利：三項加總 ──
+                stk_e = _f(row.get('StockEarningsDistribution'))
+                stk_s = _f(row.get('StockStatutoryReserveTransfer'))
+                stk_c = _f(row.get('StockCapitalReserveTransfer'))
+                total_stock = round(stk_e + stk_s + stk_c, 2)
+
+                print(
+                    f"  [Dividend] {year_ad}: "
+                    f"CashEarnings={cash_e} CashStatutory={cash_s} CashCapital={cash_c} "
+                    f"→ cash={total_cash} | "
+                    f"StkEarnings={stk_e} StkStatutory={stk_s} StkCapital={stk_c} "
+                    f"→ stock={total_stock} | "
+                    f"Dividends(棄用)={row.get('Dividends')}"
+                )
+
+                if total_cash == 0 and total_stock == 0:
+                    print(f"  [Dividend] {year_ad}: 全零，跳過")
+                    continue
+
+                # 同年份若有多筆（多次配息），則累加
+                if year_str in records:
+                    records[year_str]['cashDividend']  = round(records[year_str]['cashDividend']  + total_cash,  2)
+                    records[year_str]['stockDividend'] = round(records[year_str]['stockDividend'] + total_stock, 2)
+                    records[year_str]['totalDividend'] = round(
+                        records[year_str]['cashDividend'] + records[year_str]['stockDividend'], 2)
+                else:
+                    records[year_str] = {
+                        'date':          str(row.get('date', '')),
+                        'year':          year_str,
+                        'cashDividend':  total_cash,
+                        'stockDividend': total_stock,
+                        'totalDividend': round(total_cash + total_stock, 2),
+                    }
+            except Exception as ex:
+                print(f"  [Dividend] 解析失敗: {ex} | {row}")
+    except Exception as e:
+        print(f"  [Dividend] 失敗: {e}")
+
+    # ══════════════════════════════════════════════════════════
+    # 診斷用：TaiwanStockDividendResult（僅印出，不覆蓋主資料）
     # ══════════════════════════════════════════════════════════
     try:
         url_r = (
@@ -1246,86 +1318,12 @@ def fetch_dividend_data(db, stock_code='2451'):
         print(f"  [Result] HTTP {r_r.status_code}, {len(r_r.content)} bytes")
         rows_r = _json.loads(r_r.text).get('data', []) if r_r.status_code == 200 else []
         if rows_r:
-            print(f"  [Result] 欄位: {list(rows_r[0].keys())}")
-            print(f"  [Result] 最新兩筆: {rows_r[-2:]}")
-        for row in rows_r:
-            try:
-                date_str   = str(row.get('date', '') or '')
-                year_str   = date_str[:4] if len(date_str) >= 4 else ''
-                year_ad    = int(year_str) if year_str.isdigit() else 0
-                if year_ad < 2010:
-                    continue
-                total_cash  = _f(row.get('cash_dividend') or row.get('CashDividend'))
-                total_stock = _f(row.get('stock_dividend') or row.get('StockDividend'))
-                if total_cash == 0 and total_stock == 0:
-                    continue
-                print(f"  [Result] {year_ad}: cash={total_cash} stock={total_stock}")
-                records[str(year_ad)] = {
-                    'date': date_str, 'year': str(year_ad),
-                    'cashDividend': round(total_cash, 2),
-                    'stockDividend': round(total_stock, 2),
-                    'totalDividend': round(total_cash + total_stock, 2),
-                }
-            except Exception as ex:
-                print(f"  [Result] 解析失敗: {ex} | {row}")
+            print(f"  [Result] 欄位名稱: {list(rows_r[0].keys())}")
+            print(f"  [Result] 最新 2 筆完整原始資料（僅診斷，不寫入）：")
+            for raw in rows_r[-2:]:
+                print(f"    {raw}")
     except Exception as e:
-        print(f"  [Result] 失敗: {e}")
-
-    # ══════════════════════════════════════════════════════════
-    # 備援資料源：TaiwanStockDividend（補充 Result 缺漏的年份）
-    # 年份：ROC year（如 113年）+ 1912 = 西元除息年（2025）
-    # ══════════════════════════════════════════════════════════
-    try:
-        url_d = (
-            'https://api.finmindtrade.com/api/v4/data'
-            f'?dataset=TaiwanStockDividend&data_id={stock_code}'
-            f'&start_date=2015-01-01&token='
-        )
-        r_d = requests.get(url_d, headers={'User-Agent': BASE_UA}, timeout=20)
-        print(f"  [Dividend] HTTP {r_d.status_code}, {len(r_d.content)} bytes")
-        rows_d = _json.loads(r_d.text).get('data', []) if r_d.status_code == 200 else []
-        if rows_d:
-            print(f"  [Dividend] 欄位: {list(rows_d[0].keys())}")
-            for sample in rows_d[-2:]:
-                print(f"  [Dividend] raw: {sample}")
-        for row in rows_d:
-            try:
-                year_ad = _roc_to_ad(row.get('year', 0))
-                if year_ad < 2010:
-                    continue
-                year_str = str(year_ad)
-                if year_str in records:
-                    continue   # Result 已有此年份，跳過
-
-                total_stock = round(
-                    _f(row.get('StockEarningsDistribution')) +
-                    _f(row.get('StockStatutoryReserveTransfer')) +
-                    _f(row.get('StockCapitalReserveTransfer')), 4)
-
-                finmind_total = _f(row.get('Dividends'))
-                if finmind_total > 0:
-                    total_cash = round(max(0.0, finmind_total - total_stock), 4)
-                else:
-                    total_cash = round(
-                        _f(row.get('CashEarningsDistribution')) +
-                        _f(row.get('CashStatutoryReserveTransfer')) +
-                        _f(row.get('CashCapitalReserveTransfer')), 4)
-                    finmind_total = round(total_cash + total_stock, 4)
-
-                print(f"  [Dividend] {year_ad}: cash={total_cash} stock={total_stock} "
-                      f"Dividends={row.get('Dividends')} CashEarnings={row.get('CashEarningsDistribution')}")
-
-                records[year_str] = {
-                    'date': str(row.get('date', '')),
-                    'year': year_str,
-                    'cashDividend':  round(total_cash, 2),
-                    'stockDividend': round(total_stock, 2),
-                    'totalDividend': round(finmind_total, 2),
-                }
-            except Exception as ex:
-                print(f"  [Dividend] 解析失敗: {ex} | {row}")
-    except Exception as e:
-        print(f"  [Dividend] 失敗: {e}")
+        print(f"  [Result] 診斷失敗: {e}")
 
     # ── 儲存 ──────────────────────────────────────────────────
     final = sorted(records.values(), key=lambda x: x['year'])
@@ -1335,6 +1333,8 @@ def fetch_dividend_data(db, stock_code='2451'):
             'updatedAt': firestore.SERVER_TIMESTAMP,
         })
         print(f"  ✅ 股利已儲存 {len(final)} 筆（{final[0]['year']} ～ {final[-1]['year']}）")
+        for r in final[-3:]:
+            print(f"     {r['year']}: 現金={r['cashDividend']} 股票={r['stockDividend']} 合計={r['totalDividend']}")
     else:
         print("  ⚠ 未解析到股利資料")
 
