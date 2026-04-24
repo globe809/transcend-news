@@ -37,16 +37,9 @@ if not GEMINI_KEY:
     results['gemini'] = False
 else:
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_KEY)
-        model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash',
-            system_instruction=(
-                '你是半導體產業分析師。'
-                '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞。'
-                '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
-            )
-        )
+        from google import genai
+        from google.genai import types as genai_types
+        client = genai.Client(api_key=GEMINI_KEY)
         prompt = (
             '標題：Micron Technology Reports Record Revenue Driven by AI Memory Demand\n'
             '內文：Micron Technology announced record quarterly revenue of $8.7 billion, '
@@ -54,10 +47,22 @@ else:
             'The company raised its outlook for the full year, citing strong orders from '
             'major cloud providers.'
         )
-        response = model.generate_content(prompt)
-        summary  = response.text.strip()
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                system_instruction=(
+                    '你是半導體產業分析師。'
+                    '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞。'
+                    '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
+                ),
+                max_output_tokens=200,
+                temperature=0.2,
+            ),
+        )
+        summary = response.text.strip()
         print(f"  ✅ 連線成功！")
-        print(f"  模型：gemini-1.5-flash")
+        print(f"  模型：gemini-2.0-flash")
         print(f"  摘要輸出：")
         for line in summary.split('•'):
             if line.strip():

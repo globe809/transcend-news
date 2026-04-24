@@ -1234,19 +1234,17 @@ def summarize_us_news_with_gemini(articles, api_key, max_articles=25):
         return
 
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash',
-            system_instruction=(
-                '你是專業的半導體暨記憶體產業分析師。'
-                '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞的核心內容。'
-                '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
-                '每個重點不超過 30 字，直接輸出重點，不要有前言。'
-            )
+        from google import genai
+        from google.genai import types as genai_types
+        client = genai.Client(api_key=api_key)
+        SYSTEM_PROMPT = (
+            '你是專業的半導體暨記憶體產業分析師。'
+            '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞的核心內容。'
+            '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
+            '每個重點不超過 30 字，直接輸出重點，不要有前言。'
         )
     except ImportError:
-        print("  [Gemini] 未安裝 google-generativeai 套件，跳過摘要")
+        print("  [Gemini] 未安裝 google-genai 套件，跳過摘要")
         return
     except Exception as e:
         print(f"  [Gemini] 初始化失敗: {e}")
@@ -1269,13 +1267,21 @@ def summarize_us_news_with_gemini(articles, api_key, max_articles=25):
             continue
         try:
             prompt   = f'標題：{title}\n內文：{content[:600]}'
-            response = model.generate_content(prompt)
-            summary  = response.text.strip()
+            response = client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                    max_output_tokens=200,
+                    temperature=0.2,
+                ),
+            )
+            summary = response.text.strip()
             article['summary'] = summary
             print(f"  [{i+1}/{len(targets)}] ✓ {title[:45]}…")
         except Exception as e:
             print(f"  [{i+1}/{len(targets)}] ✗ {e}")
-        time.sleep(4)   # Gemini 免費版：每分鐘上限 15 次，間隔 4 秒確保不超限
+        time.sleep(4)   # 免費版：每分鐘上限 15 次，間隔 4 秒
 
 
 def generate_email_html(articles, now_tw):
