@@ -798,7 +798,12 @@ def fetch_stock_prices(db):
 
 
 def main():
-    mode = os.environ.get('FETCH_MODE', 'all')
+    mode          = os.environ.get('FETCH_MODE', 'all')
+    openai_key    = os.environ.get('OPENAI_API_KEY', '')
+    gmail_user    = os.environ.get('GMAIL_USER', '')
+    gmail_pw      = os.environ.get('GMAIL_APP_PASSWORD', '')
+    email_to      = os.environ.get('EMAIL_RECIPIENT', gmail_user) or 'elvis814@gmail.com'
+
     print(f"\n{'='*50}")
     print(f"創見資訊新聞監控 — 自動抓取")
     print(f"模式: {mode} | 時間: {datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime('%Y-%m-%d %H:%M:%S')} (台灣時間)")
@@ -837,6 +842,14 @@ def main():
         print(f"❌ Firebase 初始化失敗: {e}")
         sys.exit(1)
 
+    # ─── 每日郵件模式（由 daily-email.yml 觸發）──────────────────
+    if mode == 'email_report':
+        send_daily_email_report(db, gmail_user, gmail_pw, email_to)
+        print(f"\n{'='*50}")
+        print("日報完成！")
+        print(f"{'='*50}\n")
+        return
+
     # ─── 抓取新聞 ───
     sources = get_sources(mode)
     print(f"📡 開始抓取 {len(sources)} 個來源...\n")
@@ -859,6 +872,9 @@ def main():
             all_articles.append(a)
 
     print(f"\n📊 共抓取 {len(all_articles)} 則不重複新聞")
+
+    # ─── OpenAI 摘要（上游市場新聞）────────────────────────────
+    summarize_us_news_with_openai(all_articles, openai_key)
 
     # ─── 儲存到 Firestore ───
     if all_articles:
@@ -906,8 +922,8 @@ def main():
     # ─── 每日交易資料（開收盤 + 三大法人）───
     fetch_daily_trading(db, '2451')
 
-    # ─── 競品重大訊息抓取 ───
-    fetch_material_news(db)
+    # ─── 競品重大訊息抓取（MOPS 直接抓取）───
+    fetch_mops_material_news(db)
 
     print(f"\n{'='*50}")
     print("抓取完成！")
@@ -1020,79 +1036,437 @@ def fetch_quarterly_financials(db, stock_code='2451'):
         print("  ⚠ 未解析到季度損益（請把上方除錯輸出貼給開發者）")
 
 
-def fetch_material_news(db):
-    """從 Google News RSS 抓取競品重大訊息，存入 Firebase material/competitors
-    搜尋關鍵字包含：董事會、股東會、法人說明會、重大訊息
+def fetch_mops_material_news(db):
     """
-    import urllib.parse
+    從公開資訊觀測站（MOPS）直接抓取競品重大訊息
+    主資料源：MOPS ajax_t05st01 POST API
+    備援：FinMind TaiwanStockMaterial
+    存入 Firebase material/competitors
+    """
+    from bs4 import BeautifulSoup
+    import re as _re
 
     COMP_STOCKS = {
-        '2451': ('創見資訊',  '創見資訊 2451'),
-        '3260': ('威剛科技',  '威剛 3260'),
-        '4967': ('十銓科技',  '十銓科技 4967'),
-        '4973': ('廣穎電通',  '廣穎電通 4973'),
-        '5289': ('宜鼎國際',  '宜鼎國際 5289'),
-        '8271': ('宇瞻科技',  '宇瞻科技 8271'),
+        '2451': '創見資訊',
+        '3260': '威剛科技',
+        '4967': '十銓科技',
+        '4973': '廣穎電通',
+        '5289': '宜鼎國際',
+        '8271': '宇瞻科技',
     }
-    HIGHLIGHT_KW = ['董事會', '股東會', '法人說明會', '股利', '盈餘分配', '現金增資', '減資', '下市', '合併']
+    HIGHLIGHT_KW = ['董事會', '股東會', '法人說明會', '股利', '盈餘分配', '現金增資', '減資',
+                    '下市', '合併', '購併', '私募', '庫藏股', '資產重估', '重大訊息']
 
-    print(f"\n📢 抓取競品重大訊息（Google News RSS）...")
-    all_records = []
-    seen_links  = set()
+    now_tw   = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
+    roc_year = now_tw.year - 1911
+    BASE_URL = 'https://mops.twse.com.tw'
 
-    for code, (name, search_term) in COMP_STOCKS.items():
+    mops_headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Referer':      f'{BASE_URL}/mops/web/t05st01',
+        'Origin':       BASE_URL,
+        'Accept':       'text/html,application/xhtml+xml',
+        'Accept-Language': 'zh-TW,zh;q=0.9',
+    }
+    BASE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+
+    def roc_to_iso(roc_str):
+        """'114/04/24' or '114-04-24' → '2025-04-24'"""
         try:
-            query   = f'{search_term} (董事會 OR 股東會 OR 法人說明會 OR 重大訊息 OR 股利)'
-            encoded = urllib.parse.quote(query)
-            url     = f'https://news.google.com/rss/search?q={encoded}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant'
+            s = roc_str.strip().replace('-', '/')
+            parts = s.split('/')
+            return f"{int(parts[0])+1911}-{parts[1]}-{parts[2]}"
+        except Exception:
+            return roc_str
 
-            feed = feedparser.parse(url)
-            entries = feed.entries[:25]
-            print(f"  [{code} {name}] 取得 {len(entries)} 筆")
+    print(f"\n📢 抓取競品重大訊息（MOPS 公開資訊觀測站）...")
+    all_records = []
+    seen_keys   = set()
 
-            for entry in entries:
-                link  = entry.get('link', '')
-                if link in seen_links:
-                    continue
-                seen_links.add(link)
+    # ── 主資料源：MOPS ajax_t05st01 ─────────────────────────────
+    for code, name in COMP_STOCKS.items():
+        found = 0
+        for yr_off in [0, -1]:                     # 本年度 + 上年度
+            yr = roc_year + yr_off
+            try:
+                payload = (f'step=1&colorchg=1&co_id={code}'
+                           f'&year={yr}&mtype=F&b_date=&e_date=&encodeURIComponent=1')
+                resp = requests.post(
+                    f'{BASE_URL}/mops/web/ajax_t05st01',
+                    data=payload, headers=mops_headers, timeout=20
+                )
+                # MOPS 頁面多為 Big5
+                for enc in ['big5', 'utf-8', 'cp950']:
+                    try:
+                        resp.encoding = enc
+                        if '主旨' in resp.text or '發言日期' in resp.text:
+                            break
+                    except Exception:
+                        continue
 
-                title = entry.get('title', '')
-                # 去掉 Google News 標題後的「- 媒體名稱」
-                title_clean = title.rsplit(' - ', 1)[0].strip()
+                soup  = BeautifulSoup(resp.text, 'lxml')
+                # 找含「主旨」header 的表格
+                tables = soup.find_all('table')
+                for table in tables:
+                    hdrs = [th.get_text(strip=True) for th in table.find_all('th')]
+                    if not any('主旨' in h or '說明' in h for h in hdrs):
+                        continue
 
-                # 解析發布日期
-                try:
-                    dt   = datetime.datetime(*entry.published_parsed[:6],
-                                             tzinfo=datetime.timezone.utc)
-                    dt_tw = dt.astimezone(datetime.timezone(datetime.timedelta(hours=8)))
-                    date  = dt_tw.strftime('%Y-%m-%d')
-                except Exception:
-                    date = ''
+                    # 確認各欄 index
+                    date_idx    = next((i for i, h in enumerate(hdrs) if '日期' in h), None)
+                    subject_idx = next((i for i, h in enumerate(hdrs) if '主旨' in h or '說明' in h), None)
+                    if subject_idx is None:
+                        continue
 
-                highlight_kw = [kw for kw in HIGHLIGHT_KW if kw in title_clean]
-                highlight    = len(highlight_kw) > 0
+                    for row in table.find_all('tr')[1:]:
+                        tds = row.find_all('td')
+                        if len(tds) <= subject_idx:
+                            continue
 
-                all_records.append({
-                    'code':        code,
-                    'name':        name,
-                    'date':        date,
-                    'summary':     title_clean[:200],
-                    'link':        link,
-                    'highlight':   highlight,
-                    'highlightKw': highlight_kw,
-                })
-        except Exception as e:
-            print(f"  [{code}] 失敗: {e}")
+                        # 日期：從指定欄或搜尋 ROC 格式
+                        date_iso = ''
+                        if date_idx is not None and date_idx < len(tds):
+                            txt = tds[date_idx].get_text(strip=True)
+                            m = _re.search(r'\d{3}[/\-]\d{2}[/\-]\d{2}', txt)
+                            if m:
+                                date_iso = roc_to_iso(m.group())
+                        if not date_iso:
+                            for td in tds:
+                                m = _re.search(r'\d{3}[/\-]\d{2}[/\-]\d{2}', td.get_text(strip=True))
+                                if m:
+                                    date_iso = roc_to_iso(m.group())
+                                    break
+
+                        # 主旨 + 連結
+                        subj_td = tds[subject_idx]
+                        subject = subj_td.get_text(strip=True)
+                        a_tag   = subj_td.find('a')
+                        link    = ''
+                        if a_tag:
+                            href = a_tag.get('href', '') or a_tag.get('onclick', '')
+                            if href.startswith('http'):
+                                link = href
+                            elif href.startswith('/'):
+                                link = BASE_URL + href
+
+                        if not subject or len(subject) < 5 or not date_iso:
+                            continue
+                        key = f"{code}_{date_iso}_{subject[:30]}"
+                        if key in seen_keys:
+                            continue
+                        seen_keys.add(key)
+
+                        highlight_kw = [kw for kw in HIGHLIGHT_KW if kw in subject]
+                        all_records.append({
+                            'code':        code,
+                            'name':        name,
+                            'date':        date_iso,
+                            'summary':     subject[:300],
+                            'link':        link,
+                            'highlight':   len(highlight_kw) > 0,
+                            'highlightKw': highlight_kw,
+                            'source':      'MOPS',
+                        })
+                        found += 1
+
+            except Exception as e:
+                print(f"  [{code} {yr}年 MOPS] 失敗: {e}")
+
+        if found > 0:
+            print(f"  ✓ [{code} {name}] MOPS 取得 {found} 筆")
+
+    # ── 備援：FinMind TaiwanStockMaterial ────────────────────────
+    mops_codes = set(r['code'] for r in all_records)
+    missing    = [c for c in COMP_STOCKS if c not in mops_codes]
+    if missing:
+        print(f"  [FinMind 備援] MOPS 缺漏: {missing}")
+        import json as _json
+        for code in missing:
+            name = COMP_STOCKS[code]
+            try:
+                url = (f'https://api.finmindtrade.com/api/v4/data'
+                       f'?dataset=TaiwanStockMaterial&data_id={code}'
+                       f'&start_date={now_tw.year-2}-01-01&token=')
+                r = requests.get(url, headers={'User-Agent': BASE_UA}, timeout=20)
+                rows = _json.loads(r.text).get('data', []) if r.status_code == 200 else []
+                for row in rows:
+                    date_iso = str(row.get('date', ''))[:10]
+                    subject  = row.get('summary', '') or row.get('subject', '')
+                    link     = row.get('link', '')
+                    if not subject or not date_iso:
+                        continue
+                    key = f"{code}_{date_iso}_{subject[:30]}"
+                    if key in seen_keys:
+                        continue
+                    seen_keys.add(key)
+                    highlight_kw = [kw for kw in HIGHLIGHT_KW if kw in subject]
+                    all_records.append({
+                        'code': code, 'name': name, 'date': date_iso,
+                        'summary': subject[:300], 'link': link,
+                        'highlight': len(highlight_kw) > 0,
+                        'highlightKw': highlight_kw, 'source': 'FinMind',
+                    })
+                print(f"  ✓ [{code} {name}] FinMind 取得 {len(rows)} 筆")
+            except Exception as e:
+                print(f"  [{code} FinMind] 失敗: {e}")
 
     if all_records:
         all_records.sort(key=lambda x: x['date'], reverse=True)
         db.collection('material').document('competitors').set({
-            'records':   all_records[:300],
+            'records':   all_records[:500],
             'updatedAt': firestore.SERVER_TIMESTAMP,
         })
-        print(f"  ✅ 重大訊息已儲存 {len(all_records)} 筆")
+        print(f"  ✅ 重大訊息已儲存 {len(all_records)} 筆（MOPS + FinMind）")
     else:
         print("  ⚠ 未取得重大訊息")
+
+
+def summarize_us_news_with_openai(articles, api_key, max_articles=25):
+    """
+    用 OpenAI gpt-4o-mini 為上游市場新聞生成繁體中文重點摘要
+    摘要格式：•重點一 •重點二 •重點三
+    摘要存入 article['summary']，並回寫 Firestore（merge）
+    """
+    if not api_key:
+        print("  [OpenAI] 未設定 OPENAI_API_KEY，跳過摘要")
+        return
+
+    try:
+        import openai as _openai
+        client = _openai.OpenAI(api_key=api_key)
+    except ImportError:
+        print("  [OpenAI] 未安裝 openai 套件，跳過摘要")
+        return
+
+    targets = [a for a in articles
+               if a.get('cat') in ('usMarket', 'supplier') and not a.get('summary')]
+    targets = targets[:max_articles]
+
+    if not targets:
+        print("  [OpenAI] 無需摘要（all_articles 已有 summary 或無上游新聞）")
+        return
+
+    print(f"\n🤖 OpenAI 摘要生成（共 {len(targets)} 則上游市場新聞）...")
+
+    for i, article in enumerate(targets):
+        title   = article.get('title', '')
+        content = article.get('content', '')
+        if not title:
+            continue
+        try:
+            resp = client.chat.completions.create(
+                model='gpt-4o-mini',
+                messages=[
+                    {
+                        'role': 'system',
+                        'content': (
+                            '你是專業的半導體暨記憶體產業分析師。'
+                            '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞的核心內容。'
+                            '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
+                            '每個重點不超過 30 字，直接輸出重點，不要有前言。'
+                        )
+                    },
+                    {
+                        'role': 'user',
+                        'content': f'標題：{title}\n內文：{content[:600]}'
+                    }
+                ],
+                max_tokens=200,
+                temperature=0.2,
+            )
+            summary = resp.choices[0].message.content.strip()
+            article['summary'] = summary
+            print(f"  [{i+1}/{len(targets)}] ✓ {title[:45]}…")
+        except Exception as e:
+            print(f"  [{i+1}/{len(targets)}] ✗ {e}")
+        time.sleep(0.3)  # 避免觸發 rate limit
+
+
+def generate_email_html(articles, now_tw):
+    """生成上游市場日報 HTML 郵件內容"""
+    BRAND = '#960014'
+    date_str = now_tw.strftime('%Y年%m月%d日（%A）').replace(
+        'Monday','週一').replace('Tuesday','週二').replace('Wednesday','週三'
+        ).replace('Thursday','週四').replace('Friday','週五')
+
+    items_html = ''
+    for i, a in enumerate(articles, 1):
+        title   = a.get('title', '（無標題）')
+        summary = a.get('summary', '')
+        link    = a.get('link', '#')
+        source  = a.get('mediaName') or a.get('sourceName') or '未知來源'
+        brand   = a.get('brand') or ''
+
+        pub = a.get('pubDate')
+        if hasattr(pub, 'strftime'):
+            date_fmt = pub.strftime('%Y-%m-%d')
+        elif hasattr(pub, 'isoformat'):
+            date_fmt = str(pub)[:10]
+        else:
+            try:
+                date_fmt = str(pub)[:10]
+            except Exception:
+                date_fmt = '—'
+
+        # AI 摘要 → bullet list HTML
+        if summary:
+            bullets = [s.strip() for s in summary.split('•') if s.strip()]
+            bullet_html = ''.join(
+                f'<li style="margin:3px 0;color:#374151;font-size:13px;line-height:1.5">{b}</li>'
+                for b in bullets
+            )
+            summary_block = (
+                f'<ul style="margin:8px 0 0 0;padding-left:18px;list-style:disc">'
+                f'{bullet_html}</ul>'
+            )
+        else:
+            summary_block = ''
+
+        sent = a.get('sentiment', 'neutral')
+        sent_cfg = {
+            'positive': ('#dcfce7', '#16a34a', '📈 正面'),
+            'negative': ('#fee2e2', '#dc2626', '📉 負面'),
+        }.get(sent, ('#f3f4f6', '#6b7280', '⬛ 中立'))
+
+        items_html += f'''
+        <div style="background:#ffffff;border:1px solid #e5e7eb;border-left:4px solid {BRAND};
+                    border-radius:8px;padding:16px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+            <span style="background:{BRAND};color:white;font-size:11px;font-weight:700;
+                         padding:2px 10px;border-radius:20px;white-space:nowrap">#{i}</span>
+            {f'<span style="background:#f3f4f6;color:#374151;font-size:11px;padding:2px 8px;border-radius:4px">{brand}</span>' if brand else ''}
+            <span style="color:#9ca3af;font-size:12px">{source}</span>
+            <span style="color:#d1d5db;font-size:12px">·</span>
+            <span style="color:#9ca3af;font-size:12px">{date_fmt}</span>
+            <span style="margin-left:auto;background:{sent_cfg[0]};color:{sent_cfg[1]};
+                         font-size:11px;padding:2px 8px;border-radius:4px;white-space:nowrap">
+              {sent_cfg[2]}
+            </span>
+          </div>
+          <a href="{link}" target="_blank"
+             style="font-size:15px;font-weight:600;color:#111827;text-decoration:none;
+                    line-height:1.4;display:block;margin-bottom:4px">
+            {title}
+          </a>
+          {summary_block}
+          <a href="{link}" target="_blank"
+             style="display:inline-block;margin-top:10px;font-size:12px;color:{BRAND};
+                    text-decoration:underline;font-weight:500">
+            查看原文 →
+          </a>
+        </div>
+        '''
+
+    return f'''<!DOCTYPE html>
+<html lang="zh-TW">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;
+             font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans TC',sans-serif">
+  <div style="max-width:640px;margin:24px auto;padding:0 16px">
+
+    <!-- Header -->
+    <div style="background:{BRAND};border-radius:12px 12px 0 0;padding:24px 28px">
+      <h1 style="color:white;margin:0 0 4px;font-size:20px;font-weight:700">
+        📊 上游市場日報
+      </h1>
+      <p style="color:rgba(255,255,255,0.8);margin:0;font-size:13px">
+        {date_str} &nbsp;|&nbsp; 創見資訊（2451）新聞監控系統
+      </p>
+    </div>
+
+    <!-- Body -->
+    <div style="background:white;border-radius:0 0 12px 12px;padding:24px 28px;
+                border:1px solid #e5e7eb;border-top:none">
+      <p style="color:#6b7280;font-size:13px;margin:0 0 20px">
+        以下為今日上游供應鏈及 DRAM / Flash 市場最重要的 <strong>5 則新聞</strong>，
+        附 AI 重點摘要：
+      </p>
+      {items_html}
+      <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px">
+      <p style="color:#9ca3af;font-size:11px;text-align:center;margin:0;line-height:1.8">
+        此為自動發送郵件 · 由 GitHub Actions 於每個工作日 <strong>15:00</strong> 寄出<br>
+        如需取消訂閱，請至 GitHub Actions 停用 <code>daily-email.yml</code> workflow
+      </p>
+    </div>
+
+  </div>
+</body>
+</html>'''
+
+
+def send_daily_email_report(db, gmail_user, gmail_app_password, recipient):
+    """
+    從 Firestore 取出最新上游市場新聞 Top 5，發送 HTML 日報郵件
+    排序優先順序：有 AI 摘要 > 情緒（正面優先）> 發布時間
+    """
+    import smtplib
+    import ssl
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+
+    print(f"\n📧 準備發送上游市場日報...")
+
+    if not gmail_user or not gmail_app_password:
+        print("  ⚠ 未設定 GMAIL_USER / GMAIL_APP_PASSWORD，跳過")
+        return
+
+    now_tw  = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
+    cutoff  = now_tw - datetime.timedelta(days=1)
+
+    # 從 Firestore 取最近 100 筆，在 Python 端過濾
+    try:
+        docs = (db.collection('news')
+                .order_by('pubDate', direction=firestore.Query.DESCENDING)
+                .limit(100)
+                .stream())
+        all_news = [doc.to_dict() for doc in docs]
+    except Exception as e:
+        print(f"  ✗ Firestore 查詢失敗: {e}")
+        return
+
+    # 過濾上游市場 & 今日
+    us_news = [a for a in all_news if a.get('cat') in ('usMarket', 'supplier')]
+    print(f"  取得 {len(us_news)} 則上游市場新聞")
+
+    if not us_news:
+        print("  ⚠ 無上游市場新聞，跳過寄信")
+        return
+
+    # 排序：有摘要 > 正面 > 最新
+    def sort_key(a):
+        has_summary = 1 if a.get('summary') else 0
+        is_positive = 1 if a.get('sentiment') == 'positive' else 0
+        pub = a.get('pubDate')
+        if hasattr(pub, 'isoformat'):
+            ts = pub.isoformat()
+        else:
+            ts = str(pub or '')
+        return (has_summary, is_positive, ts)
+
+    us_news.sort(key=sort_key, reverse=True)
+    top5 = us_news[:5]
+
+    # 生成 HTML
+    html = generate_email_html(top5, now_tw)
+
+    # 組裝郵件
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = (f"📊 上游市場日報 {now_tw.strftime('%Y/%m/%d')} "
+                      f"| 創見資訊新聞監控")
+    msg['From']    = gmail_user
+    msg['To']      = recipient
+    msg.attach(MIMEText(html, 'html', 'utf-8'))
+
+    # 寄信（Gmail SMTP SSL port 465）
+    try:
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ctx) as server:
+            server.login(gmail_user, gmail_app_password)
+            server.send_message(msg)
+        print(f"  ✅ 日報已寄出 → {recipient}（{len(top5)} 則新聞）")
+    except Exception as e:
+        print(f"  ✗ 寄信失敗: {e}")
 
 
 def fetch_daily_trading(db, stock_code='2451'):
