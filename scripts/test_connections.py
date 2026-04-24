@@ -36,18 +36,33 @@ else:
     try:
         from google import genai
         client = genai.Client(api_key=GEMINI_KEY)
-        resp = client.models.generate_content(
-            model='gemini-2.0-flash',
-            contents=(
-                '你是半導體產業分析師。用繁體中文，2個重點條列摘要以下英文新聞：\n'
-                '標題：TrendForce: DRAM Prices Expected to Rise in Q3 2025\n'
-                '格式：•重點一 •重點二（用 • 分隔，不要換行）'
-            ),
-        )
-        summary = resp.text.strip()
-        print(f"  ✅ Gemini API 連線成功！")
-        print(f"  模型：gemini-2.0-flash")
-        print(f"  摘要測試結果：{summary}")
+        # 依序嘗試可用模型
+        MODELS = ['gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-flash-latest']
+        success_model = None
+        summary = None
+        last_err = None
+        for m in MODELS:
+            try:
+                resp = client.models.generate_content(
+                    model=m,
+                    contents=(
+                        '你是半導體產業分析師。用繁體中文，2個重點條列摘要以下英文新聞：\n'
+                        '標題：TrendForce: DRAM Prices Expected to Rise in Q3 2025\n'
+                        '格式：•重點一 •重點二（用 • 分隔，不要換行）'
+                    ),
+                )
+                summary = resp.text.strip()
+                success_model = m
+                break
+            except Exception as e:
+                last_err = e
+                print(f"  模型 {m} 失敗：{e}")
+        if success_model:
+            print(f"  ✅ Gemini API 連線成功！")
+            print(f"  模型：{success_model}")
+            print(f"  摘要測試結果：{summary}")
+        else:
+            raise last_err
         results['gemini'] = True
     except Exception as e:
         print(f"  ✗ 失敗：{e}")

@@ -1254,7 +1254,22 @@ def summarize_us_news_with_gemini(articles, api_key, max_articles=20):
         '標題：{title}\n內文：{content}'
     )
 
-    MODEL = 'gemini-2.0-flash'
+    # 依序嘗試可用模型，找到第一個可用的
+    MODELS = ['gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-flash-latest']
+    MODEL = None
+    for m in MODELS:
+        try:
+            test_resp = client.models.generate_content(model=m, contents='test')
+            MODEL = m
+            print(f"  [Gemini] 使用模型：{MODEL}")
+            break
+        except Exception as e:
+            if 'NOT_FOUND' in str(e) or 'no longer available' in str(e):
+                continue
+            MODEL = m  # 其他錯誤（如 rate limit）照用，不換模型
+            break
+    if not MODEL:
+        MODEL = 'gemini-1.5-flash'
 
     for i, article in enumerate(targets):
         title   = article.get('title', '')
