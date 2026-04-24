@@ -55,7 +55,7 @@ jobs:
       - name: 抓取新聞並儲存到 Firebase
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           FETCH_MODE: ${{ env.FETCH_MODE }}
         run: python scripts/fetch_news.py
 
