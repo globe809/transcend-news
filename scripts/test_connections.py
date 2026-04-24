@@ -37,7 +37,7 @@ else:
         from google import genai
         client = genai.Client(api_key=GEMINI_KEY)
         # 依序嘗試可用模型
-        MODELS = ['gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-flash-latest']
+        MODELS = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash-exp']
         success_model = None
         summary = None
         last_err = None
