@@ -1,12 +1,9 @@
 """
 連線測試腳本
-測試：
-  1. Groq API（llama-3.1-8b-instant 摘要一則新聞，完全免費）
-  2. Gmail SMTP（寄一封測試信）
+測試：Gmail SMTP（寄一封測試信）+ Gemini API
 
 執行方式：
-  GROQ_API_KEY=xxx GMAIL_USER=xxx@gmail.com GMAIL_APP_PASSWORD=xxx \
-  python scripts/test_connections.py
+  GMAIL_USER=xxx@gmail.com GMAIL_APP_PASSWORD=xxx GEMINI_API_KEY=xxx python scripts/test_connections.py
 
 GitHub Actions 手動觸發：見 .github/workflows/test-connections.yml
 """
@@ -18,74 +15,55 @@ import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-GROQ_KEY   = os.environ.get('GROQ_API_KEY', '')
-GMAIL_USER = os.environ.get('GMAIL_USER', '')
-GMAIL_PW   = os.environ.get('GMAIL_APP_PASSWORD', '')
-EMAIL_TO   = os.environ.get('EMAIL_RECIPIENT', GMAIL_USER) or 'elvis814@gmail.com'
+GMAIL_USER  = os.environ.get('GMAIL_USER', '')
+GMAIL_PW    = os.environ.get('GMAIL_APP_PASSWORD', '')
+EMAIL_TO    = os.environ.get('EMAIL_RECIPIENT', GMAIL_USER) or 'elvis814@gmail.com'
+GEMINI_KEY  = os.environ.get('GEMINI_API_KEY', '')
 
 results = {}
 
 # ══════════════════════════════════════════════
-# 測試 1：Google Gemini API
+# 測試：Gemini API
 # ══════════════════════════════════════════════
 print("\n" + "="*50)
-print("測試 1：Groq API 連線")
+print("測試：Gemini API 摘要")
 print("="*50)
 
-if not GROQ_KEY:
-    print("  ✗ 未設定 GROQ_API_KEY")
-    print("  💡 前往 https://console.groq.com 免費申請（不需信用卡）")
-    results['groq'] = False
+if not GEMINI_KEY:
+    print("  ✗ 未設定 GEMINI_API_KEY")
+    results['gemini'] = False
 else:
     try:
-        from groq import Groq
-        client = Groq(api_key=GROQ_KEY)
-        resp = client.chat.completions.create(
-            model='llama-3.1-8b-instant',
-            messages=[
-                {
-                    'role': 'system',
-                    'content': (
-                        '你是半導體產業分析師。'
-                        '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞。'
-                        '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
-                    )
-                },
-                {
-                    'role': 'user',
-                    'content': (
-                        '標題：Micron Technology Reports Record Revenue Driven by AI Memory Demand\n'
-                        '內文：Micron Technology announced record quarterly revenue of $8.7 billion, '
-                        'driven by surging demand for high-bandwidth memory chips used in AI servers. '
-                        'The company raised its outlook for the full year, citing strong orders from '
-                        'major cloud providers.'
-                    )
-                }
-            ],
-            max_tokens=200,
-            temperature=0.2,
+        from google import genai
+        client = genai.Client(api_key=GEMINI_KEY)
+        resp = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=(
+                '你是半導體產業分析師。用繁體中文，2個重點條列摘要以下英文新聞：\n'
+                '標題：TrendForce: DRAM Prices Expected to Rise in Q3 2025\n'
+                '格式：•重點一 •重點二（用 • 分隔，不要換行）'
+            ),
         )
-        summary = resp.choices[0].message.content.strip()
-        model   = resp.model
-        tokens  = resp.usage.total_tokens
-        print(f"  ✅ 連線成功！")
-        print(f"  模型：{model}")
-        print(f"  消耗 Token：{tokens}")
-        print(f"  摘要輸出：")
-        for line in summary.split('•'):
-            if line.strip():
-                print(f"    • {line.strip()}")
-        results['groq'] = True
+        summary = resp.text.strip()
+        print(f"  ✅ Gemini API 連線成功！")
+        print(f"  模型：gemini-2.0-flash")
+        print(f"  摘要測試結果：{summary}")
+        results['gemini'] = True
     except Exception as e:
         print(f"  ✗ 失敗：{e}")
-        results['groq'] = False
-
+        if 'RESOURCE_EXHAUSTED' in str(e) or 'limit' in str(e).lower():
+            print("  💡 額度不足，請確認：")
+            print("     1. API Key 是否來自 aistudio.google.com")
+            print("     2. 該 Google 帳號是否有啟用付費方案或 Gemini Advanced")
+        elif 'API_KEY_INVALID' in str(e):
+            print("  💡 API Key 無效，請重新到 aistudio.google.com 產生")
+        results['gemini'] = False
 
 # ══════════════════════════════════════════════
-# 測試 2：Gmail SMTP
+# 測試：Gmail SMTP
 # ══════════════════════════════════════════════
 print("\n" + "="*50)
-print("測試 2：Gmail SMTP 寄信")
+print("測試：Gmail SMTP 寄信")
 print("="*50)
 
 if not GMAIL_USER or not GMAIL_PW:
@@ -93,16 +71,26 @@ if not GMAIL_USER or not GMAIL_PW:
     results['gmail'] = False
 else:
     try:
+        gemini_status = '✅ 通過' if results.get('gemini') else '✗ 未測試或失敗'
         html = f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="font-family:sans-serif;max-width:500px;margin:40px auto;color:#111">
   <div style="background:#960014;color:white;padding:20px;border-radius:8px 8px 0 0">
-    <h2 style="margin:0">✅ Gmail 連線測試成功</h2>
+    <h2 style="margin:0">✅ 連線測試成功</h2>
   </div>
   <div style="border:1px solid #e5e7eb;border-top:none;padding:20px;border-radius:0 0 8px 8px">
     <p>這是由 <strong>創見資訊（2451）新聞監控系統</strong> 發送的測試郵件。</p>
-    <p>如果你看到這封信，代表 Gmail SMTP 設定正確，每日上游市場日報將可正常寄出。</p>
-    <hr style="border:none;border-top:1px solid #f3f4f6">
+    <table style="width:100%;border-collapse:collapse;margin-top:12px">
+      <tr style="background:#f9fafb">
+        <td style="padding:8px 12px;border:1px solid #e5e7eb">Gmail SMTP</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb">✅ 通過</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb">Gemini API</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb">{gemini_status}</td>
+      </tr>
+    </table>
+    <hr style="border:none;border-top:1px solid #f3f4f6;margin-top:16px">
     <p style="color:#9ca3af;font-size:12px">
       寄件帳號：{GMAIL_USER}<br>
       收件帳號：{EMAIL_TO}
@@ -111,7 +99,7 @@ else:
 </body></html>"""
 
         msg = MIMEMultipart('alternative')
-        msg['Subject'] = '✅ 連線測試｜創見資訊新聞監控 Gmail SMTP'
+        msg['Subject'] = '✅ 連線測試｜創見資訊新聞監控'
         msg['From']    = GMAIL_USER
         msg['To']      = EMAIL_TO
         msg.attach(MIMEText(html, 'html', 'utf-8'))
@@ -136,16 +124,15 @@ else:
         print(f"  ✗ 失敗：{e}")
         results['gmail'] = False
 
-
 # ══════════════════════════════════════════════
 # 總結
 # ══════════════════════════════════════════════
 print("\n" + "="*50)
-print("測試結果總結")
+print("測試結果")
 print("="*50)
-print(f"  Groq API  ：{'✅ 通過' if results.get('groq') else '✗ 失敗'}")
+print(f"  Gemini API：{'✅ 通過' if results.get('gemini') else '✗ 失敗'}")
 print(f"  Gmail SMTP：{'✅ 通過' if results.get('gmail') else '✗ 失敗'}")
 print()
 
 if not all(results.values()):
-    sys.exit(1)   # 讓 GitHub Actions 顯示失敗狀態
+    sys.exit(1)

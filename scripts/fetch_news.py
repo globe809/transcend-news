@@ -105,21 +105,11 @@ def get_sources(mode):
         {'label': 'Google-非凡財經創見',       'url': 'https://news.google.com/rss/search?q=創見+site:ustv.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'transcend'},
     ]
     us_market = [
-        # ─── 上游供應商（英文）───
-        {'label': 'Samsung Memory EN',   'url': 'https://news.google.com/rss/search?q=Samsung+memory+semiconductor&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
-        {'label': 'Micron EN',           'url': 'https://news.google.com/rss/search?q=Micron+Technology+memory&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
-        {'label': 'SK Hynix EN',         'url': 'https://news.google.com/rss/search?q=SK+Hynix+memory+semiconductor&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
-        {'label': 'Kioxia EN',           'url': 'https://news.google.com/rss/search?q=Kioxia+flash+storage&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
-        {'label': 'SanDisk WD EN',       'url': 'https://news.google.com/rss/search?q=SanDisk+OR+Western+Digital+NAND+flash&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
-        # ─── DRAM 市場趨勢 ───
-        {'label': 'DRAM Market Trend',   'url': 'https://news.google.com/rss/search?q=DRAM+market+trend+price+supply&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
-        {'label': 'DRAM Industry',       'url': 'https://news.google.com/rss/search?q=DRAM+industry+demand+outlook&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
-        # ─── Flash 市場趨勢 ───
-        {'label': 'NAND Flash Trend',    'url': 'https://news.google.com/rss/search?q=NAND+Flash+market+trend+price&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
-        {'label': 'Flash Storage Market','url': 'https://news.google.com/rss/search?q=flash+storage+market+outlook+supply&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
-        # ─── Transcend Information ───
-        {'label': 'Transcend Info EN',   'url': 'https://news.google.com/rss/search?q="Transcend+Information"&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
-        {'label': 'Transcend Memory EN', 'url': 'https://news.google.com/rss/search?q=Transcend+memory+storage+flash&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
+        # ─── TrendForce 市場研究（唯一上游市場來源）───
+        {'label': 'TrendForce',          'url': 'https://www.trendforce.com/rss', 'cat': 'usMarket'},
+        {'label': 'TrendForce DRAM',     'url': 'https://news.google.com/rss/search?q=TrendForce+DRAM+memory&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
+        {'label': 'TrendForce NAND',     'url': 'https://news.google.com/rss/search?q=TrendForce+NAND+flash+storage&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
+        {'label': 'TrendForce Flash',    'url': 'https://news.google.com/rss/search?q=TrendForce+flash+storage+market&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
     ]
     competitors = [
         # ─── 競品：僅中文 ───
@@ -799,10 +789,10 @@ def fetch_stock_prices(db):
 
 def main():
     mode          = os.environ.get('FETCH_MODE', 'all')
-    groq_key      = os.environ.get('GROQ_API_KEY', '')
     gmail_user    = os.environ.get('GMAIL_USER', '')
     gmail_pw      = os.environ.get('GMAIL_APP_PASSWORD', '')
     email_to      = os.environ.get('EMAIL_RECIPIENT', gmail_user) or 'elvis814@gmail.com'
+    gemini_key    = os.environ.get('GEMINI_API_KEY', '')
 
     print(f"\n{'='*50}")
     print(f"創見資訊新聞監控 — 自動抓取")
@@ -873,8 +863,11 @@ def main():
 
     print(f"\n📊 共抓取 {len(all_articles)} 則不重複新聞")
 
-    # ─── Groq 摘要（上游市場新聞）──────────────────────────────
-    summarize_us_news_with_groq(all_articles, groq_key)
+    # ─── Gemini 摘要（上游市場新聞）───
+    if gemini_key:
+        summarize_us_news_with_gemini(all_articles, gemini_key)
+    else:
+        print("\n  [Gemini] 未設定 GEMINI_API_KEY，跳過摘要")
 
     # ─── 儲存到 Firestore ───
     if all_articles:
@@ -1222,25 +1215,25 @@ def fetch_mops_material_news(db):
         print("  ⚠ 未取得重大訊息")
 
 
-def summarize_us_news_with_groq(articles, api_key, max_articles=25):
+def summarize_us_news_with_gemini(articles, api_key, max_articles=20):
     """
-    用 Groq（llama-3.1-8b-instant）為上游市場新聞生成繁體中文重點摘要
+    用 Gemini（gemini-2.0-flash）為上游市場新聞生成繁體中文重點摘要
     摘要格式：•重點一 •重點二 •重點三
     摘要存入 article['summary']
-    免費額度：每天 14,400 次，每分鐘 30 次（完全免費，不需信用卡）
+    需要 GEMINI_API_KEY（從 aistudio.google.com 產生）
     """
     if not api_key:
-        print("  [Groq] 未設定 GROQ_API_KEY，跳過摘要")
+        print("  [Gemini] 未設定 GEMINI_API_KEY，跳過摘要")
         return
 
     try:
-        from groq import Groq
-        client = Groq(api_key=api_key)
+        from google import genai
+        client = genai.Client(api_key=api_key)
     except ImportError:
-        print("  [Groq] 未安裝 groq 套件，跳過摘要")
+        print("  [Gemini] 未安裝 google-genai 套件，跳過摘要")
         return
     except Exception as e:
-        print(f"  [Groq] 初始化失敗: {e}")
+        print(f"  [Gemini] 初始化失敗: {e}")
         return
 
     targets = [a for a in articles
@@ -1248,17 +1241,20 @@ def summarize_us_news_with_groq(articles, api_key, max_articles=25):
     targets = targets[:max_articles]
 
     if not targets:
-        print("  [Groq] 無需摘要（無上游新聞或已有 summary）")
+        print("  [Gemini] 無需摘要（無上游新聞或已有 summary）")
         return
 
-    print(f"\n🤖 Groq 摘要生成（共 {len(targets)} 則上游市場新聞）...")
+    print(f"\n🤖 Gemini 摘要生成（共 {len(targets)} 則上游市場新聞）...")
 
-    SYSTEM_PROMPT = (
+    PROMPT_TEMPLATE = (
         '你是專業的半導體暨記憶體產業分析師。'
         '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞的核心內容。'
         '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
-        '每個重點不超過 30 字，直接輸出重點，不要有前言。'
+        '每個重點不超過 30 字，直接輸出重點，不要有前言。\n\n'
+        '標題：{title}\n內文：{content}'
     )
+
+    MODEL = 'gemini-2.0-flash'
 
     for i, article in enumerate(targets):
         title   = article.get('title', '')
@@ -1266,21 +1262,17 @@ def summarize_us_news_with_groq(articles, api_key, max_articles=25):
         if not title:
             continue
         try:
-            resp = client.chat.completions.create(
-                model='llama-3.1-8b-instant',
-                messages=[
-                    {'role': 'system', 'content': SYSTEM_PROMPT},
-                    {'role': 'user',   'content': f'標題：{title}\n內文：{content[:600]}'},
-                ],
-                max_tokens=200,
-                temperature=0.2,
+            prompt = PROMPT_TEMPLATE.format(title=title, content=content[:800])
+            resp = client.models.generate_content(
+                model=MODEL,
+                contents=prompt,
             )
-            summary = resp.choices[0].message.content.strip()
+            summary = resp.text.strip()
             article['summary'] = summary
             print(f"  [{i+1}/{len(targets)}] ✓ {title[:45]}…")
         except Exception as e:
             print(f"  [{i+1}/{len(targets)}] ✗ {e}")
-        time.sleep(2)   # 每分鐘上限 30 次，間隔 2 秒確保不超限
+        time.sleep(1)   # 避免超過 rate limit
 
 
 def generate_email_html(articles, now_tw):
@@ -1433,8 +1425,10 @@ def send_daily_email_report(db, gmail_user, gmail_app_password, recipient):
         print("  ⚠ 無上游市場新聞，跳過寄信")
         return
 
-    # 排序：有摘要 > 正面 > 最新
+    # 排序：TrendForce 優先 > 有摘要 > 正面 > 最新
     def sort_key(a):
+        source = str(a.get('sourceName') or a.get('mediaName') or '')
+        is_trendforce = 1 if 'trendforce' in source.lower() else 0
         has_summary = 1 if a.get('summary') else 0
         is_positive = 1 if a.get('sentiment') == 'positive' else 0
         pub = a.get('pubDate')
@@ -1442,7 +1436,7 @@ def send_daily_email_report(db, gmail_user, gmail_app_password, recipient):
             ts = pub.isoformat()
         else:
             ts = str(pub or '')
-        return (has_summary, is_positive, ts)
+        return (is_trendforce, has_summary, is_positive, ts)
 
     us_news.sort(key=sort_key, reverse=True)
     top5 = us_news[:5]
