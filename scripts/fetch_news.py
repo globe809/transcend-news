@@ -1255,7 +1255,7 @@ def summarize_us_news_with_gemini(articles, api_key, max_articles=20):
     )
 
     # 依序嘗試可用模型，找到第一個可用的
-    MODELS = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash-exp']
+    MODELS = ['gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-flash-latest']
     MODEL = None
     for m in MODELS:
         try:
@@ -1269,7 +1269,7 @@ def summarize_us_news_with_gemini(articles, api_key, max_articles=20):
             MODEL = m  # 其他錯誤（如 rate limit）照用，不換模型
             break
     if not MODEL:
-        MODEL = 'gemini-2.0-flash'
+        MODEL = 'gemini-1.5-flash'
 
     for i, article in enumerate(targets):
         title   = article.get('title', '')

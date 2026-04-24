@@ -36,33 +36,37 @@ else:
     try:
         from google import genai
         client = genai.Client(api_key=GEMINI_KEY)
-        # 依序嘗試可用模型
-        MODELS = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash-exp']
-        success_model = None
-        summary = None
-        last_err = None
-        for m in MODELS:
-            try:
-                resp = client.models.generate_content(
-                    model=m,
-                    contents=(
-                        '你是半導體產業分析師。用繁體中文，2個重點條列摘要以下英文新聞：\n'
-                        '標題：TrendForce: DRAM Prices Expected to Rise in Q3 2025\n'
-                        '格式：•重點一 •重點二（用 • 分隔，不要換行）'
-                    ),
-                )
-                summary = resp.text.strip()
-                success_model = m
-                break
-            except Exception as e:
-                last_err = e
-                print(f"  模型 {m} 失敗：{e}")
-        if success_model:
-            print(f"  ✅ Gemini API 連線成功！")
-            print(f"  模型：{success_model}")
-            print(f"  摘要測試結果：{summary}")
-        else:
-            raise last_err
+        # 列出可用模型，找出支援 generateContent 的 gemini flash 模型
+        print("  🔍 查詢可用模型...")
+        available = []
+        for m in client.models.list():
+            name = m.name  # 格式如 models/gemini-2.5-flash
+            methods = getattr(m, 'supported_actions', None) or getattr(m, 'supported_generation_methods', [])
+            if 'generateContent' in str(methods) and 'gemini' in name.lower():
+                available.append(name)
+                print(f"    找到：{name}")
+
+        if not available:
+            raise Exception("找不到任何可用的 Gemini 模型")
+
+        # 優先選 flash 模型，越新越好
+        preferred = [m for m in available if 'flash' in m and 'thinking' not in m]
+        MODEL = (preferred or available)[0]
+        # model name 可能含 "models/" 前綴，去掉
+        MODEL_ID = MODEL.replace('models/', '')
+        print(f"  ✅ 選用模型：{MODEL_ID}")
+
+        resp = client.models.generate_content(
+            model=MODEL_ID,
+            contents=(
+                '你是半導體產業分析師。用繁體中文，2個重點條列摘要以下英文新聞：\n'
+                '標題：TrendForce: DRAM Prices Expected to Rise in Q3 2025\n'
+                '格式：•重點一 •重點二（用 • 分隔，不要換行）'
+            ),
+        )
+        summary = resp.text.strip()
+        print(f"  ✅ Gemini API 連線成功！")
+        print(f"  摘要測試結果：{summary}")
         results['gemini'] = True
     except Exception as e:
         print(f"  ✗ 失敗：{e}")
