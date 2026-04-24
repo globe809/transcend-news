@@ -1,11 +1,11 @@
 """
 連線測試腳本
 測試：
-  1. Google Gemini API（gemini-1.5-flash 摘要一則新聞）
+  1. Groq API（llama-3.1-8b-instant 摘要一則新聞，完全免費）
   2. Gmail SMTP（寄一封測試信）
 
 執行方式：
-  GEMINI_API_KEY=xxx GMAIL_USER=xxx@gmail.com GMAIL_APP_PASSWORD=xxx \
+  GROQ_API_KEY=xxx GMAIL_USER=xxx@gmail.com GMAIL_APP_PASSWORD=xxx \
   python scripts/test_connections.py
 
 GitHub Actions 手動觸發：見 .github/workflows/test-connections.yml
@@ -18,7 +18,7 @@ import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-GEMINI_KEY = os.environ.get('GEMINI_API_KEY', '')
+GROQ_KEY   = os.environ.get('GROQ_API_KEY', '')
 GMAIL_USER = os.environ.get('GMAIL_USER', '')
 GMAIL_PW   = os.environ.get('GMAIL_APP_PASSWORD', '')
 EMAIL_TO   = os.environ.get('EMAIL_RECIPIENT', GMAIL_USER) or 'elvis814@gmail.com'
@@ -29,66 +29,56 @@ results = {}
 # 測試 1：Google Gemini API
 # ══════════════════════════════════════════════
 print("\n" + "="*50)
-print("測試 1：Google Gemini API 連線")
+print("測試 1：Groq API 連線")
 print("="*50)
 
-if not GEMINI_KEY:
-    print("  ✗ 未設定 GEMINI_API_KEY")
-    results['gemini'] = False
+if not GROQ_KEY:
+    print("  ✗ 未設定 GROQ_API_KEY")
+    print("  💡 前往 https://console.groq.com 免費申請（不需信用卡）")
+    results['groq'] = False
 else:
     try:
-        from google import genai
-        from google.genai import types as genai_types
-        client = genai.Client(api_key=GEMINI_KEY)
-        prompt = (
-            '標題：Micron Technology Reports Record Revenue Driven by AI Memory Demand\n'
-            '內文：Micron Technology announced record quarterly revenue of $8.7 billion, '
-            'driven by surging demand for high-bandwidth memory chips used in AI servers. '
-            'The company raised its outlook for the full year, citing strong orders from '
-            'major cloud providers.'
+        from groq import Groq
+        client = Groq(api_key=GROQ_KEY)
+        resp = client.chat.completions.create(
+            model='llama-3.1-8b-instant',
+            messages=[
+                {
+                    'role': 'system',
+                    'content': (
+                        '你是半導體產業分析師。'
+                        '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞。'
+                        '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
+                    )
+                },
+                {
+                    'role': 'user',
+                    'content': (
+                        '標題：Micron Technology Reports Record Revenue Driven by AI Memory Demand\n'
+                        '內文：Micron Technology announced record quarterly revenue of $8.7 billion, '
+                        'driven by surging demand for high-bandwidth memory chips used in AI servers. '
+                        'The company raised its outlook for the full year, citing strong orders from '
+                        'major cloud providers.'
+                    )
+                }
+            ],
+            max_tokens=200,
+            temperature=0.2,
         )
-        # 依序嘗試可用模型
-        MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite']
-        success_model = None
-        summary = None
-        for m in MODELS:
-            try:
-                print(f"  嘗試模型：{m} ...")
-                response = client.models.generate_content(
-                    model=m,
-                    contents=prompt,
-                    config=genai_types.GenerateContentConfig(
-                        system_instruction=(
-                            '你是半導體產業分析師。'
-                            '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞。'
-                            '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
-                        ),
-                        max_output_tokens=200,
-                        temperature=0.2,
-                    ),
-                )
-                summary = response.text.strip()
-                success_model = m
-                break
-            except Exception as me:
-                print(f"    ✗ {m} 失敗：{me}")
-
-        if success_model:
-            print(f"  ✅ 連線成功！使用模型：{success_model}")
-            print(f"  摘要輸出：")
-            for line in summary.split('•'):
-                if line.strip():
-                    print(f"    • {line.strip()}")
-            results['gemini'] = True
-            # 輸出建議寫入程式的模型名稱
-            print(f"\n  💡 請記下可用模型：{success_model}")
-        else:
-            print(f"  ✗ 所有模型均失敗，請確認 API Key 是否從 AI Studio 建立")
-            print(f"  💡 前往 https://aistudio.google.com/apikey 重新建立 Key")
-            results['gemini'] = False
+        summary = resp.choices[0].message.content.strip()
+        model   = resp.model
+        tokens  = resp.usage.total_tokens
+        print(f"  ✅ 連線成功！")
+        print(f"  模型：{model}")
+        print(f"  消耗 Token：{tokens}")
+        print(f"  摘要輸出：")
+        for line in summary.split('•'):
+            if line.strip():
+                print(f"    • {line.strip()}")
+        results['groq'] = True
     except Exception as e:
         print(f"  ✗ 失敗：{e}")
-        results['gemini'] = False
+        results['groq'] = False
 
 
 # ══════════════════════════════════════════════
@@ -153,7 +143,7 @@ else:
 print("\n" + "="*50)
 print("測試結果總結")
 print("="*50)
-print(f"  Gemini API：{'✅ 通過' if results.get('gemini') else '✗ 失敗'}")
+print(f"  Groq API  ：{'✅ 通過' if results.get('groq') else '✗ 失敗'}")
 print(f"  Gmail SMTP：{'✅ 通過' if results.get('gmail') else '✗ 失敗'}")
 print()
 

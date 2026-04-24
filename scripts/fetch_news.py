@@ -799,7 +799,7 @@ def fetch_stock_prices(db):
 
 def main():
     mode          = os.environ.get('FETCH_MODE', 'all')
-    gemini_key    = os.environ.get('GEMINI_API_KEY', '')
+    groq_key      = os.environ.get('GROQ_API_KEY', '')
     gmail_user    = os.environ.get('GMAIL_USER', '')
     gmail_pw      = os.environ.get('GMAIL_APP_PASSWORD', '')
     email_to      = os.environ.get('EMAIL_RECIPIENT', gmail_user) or 'elvis814@gmail.com'
@@ -873,8 +873,8 @@ def main():
 
     print(f"\n📊 共抓取 {len(all_articles)} 則不重複新聞")
 
-    # ─── Gemini 摘要（上游市場新聞）────────────────────────────
-    summarize_us_news_with_gemini(all_articles, gemini_key)
+    # ─── Groq 摘要（上游市場新聞）──────────────────────────────
+    summarize_us_news_with_groq(all_articles, groq_key)
 
     # ─── 儲存到 Firestore ───
     if all_articles:
@@ -1222,32 +1222,25 @@ def fetch_mops_material_news(db):
         print("  ⚠ 未取得重大訊息")
 
 
-def summarize_us_news_with_gemini(articles, api_key, max_articles=25):
+def summarize_us_news_with_groq(articles, api_key, max_articles=25):
     """
-    用 Google Gemini 1.5 Flash 為上游市場新聞生成繁體中文重點摘要
+    用 Groq（llama-3.1-8b-instant）為上游市場新聞生成繁體中文重點摘要
     摘要格式：•重點一 •重點二 •重點三
     摘要存入 article['summary']
-    免費額度：每分鐘 15 次，每天 1500 次（足夠使用）
+    免費額度：每天 14,400 次，每分鐘 30 次（完全免費，不需信用卡）
     """
     if not api_key:
-        print("  [Gemini] 未設定 GEMINI_API_KEY，跳過摘要")
+        print("  [Groq] 未設定 GROQ_API_KEY，跳過摘要")
         return
 
     try:
-        from google import genai
-        from google.genai import types as genai_types
-        client = genai.Client(api_key=api_key)
-        SYSTEM_PROMPT = (
-            '你是專業的半導體暨記憶體產業分析師。'
-            '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞的核心內容。'
-            '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
-            '每個重點不超過 30 字，直接輸出重點，不要有前言。'
-        )
+        from groq import Groq
+        client = Groq(api_key=api_key)
     except ImportError:
-        print("  [Gemini] 未安裝 google-genai 套件，跳過摘要")
+        print("  [Groq] 未安裝 groq 套件，跳過摘要")
         return
     except Exception as e:
-        print(f"  [Gemini] 初始化失敗: {e}")
+        print(f"  [Groq] 初始化失敗: {e}")
         return
 
     targets = [a for a in articles
@@ -1255,29 +1248,17 @@ def summarize_us_news_with_gemini(articles, api_key, max_articles=25):
     targets = targets[:max_articles]
 
     if not targets:
-        print("  [Gemini] 無需摘要（無上游新聞或已有 summary）")
+        print("  [Groq] 無需摘要（無上游新聞或已有 summary）")
         return
 
-    print(f"\n🤖 Gemini 摘要生成（共 {len(targets)} 則上游市場新聞）...")
+    print(f"\n🤖 Groq 摘要生成（共 {len(targets)} 則上游市場新聞）...")
 
-    # 找出第一個可用的模型
-    GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite']
-    active_model  = None
-    for m in GEMINI_MODELS:
-        try:
-            test_resp = client.models.generate_content(
-                model=m, contents='Hi',
-                config=genai_types.GenerateContentConfig(max_output_tokens=5),
-            )
-            active_model = m
-            print(f"  [Gemini] 使用模型：{m}")
-            break
-        except Exception:
-            continue
-    if not active_model:
-        print("  [Gemini] 所有模型均無法使用，跳過摘要")
-        print("  [Gemini] 💡 請至 https://aistudio.google.com/apikey 重新建立 Key")
-        return
+    SYSTEM_PROMPT = (
+        '你是專業的半導體暨記憶體產業分析師。'
+        '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞的核心內容。'
+        '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
+        '每個重點不超過 30 字，直接輸出重點，不要有前言。'
+    )
 
     for i, article in enumerate(targets):
         title   = article.get('title', '')
@@ -1285,22 +1266,21 @@ def summarize_us_news_with_gemini(articles, api_key, max_articles=25):
         if not title:
             continue
         try:
-            prompt   = f'標題：{title}\n內文：{content[:600]}'
-            response = client.models.generate_content(
-                model=active_model,
-                contents=prompt,
-                config=genai_types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
-                    max_output_tokens=200,
-                    temperature=0.2,
-                ),
+            resp = client.chat.completions.create(
+                model='llama-3.1-8b-instant',
+                messages=[
+                    {'role': 'system', 'content': SYSTEM_PROMPT},
+                    {'role': 'user',   'content': f'標題：{title}\n內文：{content[:600]}'},
+                ],
+                max_tokens=200,
+                temperature=0.2,
             )
-            summary = response.text.strip()
+            summary = resp.choices[0].message.content.strip()
             article['summary'] = summary
             print(f"  [{i+1}/{len(targets)}] ✓ {title[:45]}…")
         except Exception as e:
             print(f"  [{i+1}/{len(targets)}] ✗ {e}")
-        time.sleep(4)   # 免費版：每分鐘上限 15 次，間隔 4 秒
+        time.sleep(2)   # 每分鐘上限 30 次，間隔 2 秒確保不超限
 
 
 def generate_email_html(articles, now_tw):
