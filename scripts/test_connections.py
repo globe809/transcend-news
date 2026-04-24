@@ -1,11 +1,11 @@
 """
 連線測試腳本
 測試：
-  1. OpenAI API（gpt-4o-mini 摘要一則新聞）
+  1. Google Gemini API（gemini-1.5-flash 摘要一則新聞）
   2. Gmail SMTP（寄一封測試信）
 
 執行方式：
-  OPENAI_API_KEY=sk-xxx GMAIL_USER=xxx@gmail.com GMAIL_APP_PASSWORD=xxx \
+  GEMINI_API_KEY=xxx GMAIL_USER=xxx@gmail.com GMAIL_APP_PASSWORD=xxx \
   python scripts/test_connections.py
 
 GitHub Actions 手動觸發：見 .github/workflows/test-connections.yml
@@ -18,66 +18,54 @@ import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-OPENAI_KEY  = os.environ.get('OPENAI_API_KEY', '')
-GMAIL_USER  = os.environ.get('GMAIL_USER', '')
-GMAIL_PW    = os.environ.get('GMAIL_APP_PASSWORD', '')
-EMAIL_TO    = os.environ.get('EMAIL_RECIPIENT', GMAIL_USER) or 'elvis814@gmail.com'
+GEMINI_KEY = os.environ.get('GEMINI_API_KEY', '')
+GMAIL_USER = os.environ.get('GMAIL_USER', '')
+GMAIL_PW   = os.environ.get('GMAIL_APP_PASSWORD', '')
+EMAIL_TO   = os.environ.get('EMAIL_RECIPIENT', GMAIL_USER) or 'elvis814@gmail.com'
 
 results = {}
 
 # ══════════════════════════════════════════════
-# 測試 1：OpenAI API
+# 測試 1：Google Gemini API
 # ══════════════════════════════════════════════
 print("\n" + "="*50)
-print("測試 1：OpenAI API 連線")
+print("測試 1：Google Gemini API 連線")
 print("="*50)
 
-if not OPENAI_KEY:
-    print("  ✗ 未設定 OPENAI_API_KEY")
-    results['openai'] = False
+if not GEMINI_KEY:
+    print("  ✗ 未設定 GEMINI_API_KEY")
+    results['gemini'] = False
 else:
     try:
-        import openai
-        client = openai.OpenAI(api_key=OPENAI_KEY)
-        resp = client.chat.completions.create(
-            model='gpt-4o-mini',
-            messages=[
-                {
-                    'role': 'system',
-                    'content': (
-                        '你是半導體產業分析師。'
-                        '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞。'
-                        '格式：•重點一 •重點二 •重點三'
-                    )
-                },
-                {
-                    'role': 'user',
-                    'content': (
-                        '標題：Micron Technology Reports Record Revenue Driven by AI Memory Demand\n'
-                        '內文：Micron Technology announced record quarterly revenue of $8.7 billion, '
-                        'driven by surging demand for high-bandwidth memory chips used in AI servers. '
-                        'The company raised its outlook for the full year, citing strong orders from '
-                        'major cloud providers.'
-                    )
-                }
-            ],
-            max_tokens=200,
-            temperature=0.2,
+        import google.generativeai as genai
+        genai.configure(api_key=GEMINI_KEY)
+        model = genai.GenerativeModel(
+            model_name='gemini-1.5-flash',
+            system_instruction=(
+                '你是半導體產業分析師。'
+                '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞。'
+                '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
+            )
         )
-        summary = resp.choices[0].message.content.strip()
-        model   = resp.model
-        tokens  = resp.usage.total_tokens
+        prompt = (
+            '標題：Micron Technology Reports Record Revenue Driven by AI Memory Demand\n'
+            '內文：Micron Technology announced record quarterly revenue of $8.7 billion, '
+            'driven by surging demand for high-bandwidth memory chips used in AI servers. '
+            'The company raised its outlook for the full year, citing strong orders from '
+            'major cloud providers.'
+        )
+        response = model.generate_content(prompt)
+        summary  = response.text.strip()
         print(f"  ✅ 連線成功！")
-        print(f"  模型：{model}")
-        print(f"  消耗 Token：{tokens}")
+        print(f"  模型：gemini-1.5-flash")
         print(f"  摘要輸出：")
         for line in summary.split('•'):
             if line.strip():
                 print(f"    • {line.strip()}")
-        results['openai'] = True
+        results['gemini'] = True
     except Exception as e:
         print(f"  ✗ 失敗：{e}")
-        results['openai'] = False
+        results['gemini'] = False
 
 
 # ══════════════════════════════════════════════
@@ -142,7 +130,7 @@ else:
 print("\n" + "="*50)
 print("測試結果總結")
 print("="*50)
-print(f"  OpenAI API：{'✅ 通過' if results.get('openai') else '✗ 失敗'}")
+print(f"  Gemini API：{'✅ 通過' if results.get('gemini') else '✗ 失敗'}")
 print(f"  Gmail SMTP：{'✅ 通過' if results.get('gmail') else '✗ 失敗'}")
 print()
 

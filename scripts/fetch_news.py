@@ -799,7 +799,7 @@ def fetch_stock_prices(db):
 
 def main():
     mode          = os.environ.get('FETCH_MODE', 'all')
-    openai_key    = os.environ.get('OPENAI_API_KEY', '')
+    gemini_key    = os.environ.get('GEMINI_API_KEY', '')
     gmail_user    = os.environ.get('GMAIL_USER', '')
     gmail_pw      = os.environ.get('GMAIL_APP_PASSWORD', '')
     email_to      = os.environ.get('EMAIL_RECIPIENT', gmail_user) or 'elvis814@gmail.com'
@@ -873,8 +873,8 @@ def main():
 
     print(f"\n📊 共抓取 {len(all_articles)} 則不重複新聞")
 
-    # ─── OpenAI 摘要（上游市場新聞）────────────────────────────
-    summarize_us_news_with_openai(all_articles, openai_key)
+    # ─── Gemini 摘要（上游市場新聞）────────────────────────────
+    summarize_us_news_with_gemini(all_articles, gemini_key)
 
     # ─── 儲存到 Firestore ───
     if all_articles:
@@ -1222,21 +1222,34 @@ def fetch_mops_material_news(db):
         print("  ⚠ 未取得重大訊息")
 
 
-def summarize_us_news_with_openai(articles, api_key, max_articles=25):
+def summarize_us_news_with_gemini(articles, api_key, max_articles=25):
     """
-    用 OpenAI gpt-4o-mini 為上游市場新聞生成繁體中文重點摘要
+    用 Google Gemini 1.5 Flash 為上游市場新聞生成繁體中文重點摘要
     摘要格式：•重點一 •重點二 •重點三
-    摘要存入 article['summary']，並回寫 Firestore（merge）
+    摘要存入 article['summary']
+    免費額度：每分鐘 15 次，每天 1500 次（足夠使用）
     """
     if not api_key:
-        print("  [OpenAI] 未設定 OPENAI_API_KEY，跳過摘要")
+        print("  [Gemini] 未設定 GEMINI_API_KEY，跳過摘要")
         return
 
     try:
-        import openai as _openai
-        client = _openai.OpenAI(api_key=api_key)
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
+            model_name='gemini-1.5-flash',
+            system_instruction=(
+                '你是專業的半導體暨記憶體產業分析師。'
+                '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞的核心內容。'
+                '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
+                '每個重點不超過 30 字，直接輸出重點，不要有前言。'
+            )
+        )
     except ImportError:
-        print("  [OpenAI] 未安裝 openai 套件，跳過摘要")
+        print("  [Gemini] 未安裝 google-generativeai 套件，跳過摘要")
+        return
+    except Exception as e:
+        print(f"  [Gemini] 初始化失敗: {e}")
         return
 
     targets = [a for a in articles
@@ -1244,10 +1257,10 @@ def summarize_us_news_with_openai(articles, api_key, max_articles=25):
     targets = targets[:max_articles]
 
     if not targets:
-        print("  [OpenAI] 無需摘要（all_articles 已有 summary 或無上游新聞）")
+        print("  [Gemini] 無需摘要（無上游新聞或已有 summary）")
         return
 
-    print(f"\n🤖 OpenAI 摘要生成（共 {len(targets)} 則上游市場新聞）...")
+    print(f"\n🤖 Gemini 摘要生成（共 {len(targets)} 則上游市場新聞）...")
 
     for i, article in enumerate(targets):
         title   = article.get('title', '')
@@ -1255,32 +1268,14 @@ def summarize_us_news_with_openai(articles, api_key, max_articles=25):
         if not title:
             continue
         try:
-            resp = client.chat.completions.create(
-                model='gpt-4o-mini',
-                messages=[
-                    {
-                        'role': 'system',
-                        'content': (
-                            '你是專業的半導體暨記憶體產業分析師。'
-                            '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞的核心內容。'
-                            '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
-                            '每個重點不超過 30 字，直接輸出重點，不要有前言。'
-                        )
-                    },
-                    {
-                        'role': 'user',
-                        'content': f'標題：{title}\n內文：{content[:600]}'
-                    }
-                ],
-                max_tokens=200,
-                temperature=0.2,
-            )
-            summary = resp.choices[0].message.content.strip()
+            prompt   = f'標題：{title}\n內文：{content[:600]}'
+            response = model.generate_content(prompt)
+            summary  = response.text.strip()
             article['summary'] = summary
             print(f"  [{i+1}/{len(targets)}] ✓ {title[:45]}…")
         except Exception as e:
             print(f"  [{i+1}/{len(targets)}] ✗ {e}")
-        time.sleep(0.3)  # 避免觸發 rate limit
+        time.sleep(4)   # Gemini 免費版：每分鐘上限 15 次，間隔 4 秒確保不超限
 
 
 def generate_email_html(articles, now_tw):
