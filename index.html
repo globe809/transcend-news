@@ -330,7 +330,7 @@ function USNewsCard({ article }) {
   const cfg   = US_BRAND_CFG.find(b => b.id === brand);
   const color = cfg?.color || '#6b7280';
   const s   = article.sentiment || getSentiment(article.title, article.content);
-  const src = article.sourceName || article.mediaName || '';
+  const src = article.mediaName || article.sourceName || '';
   const summary = article.summary ? article.summary.trim() : '';
   const bullets = summary
     ? summary.split('•').map(s => s.trim()).filter(Boolean)
