@@ -47,27 +47,45 @@ else:
             'The company raised its outlook for the full year, citing strong orders from '
             'major cloud providers.'
         )
-        response = client.models.generate_content(
-            model='gemini-2.0-flash',
-            contents=prompt,
-            config=genai_types.GenerateContentConfig(
-                system_instruction=(
-                    '你是半導體產業分析師。'
-                    '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞。'
-                    '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
-                ),
-                max_output_tokens=200,
-                temperature=0.2,
-            ),
-        )
-        summary = response.text.strip()
-        print(f"  ✅ 連線成功！")
-        print(f"  模型：gemini-2.0-flash")
-        print(f"  摘要輸出：")
-        for line in summary.split('•'):
-            if line.strip():
-                print(f"    • {line.strip()}")
-        results['gemini'] = True
+        # 依序嘗試可用模型
+        MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite']
+        success_model = None
+        summary = None
+        for m in MODELS:
+            try:
+                print(f"  嘗試模型：{m} ...")
+                response = client.models.generate_content(
+                    model=m,
+                    contents=prompt,
+                    config=genai_types.GenerateContentConfig(
+                        system_instruction=(
+                            '你是半導體產業分析師。'
+                            '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞。'
+                            '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
+                        ),
+                        max_output_tokens=200,
+                        temperature=0.2,
+                    ),
+                )
+                summary = response.text.strip()
+                success_model = m
+                break
+            except Exception as me:
+                print(f"    ✗ {m} 失敗：{me}")
+
+        if success_model:
+            print(f"  ✅ 連線成功！使用模型：{success_model}")
+            print(f"  摘要輸出：")
+            for line in summary.split('•'):
+                if line.strip():
+                    print(f"    • {line.strip()}")
+            results['gemini'] = True
+            # 輸出建議寫入程式的模型名稱
+            print(f"\n  💡 請記下可用模型：{success_model}")
+        else:
+            print(f"  ✗ 所有模型均失敗，請確認 API Key 是否從 AI Studio 建立")
+            print(f"  💡 前往 https://aistudio.google.com/apikey 重新建立 Key")
+            results['gemini'] = False
     except Exception as e:
         print(f"  ✗ 失敗：{e}")
         results['gemini'] = False

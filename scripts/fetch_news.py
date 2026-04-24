@@ -1260,6 +1260,25 @@ def summarize_us_news_with_gemini(articles, api_key, max_articles=25):
 
     print(f"\n🤖 Gemini 摘要生成（共 {len(targets)} 則上游市場新聞）...")
 
+    # 找出第一個可用的模型
+    GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite']
+    active_model  = None
+    for m in GEMINI_MODELS:
+        try:
+            test_resp = client.models.generate_content(
+                model=m, contents='Hi',
+                config=genai_types.GenerateContentConfig(max_output_tokens=5),
+            )
+            active_model = m
+            print(f"  [Gemini] 使用模型：{m}")
+            break
+        except Exception:
+            continue
+    if not active_model:
+        print("  [Gemini] 所有模型均無法使用，跳過摘要")
+        print("  [Gemini] 💡 請至 https://aistudio.google.com/apikey 重新建立 Key")
+        return
+
     for i, article in enumerate(targets):
         title   = article.get('title', '')
         content = article.get('content', '')
@@ -1268,7 +1287,7 @@ def summarize_us_news_with_gemini(articles, api_key, max_articles=25):
         try:
             prompt   = f'標題：{title}\n內文：{content[:600]}'
             response = client.models.generate_content(
-                model='gemini-2.0-flash',
+                model=active_model,
                 contents=prompt,
                 config=genai_types.GenerateContentConfig(
                     system_instruction=SYSTEM_PROMPT,
