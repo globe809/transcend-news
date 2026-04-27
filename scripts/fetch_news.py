@@ -259,6 +259,11 @@ def fetch_source(src, retry=2):
                 if kw_filter and kw_filter not in title:
                     continue
                 link = getattr(entry, 'link', '') or getattr(entry, 'id', '')
+
+                # ─── 過濾 MSN 連結 ───
+                if 'msn.com' in (link or '').lower():
+                    continue
+
                 content = clean_html(getattr(entry, 'summary', '') or getattr(entry, 'description', ''))[:500]
                 pub_date = parse_date(entry)
 
@@ -834,9 +839,17 @@ def main():
 
     # ─── 每日郵件模式（由 daily-email.yml 觸發）──────────────────
     if mode == 'email_report':
-        send_daily_email_report(db, gmail_user, gmail_pw, email_to)
+        send_daily_email_report(db, gmail_user, gmail_pw, email_to, gemini_key)
         print(f"\n{'='*50}")
         print("日報完成！")
+        print(f"{'='*50}\n")
+        return
+
+    # ─── 補摘要模式：對 Firestore 既有文章補上 Gemini 摘要 ─────────
+    if mode == 'backfill_summaries':
+        backfill_summaries(db, gemini_key)
+        print(f"\n{'='*50}")
+        print("補摘要完成！")
         print(f"{'='*50}\n")
         return
 
@@ -1215,6 +1228,88 @@ def fetch_mops_material_news(db):
         print("  ⚠ 未取得重大訊息")
 
 
+def backfill_summaries(db, api_key, batch_size=50):
+    """
+    從 Firestore 撈出所有沒有 summary 的上游市場新聞，
+    用 Gemini 補上摘要後回寫 Firestore。
+    """
+    if not api_key:
+        print("  [backfill] 未設定 GEMINI_API_KEY，跳過")
+        return
+
+    print(f"\n🔄 補摘要模式：查詢沒有 summary 的上游市場新聞...")
+
+    try:
+        docs = (db.collection('news')
+                .order_by('pubDate', direction=firestore.Query.DESCENDING)
+                .limit(500)
+                .stream())
+        candidates = []
+        for doc in docs:
+            d = doc.to_dict()
+            if d.get('cat') in ('usMarket', 'supplier') and not d.get('summary'):
+                candidates.append((doc.id, d))
+        print(f"  找到 {len(candidates)} 則需要補摘要的文章")
+    except Exception as e:
+        print(f"  ✗ Firestore 查詢失敗: {e}")
+        return
+
+    if not candidates:
+        print("  ✅ 所有文章都已有摘要")
+        return
+
+    try:
+        from google import genai
+        client = genai.Client(api_key=api_key)
+        # 動態選模型
+        MODEL = None
+        try:
+            available = [m.name for m in client.models.list()
+                         if 'generateContent' in str(getattr(m, 'supported_actions', None) or getattr(m, 'supported_generation_methods', []))
+                         and 'gemini' in m.name.lower()]
+            preferred = [m for m in available if 'flash' in m and 'thinking' not in m]
+            chosen = preferred or available
+            if chosen:
+                MODEL = chosen[0].replace('models/', '')
+        except Exception:
+            pass
+        if not MODEL:
+            MODEL = 'gemini-1.5-flash'
+        print(f"  使用模型：{MODEL}")
+    except Exception as e:
+        print(f"  ✗ Gemini 初始化失敗: {e}")
+        return
+
+    PROMPT = (
+        '你是專業的半導體暨記憶體產業分析師。'
+        '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞的核心內容。'
+        '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
+        '每個重點不超過 30 字，直接輸出重點，不要有前言。\n\n'
+        '標題：{title}\n內文：{content}'
+    )
+
+    updated = 0
+    for i, (doc_id, data) in enumerate(candidates[:batch_size]):
+        title   = data.get('title', '')
+        content = data.get('content', '')
+        if not title:
+            continue
+        try:
+            resp = client.models.generate_content(
+                model=MODEL,
+                contents=PROMPT.format(title=title, content=content[:800]),
+            )
+            summary = resp.text.strip()
+            db.collection('news').document(doc_id).update({'summary': summary})
+            updated += 1
+            print(f"  [{i+1}/{min(len(candidates), batch_size)}] ✓ {title[:50]}…")
+        except Exception as e:
+            print(f"  [{i+1}/{min(len(candidates), batch_size)}] ✗ {e}")
+        time.sleep(1)
+
+    print(f"\n  ✅ 補摘要完成，共更新 {updated} 則文章")
+
+
 def summarize_us_news_with_gemini(articles, api_key, max_articles=20):
     """
     用 Gemini（gemini-2.0-flash）為上游市場新聞生成繁體中文重點摘要
@@ -1394,7 +1489,7 @@ def generate_email_html(articles, now_tw):
       {items_html}
       <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px">
       <p style="color:#9ca3af;font-size:11px;text-align:center;margin:0;line-height:1.8">
-        此為自動發送郵件 · 由 GitHub Actions 於每個工作日 <strong>15:00</strong> 寄出<br>
+        此為自動發送郵件 · 由 GitHub Actions 於每個工作日 <strong>09:00</strong> 寄出<br>
         如需取消訂閱，請至 GitHub Actions 停用 <code>daily-email.yml</code> workflow
       </p>
     </div>
@@ -1404,10 +1499,12 @@ def generate_email_html(articles, now_tw):
 </html>'''
 
 
-def send_daily_email_report(db, gmail_user, gmail_app_password, recipient):
+def send_daily_email_report(db, gmail_user, gmail_app_password, recipient, gemini_key=''):
     """
     從 Firestore 取出最新上游市場新聞 Top 5，發送 HTML 日報郵件
-    排序優先順序：有 AI 摘要 > 情緒（正面優先）> 發布時間
+    - 只包含 usMarket（TrendForce / DRAM / Flash），不含競品
+    - 排除 MSN 連結
+    - 沒有摘要的文章即時補 Gemini 摘要
     """
     import smtplib
     import ssl
@@ -1420,50 +1517,95 @@ def send_daily_email_report(db, gmail_user, gmail_app_password, recipient):
         print("  ⚠ 未設定 GMAIL_USER / GMAIL_APP_PASSWORD，跳過")
         return
 
-    now_tw  = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
-    cutoff  = now_tw - datetime.timedelta(days=1)
+    now_tw = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
 
-    # 從 Firestore 取最近 100 筆，在 Python 端過濾
+    # 從 Firestore 取最近 200 筆
     try:
         docs = (db.collection('news')
                 .order_by('pubDate', direction=firestore.Query.DESCENDING)
-                .limit(100)
+                .limit(200)
                 .stream())
         all_news = [doc.to_dict() for doc in docs]
     except Exception as e:
         print(f"  ✗ Firestore 查詢失敗: {e}")
         return
 
-    # 過濾上游市場 & 今日
-    us_news = [a for a in all_news if a.get('cat') in ('usMarket', 'supplier')]
-    print(f"  取得 {len(us_news)} 則上游市場新聞")
+    # 只留 usMarket（TrendForce / DRAM / Flash），過濾 MSN
+    us_news = [
+        a for a in all_news
+        if a.get('cat') == 'usMarket'
+        and 'msn.com' not in (a.get('link') or '').lower()
+    ]
+    print(f"  取得 {len(us_news)} 則上游市場新聞（usMarket，排除 MSN）")
 
     if not us_news:
         print("  ⚠ 無上游市場新聞，跳過寄信")
         return
 
-    # 排序：TrendForce 優先 > 有摘要 > 正面 > 最新
+    # 排序：TrendForce 優先 > 有摘要 > 最新
     def sort_key(a):
         source = str(a.get('sourceName') or a.get('mediaName') or '')
         is_trendforce = 1 if 'trendforce' in source.lower() else 0
-        has_summary = 1 if a.get('summary') else 0
-        is_positive = 1 if a.get('sentiment') == 'positive' else 0
+        has_summary   = 1 if a.get('summary') else 0
         pub = a.get('pubDate')
-        if hasattr(pub, 'isoformat'):
-            ts = pub.isoformat()
-        else:
-            ts = str(pub or '')
-        return (is_trendforce, has_summary, is_positive, ts)
+        ts  = pub.isoformat() if hasattr(pub, 'isoformat') else str(pub or '')
+        return (is_trendforce, has_summary, ts)
 
     us_news.sort(key=sort_key, reverse=True)
     top5 = us_news[:5]
+
+    # 沒有摘要的文章即時補 Gemini 摘要
+    needs_summary = [a for a in top5 if not a.get('summary')]
+    if needs_summary and gemini_key:
+        print(f"  🤖 即時補摘要（{len(needs_summary)} 則）...")
+        try:
+            from google import genai
+            gclient = genai.Client(api_key=gemini_key)
+            MODEL = None
+            try:
+                available = [m.name for m in gclient.models.list()
+                             if 'generateContent' in str(getattr(m, 'supported_actions', None)
+                                                         or getattr(m, 'supported_generation_methods', []))
+                             and 'gemini' in m.name.lower()]
+                preferred = [m for m in available if 'flash' in m and 'thinking' not in m]
+                chosen = preferred or available
+                if chosen:
+                    MODEL = chosen[0].replace('models/', '')
+            except Exception:
+                pass
+            if not MODEL:
+                MODEL = 'gemini-1.5-flash'
+
+            PROMPT = (
+                '你是專業的半導體暨記憶體產業分析師。'
+                '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞的核心內容。'
+                '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
+                '每個重點不超過 30 字，直接輸出重點，不要有前言。\n\n'
+                '標題：{title}\n內文：{content}'
+            )
+            for a in needs_summary:
+                try:
+                    resp = gclient.models.generate_content(
+                        model=MODEL,
+                        contents=PROMPT.format(
+                            title=a.get('title', ''),
+                            content=a.get('content', '')[:800]
+                        ),
+                    )
+                    a['summary'] = resp.text.strip()
+                    print(f"    ✓ {a.get('title','')[:50]}…")
+                except Exception as e:
+                    print(f"    ✗ {e}")
+                time.sleep(1)
+        except Exception as e:
+            print(f"  ⚠ Gemini 初始化失敗，摘要略過: {e}")
 
     # 生成 HTML
     html = generate_email_html(top5, now_tw)
 
     # 組裝郵件
     msg = MIMEMultipart('alternative')
-    msg['Subject'] = (f"📊 上游市場日報 {now_tw.strftime('%Y/%m/%d')} "
+    msg['Subject'] = (f"📊 上游市場早報 {now_tw.strftime('%Y/%m/%d')} "
                       f"| 創見資訊新聞監控")
     msg['From']    = gmail_user
     msg['To']      = recipient
@@ -1475,7 +1617,7 @@ def send_daily_email_report(db, gmail_user, gmail_app_password, recipient):
         with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ctx) as server:
             server.login(gmail_user, gmail_app_password)
             server.send_message(msg)
-        print(f"  ✅ 日報已寄出 → {recipient}（{len(top5)} 則新聞）")
+        print(f"  ✅ 早報已寄出 → {recipient}（{len(top5)} 則新聞）")
     except Exception as e:
         print(f"  ✗ 寄信失敗: {e}")
 
