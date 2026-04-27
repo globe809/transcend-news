@@ -1,18 +1,14 @@
-name: 每日上游市場早報（早上 9 點）
+name: 🤖 補齊 AI 摘要（舊文章）
 
 on:
-  # ─── 台灣時間週一至週五 09:00（UTC 01:00）───
-  schedule:
-    - cron: '0 1 * * 1-5'
-
-  # ─── 手動觸發測試 ───
+  # ─── 只能手動觸發 ───
   workflow_dispatch:
 
 jobs:
-  send-report:
-    name: 發送上游市場早報
+  backfill:
+    name: 對沒有摘要的上游市場新聞補上 Gemini 摘要
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -28,11 +24,9 @@ jobs:
       - name: 安裝套件
         run: pip install -r scripts/requirements.txt
 
-      - name: 發送早報郵件
+      - name: 執行補摘要
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GMAIL_USER: ${{ secrets.GMAIL_USER }}
-          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          FETCH_MODE: email_report
+          FETCH_MODE: backfill_summaries
         run: python scripts/fetch_news.py
