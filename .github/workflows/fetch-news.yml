@@ -14,9 +14,10 @@ on:
         default: 'all'
         type: choice
         options:
-          - all        # 全部來源
+          - all        # 全部來源（含 twMarket）
           - morning    # 創見 + 競品 + 供應商
           - afternoon  # 美國市場 + 競品 + 供應商
+          - tw_market  # 台灣科技媒體（twMarket）
 
 jobs:
   fetch:
