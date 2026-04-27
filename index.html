@@ -1513,7 +1513,97 @@ function DailyTrading({ daily }) {
 // ═══════════════════════════════════════════════════════════
 // IR TAB
 // ═══════════════════════════════════════════════════════════
-function IRTab({ news, stocks, community, revenue, financials, dividends, material, daily }) {
+// ─── 競品營收比較圖表 ─────────────────────────────────────
+const COMP_REV_META = {
+  '2451': { name: '創見', color: '#960014' },
+  '3260': { name: 'ADATA 威剛', color: '#ef4444' },
+  '8271': { name: 'Apacer 宇瞻', color: '#f97316' },
+};
+
+function CompetitorRevenueChart({ revenue, compRev }) {
+  const allSeries = useMemo(() => {
+    const series = {};
+    const addSeries = (code, records) => {
+      if (!records || !records.length) return;
+      records.forEach(r => {
+        const key = `${r.year}-${String(r.month).padStart(2,'0')}`;
+        if (!series[key]) series[key] = { label: key };
+        series[key][code] = r.revenue;
+      });
+    };
+    addSeries('2451', revenue || []);
+    Object.entries(compRev || {}).forEach(([code, recs]) => addSeries(code, recs));
+    return Object.values(series).sort((a,b) => a.label < b.label ? -1 : 1).slice(-24);
+  }, [revenue, compRev]);
+
+  const hasCodes = ['2451', ...Object.keys(compRev || {})].filter(c => COMP_REV_META[c]);
+  if (!allSeries.length || hasCodes.length < 2) {
+    return (
+      <div className="text-sm text-gray-600 text-center py-6">
+        競品營收資料載入中（Actions 跑完後自動更新）
+      </div>
+    );
+  }
+
+  // SVG 參數
+  const W=700, H=220, PL=52, PR=16, PT=20, PB=32;
+  const VW=W-PL-PR, VH=H-PT-PB;
+  const maxVal = Math.max(...allSeries.flatMap(d => hasCodes.map(c => d[c]||0)), 1);
+  const step = VW / Math.max(allSeries.length - 1, 1);
+
+  const line = (code) => allSeries.map((d,i) => {
+    const v = d[code] || 0;
+    const x = PL + i * step;
+    const y = PT + VH - (v / maxVal) * VH;
+    return `${i===0?'M':'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  const fmtB = v => v >= 1e8 ? `${(v/1e8).toFixed(1)}億` : v >= 1e4 ? `${(v/1e4).toFixed(0)}萬` : String(v);
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(r => ({ r, v: maxVal * r }));
+
+  // Show every 3rd label
+  const labelStep = Math.ceil(allSeries.length / 8);
+
+  return (
+    <Card title="創見 vs 競品月營收比較（近 24 個月）" icon="📊">
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3 mb-3">
+        {hasCodes.map(c => (
+          <div key={c} className="flex items-center gap-1.5 text-xs text-gray-400">
+            <div className="w-3 h-0.5 rounded" style={{ background: COMP_REV_META[c].color, height:'3px', width:'16px' }} />
+            {COMP_REV_META[c].name}（{c}）
+          </div>
+        ))}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:'100%', overflow:'visible' }}>
+        {/* Y grid + labels */}
+        {yTicks.map(t => {
+          const y = PT + VH - t.r * VH;
+          return (
+            <g key={t.r}>
+              <line x1={PL} y1={y} x2={W-PR} y2={y} stroke="#374151" strokeWidth="0.5" strokeDasharray="3,3" />
+              <text x={PL-4} y={y+3} textAnchor="end" fill="#6b7280" fontSize="8">{fmtB(t.v)}</text>
+            </g>
+          );
+        })}
+        {/* Lines */}
+        {hasCodes.map(c => (
+          <path key={c} d={line(c)} fill="none" stroke={COMP_REV_META[c].color} strokeWidth="1.8"
+                strokeLinejoin="round" strokeLinecap="round" />
+        ))}
+        {/* X labels */}
+        {allSeries.map((d,i) => i % labelStep === 0 && (
+          <text key={i} x={PL + i*step} y={H-PB+12} textAnchor="middle" fill="#6b7280" fontSize="7">
+            {d.label.slice(2)}
+          </text>
+        ))}
+      </svg>
+      <p className="text-xs text-gray-700 mt-1">* 資料來源：FinMind，單位：新台幣元</p>
+    </Card>
+  );
+}
+
+function IRTab({ news, stocks, community, revenue, financials, dividends, material, daily, compRev }) {
   return (
     <div className="space-y-4 fade-in">
       {/* Stock cards */}
@@ -1536,6 +1626,7 @@ function IRTab({ news, stocks, community, revenue, financials, dividends, materi
 
       <DailyTrading daily={daily} />
       <RevenueChart revenue={revenue} />
+      <CompetitorRevenueChart revenue={revenue} compRev={compRev} />
       <QuarterlyPnL financials={financials} />
       <DividendHistory dividends={dividends} />
       <CompetitorMaterial material={material} />
@@ -1555,6 +1646,7 @@ function App() {
   const [dividends,  setDividends]  = useState(null);
   const [material,   setMaterial]   = useState(null);
   const [daily,      setDaily]      = useState(null);
+  const [compRev,    setCompRev]    = useState({});
   const [loading,    setLoading]    = useState(true);
   const [connected,  setConnected]  = useState(false);
   const [updated,    setUpdated]    = useState(null);
@@ -1577,7 +1669,7 @@ function App() {
 
   async function fetchAll() {
     setLoading(true);
-    await Promise.all([ fetchNews(), fetchStocks(), fetchRevenue(), fetchFinancials(), fetchDividends(), fetchMaterial(), fetchDaily() ]);
+    await Promise.all([ fetchNews(), fetchStocks(), fetchRevenue(), fetchFinancials(), fetchDividends(), fetchMaterial(), fetchDaily(), fetchCompRevenue() ]);
     setLoading(false);
     setUpdated(new Date());
   }
@@ -1589,7 +1681,9 @@ function App() {
         .orderBy('pubDate', 'desc')
         .limit(2000)
         .get();
-      setNews(snap.docs.map(d => ({ id:d.id, ...d.data() })));
+      setNews(snap.docs
+        .map(d => ({ id:d.id, ...d.data() }))
+        .filter(n => !n.link?.includes('msn.com')));
     } catch(e) { console.error('News:', e); }
   }
 
@@ -1638,6 +1732,18 @@ function App() {
       if (doc.exists) setDaily(doc.data());
       else setDaily({});
     } catch(e) { console.error('Daily:', e); setDaily({}); }
+  }
+
+  async function fetchCompRevenue() {
+    try {
+      const codes = ['3260', '8271'];
+      const results = {};
+      await Promise.all(codes.map(async code => {
+        const doc = await window._db.collection('revenue').doc(code).get();
+        if (doc.exists) results[code] = doc.data().records || [];
+      }));
+      setCompRev(results);
+    } catch(e) { console.error('CompRev:', e); }
   }
 
   // ─── AI Summary (Gemini) ─────────────────────────────────
@@ -1761,7 +1867,7 @@ function App() {
       <main className="max-w-7xl mx-auto px-4 py-5">
         {tab==='pr' ? <PRTab news={news} /> :
          tab==='us' ? <USMarketTab news={news} /> :
-         <IRTab news={news} stocks={stocks} community={community} revenue={revenue} financials={financials} dividends={dividends} material={material} daily={daily} />}
+         <IRTab news={news} stocks={stocks} community={community} revenue={revenue} financials={financials} dividends={dividends} material={material} daily={daily} compRev={compRev} />}
       </main>
 
       {/* ─────────── AI MODAL ─────────── */}

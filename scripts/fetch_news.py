@@ -131,14 +131,18 @@ def get_sources(mode):
         {'label': 'EE Times Taiwan',     'url': 'https://news.google.com/rss/search?q=site:eettaiwan.com+DRAM+OR+Flash+OR+記憶體+OR+AI&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'twMarket'},
     ]
     competitors = [
-        # ─── 競品：僅中文 ───
-        {'label': 'ADATA 威剛',         'url': 'https://news.google.com/rss/search?q=威剛+ADATA&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'ADATA'},
+        # ─── ADATA 威剛（多來源確保抓到）───
+        {'label': 'ADATA 威剛 ZH',      'url': 'https://news.google.com/rss/search?q=威剛科技&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'ADATA'},
+        {'label': 'ADATA 3260',         'url': 'https://news.google.com/rss/search?q=3260+威剛&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'ADATA'},
+        {'label': 'ADATA EN',           'url': 'https://news.google.com/rss/search?q=ADATA+memory+storage+SSD&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'ADATA'},
+        # ─── 其他競品 ───
         {'label': 'Innodisk 宜鼎',      'url': 'https://news.google.com/rss/search?q=宜鼎+Innodisk&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Innodisk'},
+        {'label': 'Innodisk EN',        'url': 'https://news.google.com/rss/search?q=Innodisk+industrial+embedded&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Innodisk'},
         {'label': 'Apacer 宇瞻',        'url': 'https://news.google.com/rss/search?q=宇瞻+Apacer&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Apacer'},
         {'label': 'Silicon Power 廣穎', 'url': 'https://news.google.com/rss/search?q=廣穎+Silicon+Power&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Silicon Power'},
         {'label': '十銓科技 Teamgroup',  'url': 'https://news.google.com/rss/search?q=十銓科技+Teamgroup&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Teamgroup'},
         {'label': 'Teamgroup EN',        'url': 'https://news.google.com/rss/search?q=Teamgroup+(SSD+OR+DRAM+OR+Industrial+OR+Embedded)&hl=en&gl=US&ceid=US:en', 'cat': 'competitor', 'brand': 'Teamgroup'},
-        {'label': 'Lexar 雷克沙',       'url': 'https://news.google.com/rss/search?q=Lexar+雷克沙&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Lexar'},
+        {'label': 'Lexar 雷克沙',       'url': 'https://news.google.com/rss/search?q=Lexar+記憶卡+OR+雷克沙&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'Lexar'},
         {'label': 'PNY 必恩威',         'url': 'https://news.google.com/rss/search?q=PNY+必恩威&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'competitor', 'brand': 'PNY'},
     ]
     suppliers = [
@@ -168,6 +172,51 @@ def get_sources(mode):
     else:  # all
         return transcend + us_market + tw_market + competitors + suppliers + community
 
+
+# ─── 郵件媒體來源域名白名單 ───
+_TW_DOMAINS = {
+    'digitimes.com.tw', 'digitimes.com', 'ithome.com.tw', 'epaper.com.tw',
+    'technews.tw', 'bnext.com.tw', 'eettaiwan.com', 'udn.com', 'money.udn.com',
+    'ctee.com.tw', 'chinatimes.com', 'anue.com.tw', 'cnyes.com', 'news.cnyes.com',
+    'ltn.com.tw', 'ec.ltn.com.tw', 'moneydj.com', 'cna.com.tw', 'wealth.com.tw',
+    'storm.mg', 'businessweekly.com.tw', 'cw.com.tw', 'inside.com.tw',
+    'ettoday.net', 'setn.com', 'tvbs.com.tw', 'nextapple.com', 'newtalk.tw',
+    'mnews.tw', 'ustv.com.tw', 'gvm.com.tw', 'moneyweekly.com.tw',
+    'taiwannews.com.tw', 'trendforce.com',
+}
+_US_INTL_DOMAINS = {
+    'trendforce.com', 'reuters.com', 'bloomberg.com', 'techcrunch.com',
+    'eetimes.com', 'electronicsweekly.com', 'anandtech.com', 'tomshardware.com',
+    'semiconductor-today.com', 'techradar.com', 'theverge.com', 'arstechnica.com',
+    'wired.com', 'zdnet.com', 'cnet.com', 'pcmag.com', 'engadget.com',
+    'forbes.com', 'businessinsider.com', 'marketwatch.com', 'wsj.com', 'ft.com',
+    'seekingalpha.com', 'fool.com', 'barrons.com', 'cnbc.com', 'apnews.com',
+    'nytimes.com', 'washingtonpost.com', 'theregister.com', 'extremetech.com',
+    'digitimes.com',   # English version
+    'nikkei.com', 'taiwannews.com.tw', 'taiwanplus.com',
+}
+
+def _link_domain(link):
+    try:
+        from urllib.parse import urlparse
+        return urlparse(link or '').netloc.replace('www.', '').lower()
+    except Exception:
+        return ''
+
+def _is_us_media(article):
+    """文章是否來自美國/國際英文媒體（排除台灣中文媒體與 MSN）"""
+    domain = _link_domain(article.get('link', ''))
+    if 'msn.com' in domain:
+        return False
+    if any(d in domain for d in _TW_DOMAINS if d not in {'trendforce.com', 'taiwannews.com.tw'}):
+        return False  # 排除純台灣中文媒體
+    # 只要不是 MSN、不是純台灣媒體，就視為可接受
+    return True
+
+def _is_tw_media(article):
+    """文章是否來自台灣媒體"""
+    domain = _link_domain(article.get('link', ''))
+    return any(d in domain for d in _TW_DOMAINS)
 
 # ─── 郵件過濾關鍵字 ───
 _TRANSCEND_KW   = ['transcend', '創見', '2451']
@@ -1040,6 +1089,10 @@ def main():
     # ─── 每日交易資料（開收盤 + 三大法人）───
     fetch_daily_trading(db, '2451')
 
+    # ─── 競品月營收抓取（ADATA 3260、Apacer 8271）───
+    for comp_code in ['3260', '8271']:
+        fetch_monthly_revenue(db, comp_code)
+
     # ─── 競品重大訊息抓取（MOPS 直接抓取）───
     fetch_mops_material_news(db)
 
@@ -1692,8 +1745,9 @@ def send_afternoon_email(db, gmail_user, gmail_app_password, recipient, gemini_k
         print(f"  ✗ Firestore 查詢失敗: {e}")
         return
 
-    pool = [a for a in all_news if a.get('cat') == 'usMarket']
-    print(f"  usMarket 候選：{len(pool)} 則")
+    pool = [a for a in all_news
+            if a.get('cat') == 'usMarket' and _is_us_media(a)]
+    print(f"  usMarket（美國/國際媒體）候選：{len(pool)} 則")
 
     # 排序：TrendForce 優先 > 有摘要 > 最新
     def sort_key(a):
@@ -1815,8 +1869,9 @@ def send_morning_email(db, gmail_user, gmail_app_password, recipient, gemini_key
         print(f"  ✗ Firestore 查詢失敗: {e}")
         return
 
-    pool = [a for a in all_news if a.get('cat') == 'twMarket']
-    print(f"  twMarket 候選：{len(pool)} 則")
+    pool = [a for a in all_news
+            if a.get('cat') == 'twMarket' and _is_tw_media(a)]
+    print(f"  twMarket（台灣媒體）候選：{len(pool)} 則")
 
     if not pool:
         print("  ⚠ 無台灣市場新聞，跳過寄信")
