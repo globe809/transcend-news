@@ -105,11 +105,30 @@ def get_sources(mode):
         {'label': 'Google-非凡財經創見',       'url': 'https://news.google.com/rss/search?q=創見+site:ustv.com.tw&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'transcend'},
     ]
     us_market = [
-        # ─── TrendForce 市場研究（唯一上游市場來源）───
+        # ─── TrendForce 市場研究 ───
         {'label': 'TrendForce',          'url': 'https://www.trendforce.com/rss', 'cat': 'usMarket'},
         {'label': 'TrendForce DRAM',     'url': 'https://news.google.com/rss/search?q=TrendForce+DRAM+memory&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
         {'label': 'TrendForce NAND',     'url': 'https://news.google.com/rss/search?q=TrendForce+NAND+flash+storage&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
         {'label': 'TrendForce Flash',    'url': 'https://news.google.com/rss/search?q=TrendForce+flash+storage+market&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
+        # ─── 應用端需求：AI / IPC / AIoT / 終端裝置 ───
+        {'label': 'AI Server DRAM HBM',  'url': 'https://news.google.com/rss/search?q=AI+server+DRAM+HBM+memory+demand&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
+        {'label': 'AI Data Center Flash','url': 'https://news.google.com/rss/search?q=AI+data+center+flash+storage+NAND&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
+        {'label': 'IPC Industrial Flash','url': 'https://news.google.com/rss/search?q=industrial+computing+IPC+embedded+flash+DRAM&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
+        {'label': 'AIoT Memory Demand',  'url': 'https://news.google.com/rss/search?q=AIoT+edge+AI+memory+flash+storage+demand&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
+        {'label': 'iPhone Mac NAND',     'url': 'https://news.google.com/rss/search?q=iPhone+Mac+Apple+NAND+flash+storage+demand&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
+        {'label': 'Smart Device Flash',  'url': 'https://news.google.com/rss/search?q=smartphone+wearable+smart+device+DRAM+flash+demand&hl=en&gl=US&ceid=US:en', 'cat': 'usMarket'},
+    ]
+    tw_market = [
+        # ─── 台灣科技媒體：Flash/DRAM/AI/IoT 相關 ───
+        {'label': 'DigiTimes 記憶體',    'url': 'https://news.google.com/rss/search?q=site:digitimes.com.tw+DRAM+OR+Flash+OR+記憶體+OR+儲存&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'twMarket'},
+        {'label': 'DigiTimes AI',        'url': 'https://news.google.com/rss/search?q=site:digitimes.com.tw+AI+OR+AIoT+OR+IPC+OR+智慧裝置&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'twMarket'},
+        {'label': 'iThome 記憶體',       'url': 'https://news.google.com/rss/search?q=site:ithome.com.tw+DRAM+OR+Flash+OR+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'twMarket'},
+        {'label': 'iThome AI',           'url': 'https://news.google.com/rss/search?q=site:ithome.com.tw+AI+OR+AIoT+OR+智慧製造&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'twMarket'},
+        {'label': '電子時報 記憶體',     'url': 'https://news.google.com/rss/search?q=site:epaper.com.tw+DRAM+OR+Flash+OR+記憶體&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'twMarket'},
+        {'label': '科技新報 記憶體',     'url': 'https://news.google.com/rss/search?q=site:technews.tw+DRAM+OR+Flash+OR+記憶體+OR+儲存&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'twMarket'},
+        {'label': '科技新報 AI',         'url': 'https://news.google.com/rss/search?q=site:technews.tw+AI+OR+AIoT+OR+IPC+OR+iPhone+OR+Mac&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'twMarket'},
+        {'label': '數位時代 AI儲存',     'url': 'https://news.google.com/rss/search?q=site:bnext.com.tw+記憶體+OR+AI+OR+Flash+OR+儲存&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'twMarket'},
+        {'label': 'EE Times Taiwan',     'url': 'https://news.google.com/rss/search?q=site:eettaiwan.com+DRAM+OR+Flash+OR+記憶體+OR+AI&hl=zh-TW&gl=TW&ceid=TW:zh-Hant', 'cat': 'twMarket'},
     ]
     competitors = [
         # ─── 競品：僅中文 ───
@@ -144,8 +163,93 @@ def get_sources(mode):
         return transcend + competitors + suppliers + community
     elif mode == 'afternoon':
         return us_market + competitors + suppliers + community
+    elif mode == 'tw_market':
+        return tw_market
     else:  # all
-        return transcend + us_market + competitors + suppliers + community
+        return transcend + us_market + tw_market + competitors + suppliers + community
+
+
+# ─── 郵件過濾關鍵字 ───
+_TRANSCEND_KW   = ['transcend', '創見', '2451']
+_COMPETITOR_KW  = ['adata', 'a-data', 'kingston', 'teamgroup', 'innodisk',
+                   'lexar', 'pny', 'silicon power', 'patriot', 'corsair',
+                   '威剛', '金士頓', '十銓', '宜鼎', '雷克沙', '必恩威']
+_NEWPRODUCT_KW  = ['launch', 'launches', 'launched', 'release', 'releases',
+                   'released', 'unveil', 'unveils', 'unveiling', 'announces new',
+                   'introduce', 'introduces', 'new product', 'new line',
+                   '推出', '發表', '新品', '發布新', '上市', '首款', '全新']
+
+def _title_has(title, keywords):
+    t = title.lower()
+    return any(kw in t for kw in keywords)
+
+def is_transcend_news(title):
+    return _title_has(title, _TRANSCEND_KW)
+
+def is_competitor_news(title):
+    return _title_has(title, _COMPETITOR_KW)
+
+def is_new_product_news(title):
+    return _title_has(title, _NEWPRODUCT_KW)
+
+def is_too_similar(article, selected, threshold=0.5):
+    """若與已選文章標題關鍵詞重疊率 >= threshold 則視為過度相似"""
+    import re
+    stop = {'the','and','for','that','with','this','are','has','have','from',
+            'will','its','new','said','says','amid','after','over','into','more',
+            'also','been','their','about','which','would','could','during'}
+    def kws(text):
+        words = set(re.findall(r'\b[a-zA-Z\u4e00-\u9fff]{3,}\b', text.lower()))
+        return words - stop
+    a_kws = kws(article.get('title',''))
+    if not a_kws:
+        return False
+    for s in selected:
+        s_kws = kws(s.get('title',''))
+        if not s_kws:
+            continue
+        overlap = len(a_kws & s_kws) / min(len(a_kws), len(s_kws))
+        if overlap >= threshold:
+            return True
+    return False
+
+def pick_diverse(articles, n=5, filters=None):
+    """
+    從 articles 中挑出 n 則：套用 filters 過濾、並確保內容不重複
+    filters: list of callables，回傳 True 表示「應排除」
+    """
+    selected = []
+    for a in articles:
+        if len(selected) >= n:
+            break
+        title = a.get('title', '')
+        if filters and any(f(title) for f in filters):
+            continue
+        if 'msn.com' in (a.get('link') or '').lower():
+            continue
+        if is_too_similar(a, selected):
+            continue
+        selected.append(a)
+    return selected
+
+
+def cleanup_msn_articles(db):
+    """刪除 Firestore 中所有 link 含 msn.com 的文章"""
+    print("\n🗑️  清除 MSN 文章...")
+    try:
+        docs = list(db.collection('news').stream())
+        to_delete = [d for d in docs if 'msn.com' in (d.to_dict().get('link') or '').lower()]
+        print(f"  找到 {len(to_delete)} 篇 MSN 文章")
+        deleted = 0
+        for i in range(0, len(to_delete), 400):
+            batch = db.batch()
+            for d in to_delete[i:i+400]:
+                batch.delete(d.reference)
+            batch.commit()
+            deleted += len(to_delete[i:i+400])
+        print(f"  ✅ 已刪除 {deleted} 篇")
+    except Exception as e:
+        print(f"  ✗ 清除失敗: {e}")
 
 
 def analyze_sentiment(title, content=''):
@@ -837,20 +941,28 @@ def main():
         print(f"❌ Firebase 初始化失敗: {e}")
         sys.exit(1)
 
-    # ─── 每日郵件模式（由 daily-email.yml 觸發）──────────────────
+    # ─── 下午 3 點英文早報（usMarket）────────────────────────────
     if mode == 'email_report':
-        send_daily_email_report(db, gmail_user, gmail_pw, email_to, gemini_key)
-        print(f"\n{'='*50}")
-        print("日報完成！")
-        print(f"{'='*50}\n")
+        send_afternoon_email(db, gmail_user, gmail_pw, email_to, gemini_key)
+        print(f"\n{'='*50}\n下午早報完成！\n{'='*50}\n")
         return
 
-    # ─── 補摘要模式：對 Firestore 既有文章補上 Gemini 摘要 ─────────
+    # ─── 早上 9 點繁中早報（twMarket）────────────────────────────
+    if mode == 'morning_email':
+        send_morning_email(db, gmail_user, gmail_pw, email_to, gemini_key)
+        print(f"\n{'='*50}\n早上早報完成！\n{'='*50}\n")
+        return
+
+    # ─── 補摘要模式 ───────────────────────────────────────────────
     if mode == 'backfill_summaries':
         backfill_summaries(db, gemini_key)
-        print(f"\n{'='*50}")
-        print("補摘要完成！")
-        print(f"{'='*50}\n")
+        print(f"\n{'='*50}\n補摘要完成！\n{'='*50}\n")
+        return
+
+    # ─── MSN 清理模式 ─────────────────────────────────────────────
+    if mode == 'cleanup_msn':
+        cleanup_msn_articles(db)
+        print(f"\n{'='*50}\nMSN 清理完成！\n{'='*50}\n")
         return
 
     # ─── 抓取新聞 ───
@@ -1387,80 +1499,271 @@ def summarize_us_news_with_gemini(articles, api_key, max_articles=20):
         time.sleep(1)   # 避免超過 rate limit
 
 
-def generate_email_html(articles, now_tw):
-    """生成上游市場日報 HTML 郵件內容"""
+# ══════════════════════════════════════════════════════════════
+# Email 共用工具
+# ══════════════════════════════════════════════════════════════
+
+def _get_gemini_client_and_model(api_key):
+    """初始化 Gemini client 並自動選模型，回傳 (client, model_id) 或 (None, None)"""
+    if not api_key:
+        return None, None
+    try:
+        from google import genai
+        gclient = genai.Client(api_key=api_key)
+        MODEL = None
+        try:
+            available = [m.name for m in gclient.models.list()
+                         if 'generateContent' in str(getattr(m, 'supported_actions', None)
+                                                     or getattr(m, 'supported_generation_methods', []))
+                         and 'gemini' in m.name.lower()]
+            preferred = [m for m in available if 'flash' in m and 'thinking' not in m]
+            chosen = preferred or available
+            if chosen:
+                MODEL = chosen[0].replace('models/', '')
+        except Exception:
+            pass
+        if not MODEL:
+            MODEL = 'gemini-1.5-flash'
+        return gclient, MODEL
+    except Exception as e:
+        print(f"  ⚠ Gemini 初始化失敗: {e}")
+        return None, None
+
+
+def _gemini_summarize(gclient, model, articles, lang='zh'):
+    """對 articles 即時補 Gemini 摘要（修改 article['summary'] in-place）"""
+    if not gclient:
+        return
+    if lang == 'en':
+        PROMPT = (
+            'You are a semiconductor and memory industry analyst. '
+            'Summarize the following news in English with 2-3 bullet points. '
+            'Format: •Point one •Point two •Point three (separated by •, no line breaks). '
+            'Each point under 25 words. Output points only, no preamble.\n\n'
+            'Title: {title}\nContent: {content}'
+        )
+    else:
+        PROMPT = (
+            '你是專業的半導體暨記憶體產業分析師。'
+            '請用繁體中文，以 2-3 個重點條列摘要以下新聞的核心內容。'
+            '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
+            '每個重點不超過 30 字，直接輸出重點，不要有前言。\n\n'
+            '標題：{title}\n內文：{content}'
+        )
+    for a in articles:
+        if a.get('summary'):
+            continue
+        try:
+            resp = gclient.models.generate_content(
+                model=model,
+                contents=PROMPT.format(
+                    title=a.get('title', ''),
+                    content=a.get('content', '')[:800]
+                ),
+            )
+            a['summary'] = resp.text.strip()
+            print(f"    ✓ {a.get('title','')[:50]}…")
+        except Exception as e:
+            print(f"    ✗ {e}")
+        time.sleep(1)
+
+
+def _fmt_date(pub):
+    if hasattr(pub, 'strftime'):
+        return pub.strftime('%Y-%m-%d')
+    return str(pub)[:10] if pub else '—'
+
+
+def _send_smtp(gmail_user, gmail_app_password, recipient, subject, html):
+    import smtplib, ssl
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = subject
+    msg['From']    = gmail_user
+    msg['To']      = recipient
+    msg.attach(MIMEText(html, 'html', 'utf-8'))
+    ctx = ssl.create_default_context()
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ctx) as server:
+        server.login(gmail_user, gmail_app_password)
+        server.send_message(msg)
+
+
+def _bullet_block_html(summary, color='#374151', bg='#f9fafb', border='#e5e7eb'):
+    if not summary:
+        return ''
+    bullets = [s.strip() for s in summary.split('•') if s.strip()]
+    if not bullets:
+        return ''
+    items = ''.join(
+        f'<li style="margin:4px 0;color:{color};font-size:13px;line-height:1.6">{b}</li>'
+        for b in bullets
+    )
+    return (f'<ul style="margin:10px 0 0 0;padding:10px 10px 10px 28px;'
+            f'background:{bg};border:1px solid {border};border-radius:6px;list-style:disc">'
+            f'{items}</ul>')
+
+
+# ══════════════════════════════════════════════════════════════
+# 下午 3 點英文郵件（usMarket — TrendForce / AI / IPC / AIoT）
+# ══════════════════════════════════════════════════════════════
+
+def _build_afternoon_html(articles, now_tw):
     BRAND = '#960014'
-    date_str = now_tw.strftime('%Y年%m月%d日（%A）').replace(
-        'Monday','週一').replace('Tuesday','週二').replace('Wednesday','週三'
-        ).replace('Thursday','週四').replace('Friday','週五')
+    day_map = {'Monday':'Mon','Tuesday':'Tue','Wednesday':'Wed',
+               'Thursday':'Thu','Friday':'Fri'}
+    day = day_map.get(now_tw.strftime('%A'), now_tw.strftime('%A'))
+    date_str = now_tw.strftime(f'%B %-d, %Y ({day})')
 
     items_html = ''
     for i, a in enumerate(articles, 1):
-        title   = a.get('title', '（無標題）')
-        summary = a.get('summary', '')
-        link    = a.get('link', '#')
-        source  = a.get('mediaName') or a.get('sourceName') or '未知來源'
-        brand   = a.get('brand') or ''
-
-        pub = a.get('pubDate')
-        if hasattr(pub, 'strftime'):
-            date_fmt = pub.strftime('%Y-%m-%d')
-        elif hasattr(pub, 'isoformat'):
-            date_fmt = str(pub)[:10]
-        else:
-            try:
-                date_fmt = str(pub)[:10]
-            except Exception:
-                date_fmt = '—'
-
-        # AI 摘要 → bullet list HTML
-        if summary:
-            bullets = [s.strip() for s in summary.split('•') if s.strip()]
-            bullet_html = ''.join(
-                f'<li style="margin:3px 0;color:#374151;font-size:13px;line-height:1.5">{b}</li>'
-                for b in bullets
-            )
-            summary_block = (
-                f'<ul style="margin:8px 0 0 0;padding-left:18px;list-style:disc">'
-                f'{bullet_html}</ul>'
-            )
-        else:
-            summary_block = ''
-
-        sent = a.get('sentiment', 'neutral')
-        sent_cfg = {
-            'positive': ('#dcfce7', '#16a34a', '📈 正面'),
-            'negative': ('#fee2e2', '#dc2626', '📉 負面'),
-        }.get(sent, ('#f3f4f6', '#6b7280', '⬛ 中立'))
+        title  = a.get('title', '(No title)')
+        link   = a.get('link', '#')
+        source = a.get('mediaName') or a.get('sourceName') or 'Unknown'
+        date_f = _fmt_date(a.get('pubDate'))
+        sb     = _bullet_block_html(a.get('summary',''), color='#1e3a5f', bg='#eff6ff', border='#bfdbfe')
 
         items_html += f'''
-        <div style="background:#ffffff;border:1px solid #e5e7eb;border-left:4px solid {BRAND};
+        <div style="background:#fff;border:1px solid #e5e7eb;border-left:4px solid {BRAND};
                     border-radius:8px;padding:16px;margin-bottom:16px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
             <span style="background:{BRAND};color:white;font-size:11px;font-weight:700;
-                         padding:2px 10px;border-radius:20px;white-space:nowrap">#{i}</span>
-            {f'<span style="background:#f3f4f6;color:#374151;font-size:11px;padding:2px 8px;border-radius:4px">{brand}</span>' if brand else ''}
-            <span style="color:#9ca3af;font-size:12px">{source}</span>
+                         padding:2px 10px;border-radius:20px">#{i}</span>
+            <span style="color:#6b7280;font-size:12px">{source}</span>
             <span style="color:#d1d5db;font-size:12px">·</span>
-            <span style="color:#9ca3af;font-size:12px">{date_fmt}</span>
-            <span style="margin-left:auto;background:{sent_cfg[0]};color:{sent_cfg[1]};
-                         font-size:11px;padding:2px 8px;border-radius:4px;white-space:nowrap">
-              {sent_cfg[2]}
-            </span>
+            <span style="color:#6b7280;font-size:12px">{date_f}</span>
           </div>
           <a href="{link}" target="_blank"
              style="font-size:15px;font-weight:600;color:#111827;text-decoration:none;
-                    line-height:1.4;display:block;margin-bottom:4px">
-            {title}
-          </a>
-          {summary_block}
+                    line-height:1.4;display:block;margin-bottom:4px">{title}</a>
+          {sb}
           <a href="{link}" target="_blank"
              style="display:inline-block;margin-top:10px;font-size:12px;color:{BRAND};
-                    text-decoration:underline;font-weight:500">
-            查看原文 →
-          </a>
-        </div>
-        '''
+                    text-decoration:underline;font-weight:500">Read full article →</a>
+        </div>'''
+
+    return f'''<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <div style="max-width:640px;margin:24px auto;padding:0 16px">
+    <div style="background:{BRAND};border-radius:12px 12px 0 0;padding:24px 28px">
+      <h1 style="color:white;margin:0 0 4px;font-size:20px;font-weight:700">
+        📊 Upstream Market Report
+      </h1>
+      <p style="color:rgba(255,255,255,0.8);margin:0;font-size:13px">
+        {date_str} &nbsp;|&nbsp; Transcend Information (2451) News Monitor
+      </p>
+    </div>
+    <div style="background:white;border-radius:0 0 12px 12px;padding:24px 28px;
+                border:1px solid #e5e7eb;border-top:none">
+      <p style="color:#6b7280;font-size:13px;margin:0 0 20px">
+        Top <strong>5 upstream market stories</strong> today — DRAM, NAND Flash, AI, IPC &amp; AIoT demand.
+        AI-generated key points included.
+      </p>
+      {items_html}
+      <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px">
+      <p style="color:#9ca3af;font-size:11px;text-align:center;margin:0;line-height:1.8">
+        Automated email · Sent by GitHub Actions every weekday at <strong>15:00 CST</strong><br>
+        To unsubscribe, disable <code>daily-email.yml</code> in GitHub Actions.
+      </p>
+    </div>
+  </div>
+</body>
+</html>'''
+
+
+def send_afternoon_email(db, gmail_user, gmail_app_password, recipient, gemini_key=''):
+    """下午 3 點：英文上游市場郵件（usMarket，過濾創見/競品/新品）"""
+    print(f"\n📧 準備發送下午英文上游市場早報...")
+    if not gmail_user or not gmail_app_password:
+        print("  ⚠ 未設定 GMAIL_USER / GMAIL_APP_PASSWORD，跳過")
+        return
+
+    now_tw = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
+
+    try:
+        docs = (db.collection('news')
+                .order_by('pubDate', direction=firestore.Query.DESCENDING)
+                .limit(300)
+                .stream())
+        all_news = [doc.to_dict() for doc in docs]
+    except Exception as e:
+        print(f"  ✗ Firestore 查詢失敗: {e}")
+        return
+
+    pool = [a for a in all_news if a.get('cat') == 'usMarket']
+    print(f"  usMarket 候選：{len(pool)} 則")
+
+    # 排序：TrendForce 優先 > 有摘要 > 最新
+    def sort_key(a):
+        src = str(a.get('sourceName') or a.get('mediaName') or '')
+        return (1 if 'trendforce' in src.lower() else 0,
+                1 if a.get('summary') else 0,
+                a.get('pubDate').isoformat() if hasattr(a.get('pubDate'), 'isoformat') else str(a.get('pubDate') or ''))
+    pool.sort(key=sort_key, reverse=True)
+
+    FILTERS = [is_transcend_news, is_competitor_news, is_new_product_news]
+    top5 = pick_diverse(pool, n=5, filters=FILTERS)
+    print(f"  過濾後選出 {len(top5)} 則")
+
+    if not top5:
+        print("  ⚠ 無符合條件新聞，跳過寄信")
+        return
+
+    # 補摘要
+    needs = [a for a in top5 if not a.get('summary')]
+    if needs and gemini_key:
+        print(f"  🤖 即時補摘要（{len(needs)} 則）...")
+        gclient, model = _get_gemini_client_and_model(gemini_key)
+        _gemini_summarize(gclient, model, needs, lang='en')
+
+    html = _build_afternoon_html(top5, now_tw)
+    subject = f"📊 Upstream Market Report {now_tw.strftime('%Y/%m/%d')} | Transcend News Monitor"
+    try:
+        _send_smtp(gmail_user, gmail_app_password, recipient, subject, html)
+        print(f"  ✅ 下午英文早報已寄出 → {recipient}（{len(top5)} 則）")
+    except Exception as e:
+        print(f"  ✗ 寄信失敗: {e}")
+
+
+# ══════════════════════════════════════════════════════════════
+# 早上 9 點繁中郵件（twMarket — 台灣科技媒體）
+# ══════════════════════════════════════════════════════════════
+
+def _build_morning_html(articles, now_tw):
+    BRAND = '#960014'
+    day_map = {'Monday':'週一','Tuesday':'週二','Wednesday':'週三',
+               'Thursday':'週四','Friday':'週五'}
+    day = day_map.get(now_tw.strftime('%A'), now_tw.strftime('%A'))
+    date_str = now_tw.strftime(f'%Y年%-m月%-d日（{day}）')
+
+    items_html = ''
+    for i, a in enumerate(articles, 1):
+        title  = a.get('title', '（無標題）')
+        link   = a.get('link', '#')
+        source = a.get('mediaName') or a.get('sourceName') or '未知來源'
+        date_f = _fmt_date(a.get('pubDate'))
+        sb     = _bullet_block_html(a.get('summary',''), color='#374151', bg='#f9fafb', border='#e5e7eb')
+
+        items_html += f'''
+        <div style="background:#fff;border:1px solid #e5e7eb;border-left:4px solid {BRAND};
+                    border-radius:8px;padding:16px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+            <span style="background:{BRAND};color:white;font-size:11px;font-weight:700;
+                         padding:2px 10px;border-radius:20px">#{i}</span>
+            <span style="color:#6b7280;font-size:12px">{source}</span>
+            <span style="color:#d1d5db;font-size:12px">·</span>
+            <span style="color:#6b7280;font-size:12px">{date_f}</span>
+          </div>
+          <a href="{link}" target="_blank"
+             style="font-size:15px;font-weight:600;color:#111827;text-decoration:none;
+                    line-height:1.4;display:block;margin-bottom:4px">{title}</a>
+          {sb}
+          <a href="{link}" target="_blank"
+             style="display:inline-block;margin-top:10px;font-size:12px;color:{BRAND};
+                    text-decoration:underline;font-weight:500">查看原文 →</a>
+        </div>'''
 
     return f'''<!DOCTYPE html>
 <html lang="zh-TW">
@@ -1468,156 +1771,83 @@ def generate_email_html(articles, now_tw):
 <body style="margin:0;padding:0;background:#f3f4f6;
              font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans TC',sans-serif">
   <div style="max-width:640px;margin:24px auto;padding:0 16px">
-
-    <!-- Header -->
     <div style="background:{BRAND};border-radius:12px 12px 0 0;padding:24px 28px">
       <h1 style="color:white;margin:0 0 4px;font-size:20px;font-weight:700">
-        📊 上游市場日報
+        🇹🇼 台灣科技產業早報
       </h1>
       <p style="color:rgba(255,255,255,0.8);margin:0;font-size:13px">
         {date_str} &nbsp;|&nbsp; 創見資訊（2451）新聞監控系統
       </p>
     </div>
-
-    <!-- Body -->
     <div style="background:white;border-radius:0 0 12px 12px;padding:24px 28px;
                 border:1px solid #e5e7eb;border-top:none">
       <p style="color:#6b7280;font-size:13px;margin:0 0 20px">
-        以下為今日上游供應鏈及 DRAM / Flash 市場最重要的 <strong>5 則新聞</strong>，
-        附 AI 重點摘要：
+        今日台灣科技媒體精選 <strong>5 則重要新聞</strong>，涵蓋 DRAM、Flash、AI、AIoT、IPC 及智慧裝置等產業動態，附 AI 重點摘要。
       </p>
       {items_html}
       <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0 16px">
       <p style="color:#9ca3af;font-size:11px;text-align:center;margin:0;line-height:1.8">
         此為自動發送郵件 · 由 GitHub Actions 於每個工作日 <strong>09:00</strong> 寄出<br>
-        如需取消訂閱，請至 GitHub Actions 停用 <code>daily-email.yml</code> workflow
+        如需取消訂閱，請至 GitHub Actions 停用 <code>morning-email.yml</code> workflow
       </p>
     </div>
-
   </div>
 </body>
 </html>'''
 
 
-def send_daily_email_report(db, gmail_user, gmail_app_password, recipient, gemini_key=''):
-    """
-    從 Firestore 取出最新上游市場新聞 Top 5，發送 HTML 日報郵件
-    - 只包含 usMarket（TrendForce / DRAM / Flash），不含競品
-    - 排除 MSN 連結
-    - 沒有摘要的文章即時補 Gemini 摘要
-    """
-    import smtplib
-    import ssl
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
-
-    print(f"\n📧 準備發送上游市場日報...")
-
+def send_morning_email(db, gmail_user, gmail_app_password, recipient, gemini_key=''):
+    """早上 9 點：繁體中文台灣科技媒體早報（twMarket，過濾創見/競品/新品）"""
+    print(f"\n📧 準備發送早上繁中台灣科技早報...")
     if not gmail_user or not gmail_app_password:
         print("  ⚠ 未設定 GMAIL_USER / GMAIL_APP_PASSWORD，跳過")
         return
 
     now_tw = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
 
-    # 從 Firestore 取最近 200 筆
     try:
         docs = (db.collection('news')
                 .order_by('pubDate', direction=firestore.Query.DESCENDING)
-                .limit(200)
+                .limit(300)
                 .stream())
         all_news = [doc.to_dict() for doc in docs]
     except Exception as e:
         print(f"  ✗ Firestore 查詢失敗: {e}")
         return
 
-    # 只留 usMarket（TrendForce / DRAM / Flash），過濾 MSN
-    us_news = [
-        a for a in all_news
-        if a.get('cat') == 'usMarket'
-        and 'msn.com' not in (a.get('link') or '').lower()
-    ]
-    print(f"  取得 {len(us_news)} 則上游市場新聞（usMarket，排除 MSN）")
+    pool = [a for a in all_news if a.get('cat') == 'twMarket']
+    print(f"  twMarket 候選：{len(pool)} 則")
 
-    if not us_news:
-        print("  ⚠ 無上游市場新聞，跳過寄信")
+    if not pool:
+        print("  ⚠ 無台灣市場新聞，跳過寄信")
         return
 
-    # 排序：TrendForce 優先 > 有摘要 > 最新
+    # 排序：有摘要 > 最新
     def sort_key(a):
-        source = str(a.get('sourceName') or a.get('mediaName') or '')
-        is_trendforce = 1 if 'trendforce' in source.lower() else 0
-        has_summary   = 1 if a.get('summary') else 0
-        pub = a.get('pubDate')
-        ts  = pub.isoformat() if hasattr(pub, 'isoformat') else str(pub or '')
-        return (is_trendforce, has_summary, ts)
+        return (1 if a.get('summary') else 0,
+                a.get('pubDate').isoformat() if hasattr(a.get('pubDate'), 'isoformat') else str(a.get('pubDate') or ''))
+    pool.sort(key=sort_key, reverse=True)
 
-    us_news.sort(key=sort_key, reverse=True)
-    top5 = us_news[:5]
+    FILTERS = [is_transcend_news, is_competitor_news, is_new_product_news]
+    top5 = pick_diverse(pool, n=5, filters=FILTERS)
+    print(f"  過濾後選出 {len(top5)} 則")
 
-    # 沒有摘要的文章即時補 Gemini 摘要
-    needs_summary = [a for a in top5 if not a.get('summary')]
-    if needs_summary and gemini_key:
-        print(f"  🤖 即時補摘要（{len(needs_summary)} 則）...")
-        try:
-            from google import genai
-            gclient = genai.Client(api_key=gemini_key)
-            MODEL = None
-            try:
-                available = [m.name for m in gclient.models.list()
-                             if 'generateContent' in str(getattr(m, 'supported_actions', None)
-                                                         or getattr(m, 'supported_generation_methods', []))
-                             and 'gemini' in m.name.lower()]
-                preferred = [m for m in available if 'flash' in m and 'thinking' not in m]
-                chosen = preferred or available
-                if chosen:
-                    MODEL = chosen[0].replace('models/', '')
-            except Exception:
-                pass
-            if not MODEL:
-                MODEL = 'gemini-1.5-flash'
+    if not top5:
+        print("  ⚠ 無符合條件新聞，跳過寄信")
+        return
 
-            PROMPT = (
-                '你是專業的半導體暨記憶體產業分析師。'
-                '請用繁體中文，以 2-3 個重點條列摘要以下英文新聞的核心內容。'
-                '格式：•重點一 •重點二 •重點三（用 • 分隔，不要換行）'
-                '每個重點不超過 30 字，直接輸出重點，不要有前言。\n\n'
-                '標題：{title}\n內文：{content}'
-            )
-            for a in needs_summary:
-                try:
-                    resp = gclient.models.generate_content(
-                        model=MODEL,
-                        contents=PROMPT.format(
-                            title=a.get('title', ''),
-                            content=a.get('content', '')[:800]
-                        ),
-                    )
-                    a['summary'] = resp.text.strip()
-                    print(f"    ✓ {a.get('title','')[:50]}…")
-                except Exception as e:
-                    print(f"    ✗ {e}")
-                time.sleep(1)
-        except Exception as e:
-            print(f"  ⚠ Gemini 初始化失敗，摘要略過: {e}")
+    # 補摘要（繁中）
+    needs = [a for a in top5 if not a.get('summary')]
+    if needs and gemini_key:
+        print(f"  🤖 即時補摘要（{len(needs)} 則）...")
+        gclient, model = _get_gemini_client_and_model(gemini_key)
+        _gemini_summarize(gclient, model, needs, lang='zh')
 
-    # 生成 HTML
-    html = generate_email_html(top5, now_tw)
-
-    # 組裝郵件
-    msg = MIMEMultipart('alternative')
-    msg['Subject'] = (f"📊 上游市場早報 {now_tw.strftime('%Y/%m/%d')} "
-                      f"| 創見資訊新聞監控")
-    msg['From']    = gmail_user
-    msg['To']      = recipient
-    msg.attach(MIMEText(html, 'html', 'utf-8'))
-
-    # 寄信（Gmail SMTP SSL port 465）
+    html = _build_morning_html(top5, now_tw)
+    subject = f"🇹🇼 台灣科技產業早報 {now_tw.strftime('%Y/%m/%d')} | 創見資訊新聞監控"
     try:
-        ctx = ssl.create_default_context()
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ctx) as server:
-            server.login(gmail_user, gmail_app_password)
-            server.send_message(msg)
-        print(f"  ✅ 早報已寄出 → {recipient}（{len(top5)} 則新聞）")
+        _send_smtp(gmail_user, gmail_app_password, recipient, subject, html)
+        print(f"  ✅ 早上繁中早報已寄出 → {recipient}（{len(top5)} 則）")
     except Exception as e:
         print(f"  ✗ 寄信失敗: {e}")
 

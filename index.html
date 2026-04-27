@@ -606,9 +606,9 @@ function KeyMediaPanel({ articles }) {
 // PR TAB — 競品動態
 // ═══════════════════════════════════════════════════════════
 function CompetitorNews({ news }) {
-  const [active, setActive] = useState('ADATA');
+  const [active, setActive] = useState('all');
   const [timeFilter, setTimeFilter] = useState('month');
-  const comp = COMPETITORS.find(c => c.id===active);
+  const comp = COMPETITORS.find(c => c.id === active);
 
   const filtered = useMemo(() => {
     const now = new Date();
@@ -622,29 +622,33 @@ function CompetitorNews({ news }) {
     const cutoff = cutoffs[timeFilter];
     return sortByDate(
       news.filter(n => {
-        if (n.cat !== 'competitor' || n.brand !== active) return false;
+        if (n.cat !== 'competitor') return false;
+        if (active !== 'all' && n.brand !== active) return false;
         if (!cutoff) return true;
         const d = n.pubDate?.toDate ? n.pubDate.toDate() : new Date(n.pubDate || 0);
         return d >= cutoff;
       })
-    ).slice(0, 50);
+    ).slice(0, 80);
   }, [news, active, timeFilter]);
 
   return (
     <Card title="競品動態監測" icon="🔍" className="h-full">
-      {/* Brand tabs */}
+      {/* Brand tabs — 全部 + 各品牌 */}
       <div className="flex flex-wrap gap-1.5 mb-2">
+        <TabBtn active={active === 'all'} onClick={() => setActive('all')}>
+          全部
+        </TabBtn>
         {COMPETITORS.map(c => (
-          <TabBtn key={c.id} active={active===c.id} onClick={() => setActive(c.id)}>
+          <TabBtn key={c.id} active={active === c.id} onClick={() => setActive(c.id)}>
             {c.name}
           </TabBtn>
         ))}
       </div>
 
-      {/* Time filter — same as 創見最新報導 */}
+      {/* Time filter */}
       <div className="flex gap-1.5 mb-3">
         {TIME_FILTERS.map(f => (
-          <TabBtn key={f.id} active={timeFilter===f.id} onClick={() => setTimeFilter(f.id)}>
+          <TabBtn key={f.id} active={timeFilter === f.id} onClick={() => setTimeFilter(f.id)}>
             {f.label}
           </TabBtn>
         ))}
@@ -652,7 +656,9 @@ function CompetitorNews({ news }) {
 
       {filtered.length > 0
         ? <div className="space-y-2">{filtered.map((n,i) => <NewsCard key={n.id||i} article={n} />)}</div>
-        : <p className="text-sm text-gray-600 text-center py-8">暫無 {comp?.name} 相關報導</p>
+        : <p className="text-sm text-gray-600 text-center py-8">
+            {active === 'all' ? '暫無競品報導' : `暫無 ${comp?.name} 相關報導`}
+          </p>
       }
     </Card>
   );
