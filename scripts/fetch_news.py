@@ -1089,8 +1089,8 @@ def main():
     # ─── 每日交易資料（開收盤 + 三大法人）───
     fetch_daily_trading(db, '2451')
 
-    # ─── 競品月營收抓取（ADATA 3260、Apacer 8271）───
-    for comp_code in ['3260', '8271']:
+    # ─── 競品月營收抓取（ADATA 3260、Apacer 8271、十銓 4967、宜鼎 5289、廣穎 4973）───
+    for comp_code in ['3260', '8271', '4967', '5289', '4973']:
         fetch_monthly_revenue(db, comp_code)
 
     # ─── 競品重大訊息抓取（MOPS 直接抓取）───
@@ -1347,40 +1347,40 @@ def fetch_mops_material_news(db):
         if found > 0:
             print(f"  ✓ [{code} {name}] MOPS 取得 {found} 筆")
 
-    # ── 備援：FinMind TaiwanStockMaterial ────────────────────────
-    mops_codes = set(r['code'] for r in all_records)
-    missing    = [c for c in COMP_STOCKS if c not in mops_codes]
-    if missing:
-        print(f"  [FinMind 備援] MOPS 缺漏: {missing}")
-        import json as _json
-        for code in missing:
-            name = COMP_STOCKS[code]
-            try:
-                url = (f'https://api.finmindtrade.com/api/v4/data'
-                       f'?dataset=TaiwanStockMaterial&data_id={code}'
-                       f'&start_date={now_tw.year-2}-01-01&token=')
-                r = requests.get(url, headers={'User-Agent': BASE_UA}, timeout=20)
-                rows = _json.loads(r.text).get('data', []) if r.status_code == 200 else []
-                for row in rows:
-                    date_iso = str(row.get('date', ''))[:10]
-                    subject  = row.get('summary', '') or row.get('subject', '')
-                    link     = row.get('link', '')
-                    if not subject or not date_iso:
-                        continue
-                    key = f"{code}_{date_iso}_{subject[:30]}"
-                    if key in seen_keys:
-                        continue
-                    seen_keys.add(key)
-                    highlight_kw = [kw for kw in HIGHLIGHT_KW if kw in subject]
-                    all_records.append({
-                        'code': code, 'name': name, 'date': date_iso,
-                        'summary': subject[:300], 'link': link,
-                        'highlight': len(highlight_kw) > 0,
-                        'highlightKw': highlight_kw, 'source': 'FinMind',
-                    })
-                print(f"  ✓ [{code} {name}] FinMind 取得 {len(rows)} 筆")
-            except Exception as e:
-                print(f"  [{code} FinMind] 失敗: {e}")
+    # ── FinMind TaiwanStockMaterial（MOPS 有無資料都跑，確保不漏資料）────
+    print(f"  [FinMind 補全] 為所有公司補充 FinMind 重大訊息...")
+    import json as _json
+    for code, name in COMP_STOCKS.items():
+        try:
+            url = (f'https://api.finmindtrade.com/api/v4/data'
+                   f'?dataset=TaiwanStockMaterial&data_id={code}'
+                   f'&start_date={now_tw.year-2}-01-01&token=')
+            r = requests.get(url, headers={'User-Agent': BASE_UA}, timeout=20)
+            rows = _json.loads(r.text).get('data', []) if r.status_code == 200 else []
+            added = 0
+            for row in rows:
+                date_iso = str(row.get('date', ''))[:10]
+                subject  = (row.get('summary', '') or row.get('subject', '') or
+                            row.get('title', '') or row.get('announcement', '')).strip()
+                link     = row.get('link', '') or ''
+                if not subject or not date_iso:
+                    continue
+                key = f"{code}_{date_iso}_{subject[:30]}"
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                highlight_kw = [kw for kw in HIGHLIGHT_KW if kw in subject]
+                all_records.append({
+                    'code': code, 'name': name, 'date': date_iso,
+                    'summary': subject[:300], 'link': link,
+                    'highlight': len(highlight_kw) > 0,
+                    'highlightKw': highlight_kw, 'source': 'FinMind',
+                })
+                added += 1
+            if added > 0:
+                print(f"  ✓ [{code} {name}] FinMind 新增 {added} 筆（共 {len(rows)} 筆）")
+        except Exception as e:
+            print(f"  [{code} FinMind] 失敗: {e}")
 
     if all_records:
         all_records.sort(key=lambda x: x['date'], reverse=True)

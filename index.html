@@ -96,7 +96,17 @@ const FIREBASE_CONFIG = {
 };
 
 const GEMINI_API_KEY = 'AIzaSyCNxSWC57_SBwvf1JqA-ITw83Eo9IUCLQY';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+// 依序嘗試的模型清單（Google 頻繁更改可用模型名稱）
+const GEMINI_MODELS = [
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-2.0-flash-001',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-latest',
+  'gemini-1.5-flash-001',
+];
+const geminiUrl = (model) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
 const BRAND = '#960014';
 
 // ── PR 重點媒體監控清單 ──
@@ -1515,9 +1525,12 @@ function DailyTrading({ daily }) {
 // ═══════════════════════════════════════════════════════════
 // ─── 競品營收比較圖表 ─────────────────────────────────────
 const COMP_REV_META = {
-  '2451': { name: '創見', color: '#960014' },
+  '2451': { name: '創見',        color: '#960014' },
   '3260': { name: 'ADATA 威剛', color: '#ef4444' },
   '8271': { name: 'Apacer 宇瞻', color: '#f97316' },
+  '4967': { name: '十銓科技',   color: '#a855f7' },
+  '5289': { name: '宜鼎國際',   color: '#eab308' },
+  '4973': { name: '廣穎科技',   color: '#3b82f6' },
 };
 
 function CompetitorRevenueChart({ revenue, compRev }) {
@@ -1603,6 +1616,96 @@ function CompetitorRevenueChart({ revenue, compRev }) {
   );
 }
 
+// ─── 年度營收趨勢（近 10 年）─────────────────────────────
+function AnnualRevenueChart({ revenue, compRev }) {
+  const allYears = useMemo(() => {
+    const series = {};
+    const addSeries = (code, records) => {
+      if (!records || !records.length) return;
+      records.forEach(r => {
+        const key = String(r.year);
+        if (!series[key]) series[key] = { label: key };
+        series[key][code] = (series[key][code] || 0) + r.revenue;
+      });
+    };
+    addSeries('2451', revenue || []);
+    Object.entries(compRev || {}).forEach(([code, recs]) => addSeries(code, recs));
+    return Object.values(series)
+      .sort((a, b) => a.label < b.label ? -1 : 1)
+      .slice(-10);
+  }, [revenue, compRev]);
+
+  const hasCodes = ['2451', ...Object.keys(compRev || {})].filter(c => COMP_REV_META[c]);
+
+  if (!allYears.length || hasCodes.length < 2) {
+    return (
+      <div className="text-sm text-gray-600 text-center py-6">
+        年度營收資料載入中（Actions 跑完後自動更新）
+      </div>
+    );
+  }
+
+  const W=700, H=240, PL=58, PR=16, PT=24, PB=36;
+  const VW=W-PL-PR, VH=H-PT-PB;
+  const maxVal = Math.max(...allYears.flatMap(d => hasCodes.map(c => d[c]||0)), 1);
+  const step = VW / Math.max(allYears.length - 1, 1);
+
+  const line = (code) => allYears.map((d, i) => {
+    const v = d[code] || 0;
+    const x = PL + i * step;
+    const y = PT + VH - (v / maxVal) * VH;
+    return `${i===0?'M':'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  const fmtB = v => v >= 1e9 ? `${(v/1e9).toFixed(1)}B` : v >= 1e8 ? `${(v/1e8).toFixed(0)}億` : v >= 1e4 ? `${(v/1e4).toFixed(0)}萬` : String(v);
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(r => ({ r, v: maxVal * r }));
+
+  return (
+    <Card title="年度營收趨勢（近 10 年）" icon="📈">
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3 mb-3">
+        {hasCodes.map(c => (
+          <div key={c} className="flex items-center gap-1.5 text-xs text-gray-400">
+            <div style={{ background: COMP_REV_META[c].color, height:'3px', width:'16px', borderRadius:'2px' }} />
+            {COMP_REV_META[c].name}（{c}）
+          </div>
+        ))}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:'100%', overflow:'visible' }}>
+        {/* Y grid + labels */}
+        {yTicks.map(t => {
+          const y = PT + VH - t.r * VH;
+          return (
+            <g key={t.r}>
+              <line x1={PL} y1={y} x2={W-PR} y2={y} stroke="#374151" strokeWidth="0.5" strokeDasharray="3,3" />
+              <text x={PL-4} y={y+3} textAnchor="end" fill="#6b7280" fontSize="8">{fmtB(t.v)}</text>
+            </g>
+          );
+        })}
+        {/* Lines */}
+        {hasCodes.map(c => (
+          <path key={c} d={line(c)} fill="none" stroke={COMP_REV_META[c].color} strokeWidth="2"
+                strokeLinejoin="round" strokeLinecap="round" />
+        ))}
+        {/* Dots at each year */}
+        {hasCodes.map(c => allYears.map((d, i) => {
+          if (!d[c]) return null;
+          const x = PL + i * step;
+          const y = PT + VH - ((d[c] || 0) / maxVal) * VH;
+          return <circle key={`${c}-${i}`} cx={x} cy={y} r="3" fill={COMP_REV_META[c].color} />;
+        }))}
+        {/* X year labels */}
+        {allYears.map((d, i) => (
+          <text key={i} x={PL + i * step} y={H-PB+14} textAnchor="middle" fill="#6b7280" fontSize="8">
+            {d.label}
+          </text>
+        ))}
+      </svg>
+      <p className="text-xs text-gray-700 mt-1">* 資料來源：FinMind，各年度月營收合計，單位：新台幣元</p>
+    </Card>
+  );
+}
+
 function IRTab({ news, stocks, community, revenue, financials, dividends, material, daily, compRev }) {
   return (
     <div className="space-y-4 fade-in">
@@ -1625,11 +1728,12 @@ function IRTab({ news, stocks, community, revenue, financials, dividends, materi
       )}
 
       <DailyTrading daily={daily} />
+      <CompetitorMaterial material={material} />
       <RevenueChart revenue={revenue} />
       <CompetitorRevenueChart revenue={revenue} compRev={compRev} />
+      <AnnualRevenueChart revenue={revenue} compRev={compRev} />
       <QuarterlyPnL financials={financials} />
       <DividendHistory dividends={dividends} />
-      <CompetitorMaterial material={material} />
     </div>
   );
 }
@@ -1736,7 +1840,7 @@ function App() {
 
   async function fetchCompRevenue() {
     try {
-      const codes = ['3260', '8271'];
+      const codes = ['3260', '8271', '4967', '5289', '4973'];
       const results = {};
       await Promise.all(codes.map(async code => {
         const doc = await window._db.collection('revenue').doc(code).get();
@@ -1759,13 +1863,39 @@ function App() {
 3. 建議公關行動
 新聞資料：\n${recent.map(n=>`- [${n.mediaName||''}] ${n.title}`).join('\n')}`;
 
-      const res = await fetch(GEMINI_URL, {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ contents:[{ parts:[{ text:prompt }] }] })
-      });
-      const json = await res.json();
-      setAiText(json.candidates?.[0]?.content?.parts?.[0]?.text || '無法取得回應');
+      let result = null;
+      let lastError = '所有模型均無回應';
+      let usedModel = '';
+
+      for (const model of GEMINI_MODELS) {
+        try {
+          const res = await fetch(geminiUrl(model), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+          });
+          const json = await res.json();
+          // API 層錯誤（model not found / quota 等）
+          if (json.error) {
+            lastError = `${model}: ${json.error.message}`;
+            continue;
+          }
+          const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) {
+            result = text;
+            usedModel = model;
+            break;
+          }
+        } catch(e) {
+          lastError = `${model}: ${e.message}`;
+        }
+      }
+
+      if (result) {
+        setAiText(`[模型: ${usedModel}]\n\n${result}`);
+      } else {
+        setAiText(`AI 摘要失敗，請確認 Gemini API Key 是否有效。\n\n最後錯誤：${lastError}`);
+      }
     } catch(e) {
       setAiText('AI 摘要失敗：' + e.message);
     }
@@ -1877,7 +2007,7 @@ function App() {
           onClick={e => { if(e.target===e.currentTarget) setAiOpen(false); }}>
           <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl shadow-2xl">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
-              <h2 className="font-semibold text-white flex items-center gap-2">✨ AI 新聞摘要 <span className="text-xs text-purple-400">(Gemini 2.0 Flash)</span></h2>
+              <h2 className="font-semibold text-white flex items-center gap-2">✨ AI 新聞摘要 <span className="text-xs text-purple-400">(Gemini AI)</span></h2>
               <button onClick={() => setAiOpen(false)} className="text-gray-500 hover:text-white text-xl leading-none">×</button>
             </div>
             <div className="p-5 max-h-[60vh] overflow-y-auto">
