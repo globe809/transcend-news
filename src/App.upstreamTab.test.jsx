@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 
-import { USMarketTab } from './App.jsx';
+import { USMarketTab } from './features/market/USMarketTab.jsx';
 
 function taipei(year, month, day, hour = 0, minute = 0, second = 0) {
   return new Date(Date.UTC(year, month - 1, day, hour, minute, second) - 8 * 60 * 60 * 1000);

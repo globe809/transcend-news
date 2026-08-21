@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
-import { PRStatsPanel, KeyMediaPanel } from './App.jsx';
+import { PRStatsPanel, KeyMediaPanel } from './features/pr/PRTab.jsx';
 
 // 建構「台灣時間 y-m-d h:mi:s」對應的實際時刻，不依賴測試環境本身的時區
 // （這個 sandbox 是 UTC）：台灣沒有 DST，固定 UTC+8，所以台灣的實際時刻

@@ -6,7 +6,7 @@ vi.mock('./utils/formatting.js', () => ({
   exportNewsExcel: (...args) => exportNewsExcel(...args),
 }));
 
-import { PRTab } from './App.jsx';
+import { PRTab } from './features/pr/PRTab.jsx';
 
 function taipei(year, month, day, hour = 0, minute = 0, second = 0) {
   return new Date(Date.UTC(year, month - 1, day, hour, minute, second) - 8 * 60 * 60 * 1000);
