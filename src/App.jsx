@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 
 import { getDb, doc, onSnapshot, getDoc } from './services/firebase.js';
 import Spinner from './components/Spinner.jsx';
+import StockCountdown from './components/StockCountdown.jsx';
 import TranscendMark from './components/logos/TranscendMark.jsx';
 import { useNewsFeed } from './features/news/useNewsFeed.js';
 import { usePRNews } from './features/news/usePRNews.js';
@@ -30,7 +31,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(false);
   const [updated, setUpdated] = useState(null);
-  const [stockCountdown, setStockCountdown] = useState(300); // 300s = 5 min（配合 Actions 排程）
 
   const { news, refresh: refreshNews } = useNewsFeed({
     onFirstPublish: () => setLoading(false),
@@ -59,7 +59,7 @@ export default function App() {
       fetchAll(false);
       // 股價即時監聽：排程一寫入 stocks/latest，頁面立即更新（免重整）
       unsubStocks = onSnapshot(doc(db, 'stocks', 'latest'),
-        snap => { if (snap.exists()) { setStocks(snap.data()); setStockCountdown(300); } },
+        snap => { if (snap.exists()) setStocks(snap.data()); },
         err => console.error('Stocks listen:', err)
       );
     } catch (e) {
@@ -70,23 +70,6 @@ export default function App() {
       if (unsubStocks) unsubStocks();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ─── 股價每 5 分鐘輪詢（onSnapshot 即時推送的備援）─────────
-  useEffect(() => {
-    // 倒數計時器：每秒 -1
-    const tick = setInterval(() => {
-      setStockCountdown(s => {
-        if (s <= 1) {
-          // 時間到：靜默刷新股價 + 每日交易
-          fetchStocks();
-          fetchDaily();
-          return 300;
-        }
-        return s - 1;
-      });
-    }, 1000);
-    return () => clearInterval(tick);
   }, []);
 
   // includeNewsRefresh=false 用在掛載時的初始呼叫：useNewsFeed／usePRNews／
@@ -232,9 +215,7 @@ export default function App() {
           </span>
           <span className="text-gray-600">📰 {news.length} 則新聞</span>
           {updatedStr && <span className="text-gray-600">更新 {updatedStr}</span>}
-          <span className="text-gray-700" title="股價自動更新倒數">
-            ⏱ {Math.floor(stockCountdown / 60)}:{String(stockCountdown % 60).padStart(2, '0')}
-          </span>
+          <StockCountdown resetSignal={stocks} onExpire={() => { fetchStocks(); fetchDaily(); }} />
           {self && isStockStale(self) && (
             <span className="text-amber-500" title={`交易時段中超過 30 分鐘未更新（${fmtStockUpdated(self)}）`}>
               ⚠ 股價資料過期

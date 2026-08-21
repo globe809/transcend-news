@@ -4,11 +4,14 @@ fetch_news.py 純函式單元測試（完全離線，不連接任何外部服務
 執行方式：
   python3 -m unittest discover -s tests -v
 
-外部套件（requests / feedparser / firebase_admin）在 import 前以 stub 取代，
-因此本測試不需安裝這些套件，也絕不會發出網路請求。
+外部套件（requests / feedparser / firebase_admin / bs4）在 import 前以 stub
+取代，因此本測試不需安裝這些套件，也絕不會發出網路請求。
 """
 
+import contextlib
 import datetime
+import io
+import json
 import os
 import sys
 import types
@@ -19,7 +22,7 @@ from unittest.mock import MagicMock
 
 # ── 在 import fetch_news 前 stub 掉外部相依，確保離線可測 ──────────
 for _mod in ('requests', 'feedparser', 'firebase_admin',
-             'firebase_admin.credentials', 'firebase_admin.firestore'):
+             'firebase_admin.credentials', 'firebase_admin.firestore', 'bs4'):
     if _mod not in sys.modules:
         sys.modules[_mod] = MagicMock(name=_mod)
 
@@ -726,6 +729,72 @@ class TestFetchStockPricesTwseFallback(unittest.TestCase):
         self.assertIn('2451', saved)
         self.assertEqual(saved['2451']['price'], 100.0)
         self.assertEqual(saved['2451']['change'], 5.0)
+
+
+class _FakeJsonResp:
+    def __init__(self, status_code, data):
+        self.status_code = status_code
+        self._data = data
+        self.content = b'x' * 100
+        self.text = json.dumps(data)
+    def json(self):
+        return self._data
+
+
+class TestFetchMonthlyRevenueSkipsBadRows(unittest.TestCase):
+    """
+    迴歸測試：格式異常的單一月份資料列，之前會被 except Exception: continue
+    完全靜默吞掉，沒有任何 log——爬蟲若對某個月資料解析失敗，不會有任何
+    痕跡可查。現在應該累計略過筆數並印出摘要警告，同時仍正常存下其他
+    格式正常的月份。
+    """
+
+    def test_malformed_row_is_skipped_and_counted_but_does_not_block_valid_rows(self):
+        db = FakeDB()
+        good_row = {
+            'date': '2024-04', 'revenue': '1000000', 'revenue_year': '900000',
+            'revenue_month': '1000000', 'revenue_year_difference': 11.1,
+            'revenue_month_difference': 2.2,
+        }
+        bad_row = {'date': '2024-05', 'revenue': 'not-a-number'}
+        fetch_news.requests.get = MagicMock(
+            return_value=_FakeJsonResp(200, {'data': [good_row, bad_row]}))
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            fetch_news.fetch_monthly_revenue(db, stock_code='2451')
+
+        saved = db.store.get('revenue/2451')
+        self.assertIsNotNone(saved)
+        labels = [r['label'] for r in saved['records']]
+        self.assertIn('2024-03', labels)  # finmind_revenue_period：申報月減 1 還原
+        self.assertIn('共略過 1 筆格式異常的月營收記錄', buf.getvalue())
+
+
+class TestFetchQuarterlyFinancialsSkipsBadRows(unittest.TestCase):
+    """同上：季度損益逐季轉換時，格式異常的單一季度不應整批放棄，也不應
+    完全沒有紀錄地被吞掉。"""
+
+    def test_malformed_quarter_is_skipped_and_counted_but_does_not_block_valid_quarters(self):
+        db = FakeDB()
+        good_row = {
+            'date': '2024-03-31', '營業收入': 1000000, '營業毛利(毛損)': 300000,
+            '營業利益(損失)': 200000, '本期淨利(淨損)': 150000, '基本每股盈餘': 2.5,
+        }
+        bad_row = {'date': '2024-06-30', '營業收入': 'bad-value'}
+        fetch_news.requests.get = MagicMock(
+            return_value=_FakeJsonResp(200, {'data': [good_row, bad_row]}))
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            fetch_news.fetch_quarterly_financials(db, stock_code='2451')
+
+        saved = db.store.get('financials/2451')
+        self.assertIsNotNone(saved)
+        dates = [q['date'] for q in saved['quarters']]
+        self.assertIn('2024-03-31', dates)
+        self.assertNotIn('2024-06-30', dates)
+        self.assertIn('共略過 1 季格式異常的季度損益資料', buf.getvalue())
 
 
 if __name__ == '__main__':
