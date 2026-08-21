@@ -682,5 +682,39 @@ class TestMaterialNews(unittest.TestCase):
         self.assertEqual(len(merged), 500)
 
 
+class TestFetchStockPricesTwseFallback(unittest.TestCase):
+    """
+    迴歸測試：實際觀察到 TWSE 即時行情 API 有時會回傳空/非 JSON 內容，
+    讓 requests/json 解析直接丟例外——這種情況也必須落到 FinMind 備援，
+    不能整批放棄（曾經因為 except 區塊直接 return，導致股價卡住不再更新）。
+    """
+
+    class _FakeResp:
+        def __init__(self, data):
+            self._data = data
+        def json(self):
+            return self._data
+
+    def test_finmind_fallback_fires_when_twse_request_raises(self):
+        db = FakeDB()
+
+        def fake_get(url, headers=None, params=None, timeout=None):
+            if 'mis.twse.com.tw' in url:
+                raise ValueError('Expecting value: line 1 column 1 (char 0)')
+            return self._FakeResp({'data': [
+                {'close': 95.0, 'Trading_Volume': 1000},
+                {'close': 100.0, 'Trading_Volume': 1200},
+            ]})
+
+        fetch_news.requests.get = MagicMock(side_effect=fake_get)
+        fetch_news.fetch_stock_prices(db)
+
+        saved = db.store.get('stocks/latest')
+        self.assertIsNotNone(saved, 'TWSE 呼叫丟例外時仍應落到 FinMind 備援並寫入 stocks/latest')
+        self.assertIn('2451', saved)
+        self.assertEqual(saved['2451']['price'], 100.0)
+        self.assertEqual(saved['2451']['change'], 5.0)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -1038,8 +1038,10 @@ def fetch_stock_prices(db):
         }, timeout=15)
         items = r.json().get('msgArray', [])
     except Exception as e:
+        # 不可 return：TWSE 掛掉／回傳非 JSON 時也要往下走到 FinMind 備援，
+        # 否則股價會卡住不更新（曾經發生：TWSE 空白回應讓備援完全沒被觸發）。
         print(f"  ⚠ TWSE API 失敗: {e}")
-        return
+        items = []
 
     stock_data = {}
     seen_codes = set()   # 防止 tse/otc 重複
