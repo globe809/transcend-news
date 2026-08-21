@@ -11,13 +11,15 @@ rules_version = '2';
 // ai_jobs/*、ai_insights/* 一律不在下面明確列出的公開唯讀集合裡，
 // 由檔末的預設拒絕涵蓋：客戶端不可讀寫，僅 Admin SDK 存取。
 //
-// 部署位置：Firestore 資料庫目前正從 transcend-news-monitor（舊
-// Google 帳號）搬遷到 transcend-news-tbm（見
-// docs/firestore-migration/README.md）。這份規則檔案本身不含專案
-// ID，同一份規則邏輯直接套用到 transcend-news-tbm；firebase.json 的
-// "firestore" 區塊已指向這個檔案。經審查後，應在 initial copy 前先將
-// Rules 與 Indexes 部署到 transcend-news-tbm，並等待複合索引狀態變成
-// Enabled；本 PR 只準備部署設定，不執行部署。
+// job_status/* 例外：這是專為前端「系統健康」頁面準備的公開摘要集合
+// （見 functions/main.py 的 _run_locked、functions/ai_worker_health.py），
+// 內容只有排程成敗時間戳記與錯誤字串、ai_jobs 待處理筆數等彙總資訊，
+// 不含任何內部集合的原始資料，可安全公開唯讀。
+//
+// 部署位置：transcend-news-tbm（見 docs/firestore-migration/README.md
+// 的遷移歷史記錄）。這份規則檔案本身不含專案 ID，firebase.json 的
+// "firestore" 區塊已指向這個檔案，Rules 與 Indexes 已部署到
+// transcend-news-tbm。
 // ─────────────────────────────────────────────────────────────
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -60,6 +62,12 @@ service cloud.firestore {
 
     // 每日交易資料（前端讀 daily/2451）
     match /daily/{stockCode} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // 排程健康狀態摘要（前端「系統健康」頁面讀取，見上方說明）
+    match /job_status/{jobName} {
       allow read: if true;
       allow write: if false;
     }

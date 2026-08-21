@@ -113,13 +113,41 @@ class TestRunLocked(unittest.TestCase):
                 main._run_locked('news', work, ttl_minutes=12)
         mrel.assert_called_once_with(self.db, 'news', 'tok-456')
 
+    def test_writes_job_status_success_on_success(self):
+        # job_status/{lock_name} 是前端「系統健康」頁面唯一的資料來源，
+        # 必須在每次成功執行後正確清掉舊的錯誤紀錄（lastError/lastErrorAt
+        # 設回 None），否則舊錯誤會一直顯示成「目前有錯誤」。
+        work = MagicMock()
+        with patch.object(fetch_news, 'acquire_lock', return_value='tok-123'), \
+             patch.object(fetch_news, 'release_lock'):
+            main._run_locked('news', work, ttl_minutes=12)
+        self.db.collection.assert_any_call('job_status')
+        status_ref = self.db.collection.return_value.document.return_value
+        self.db.collection.return_value.document.assert_any_call('news')
+        payload = status_ref.set.call_args.args[0]
+        self.assertIn('lastSuccessAt', payload)
+        self.assertIsNone(payload['lastError'])
+        self.assertIsNone(payload['lastErrorAt'])
+
+    def test_writes_job_status_error_on_failure(self):
+        work = MagicMock(side_effect=RuntimeError('外部服務爆炸'))
+        with patch.object(fetch_news, 'acquire_lock', return_value='tok-456'), \
+             patch.object(fetch_news, 'release_lock'):
+            with self.assertRaises(RuntimeError):
+                main._run_locked('news', work, ttl_minutes=12)
+        status_ref = self.db.collection.return_value.document.return_value
+        payload = status_ref.set.call_args.args[0]
+        self.assertEqual(payload['lastError'], '外部服務爆炸')
+        self.assertIn('lastErrorAt', payload)
+        self.assertNotIn('lastSuccessAt', payload)
+
 
 class TestScheduledEntrypoints(unittest.TestCase):
     def test_all_jobs_have_max_instances_1(self):
         jobs = [main.stocks_job, main.news_job,
                 main.trading_job, main.finance_job, main.finance_early_month_job,
                 main.tw_dram_digest_job, main.us_dram_digest_job,
-                main.news_cleanup_job]
+                main.news_cleanup_job, main.ai_worker_health_job]
         for job in jobs:
             self.assertEqual(job._schedule_opts.get('max_instances'), 1,
                              f'{job.__name__} 必須設 max_instances=1')
@@ -130,7 +158,7 @@ class TestScheduledEntrypoints(unittest.TestCase):
         ttls = {'stocks_job': 3, 'news_job': 12,
                 'trading_job': 8, 'finance_job': 12, 'finance_early_month_job': 12,
                 'tw_dram_digest_job': 5, 'us_dram_digest_job': 5,
-                'news_cleanup_job': 15}
+                'news_cleanup_job': 15, 'ai_worker_health_job': 5}
         for job_name, ttl in ttls.items():
             timeout_sec = getattr(main, job_name)._schedule_opts['timeout_sec']
             self.assertGreater(ttl * 60, timeout_sec,
@@ -229,6 +257,33 @@ class TestScheduledEntrypoints(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 main.news_cleanup_job(None)
         mrel.assert_called_once_with(db, 'news_cleanup', 'tok-cleanup')
+
+    def test_ai_worker_health_job_routes_through_lock(self):
+        with patch.object(main, '_run_locked') as mrun:
+            main.ai_worker_health_job(None)
+        mrun.assert_called_once()
+        self.assertEqual(mrun.call_args[0][0], 'ai_worker_health')
+
+    def test_ai_worker_health_job_schedule_is_daily_shortly_after_news_cleanup(self):
+        opts = main.ai_worker_health_job._schedule_opts
+        self.assertEqual(opts['schedule'], '35 2 * * *')
+        self.assertEqual(opts['timezone'], main.TZ)
+        self.assertEqual(opts['region'], main.REGION)
+        self.assertEqual(opts['max_instances'], 1)
+        # 唯讀彙總，不寄信、不呼叫任何需要 Secret 的外部 API
+        self.assertNotIn('secrets', opts,
+                         'ai_worker_health_job 只做 Firestore 唯讀彙總，不需要任何 Secret')
+
+    def test_ai_worker_health_job_calls_check_ai_worker_health(self):
+        db = MagicMock(name='db')
+        with patch.object(main, 'get_db', return_value=db), \
+             patch.object(fetch_news, 'acquire_lock', return_value='tok-health'), \
+             patch.object(fetch_news, 'release_lock') as mrel, \
+             patch.object(main.ai_worker_health, 'check_ai_worker_health',
+                          return_value={'pendingCount': 5, 'lastInsightAt': None}) as mcheck:
+            main.ai_worker_health_job(None)
+        mcheck.assert_called_once_with(db)
+        mrel.assert_called_once_with(db, 'ai_worker_health', 'tok-health')
 
 
 if __name__ == '__main__':

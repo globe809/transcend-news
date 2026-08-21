@@ -14,6 +14,7 @@
   tw_dram_digest_job  平日 08:00                台灣 DRAM/Flash 產業新聞摘要信
   us_dram_digest_job  平日 16:30                美國 DRAM/Flash 產業新聞摘要信
   news_cleanup_job    每天 02:30                新聞保存期限清理（只留本月＋上個月）
+  ai_worker_health_job  每天 02:35              彙總本機 AI worker 積壓狀況（ai_jobs/ai_insights）
 
 防重疊機制：每個 job 皆設 max_instances=1，並以 Firestore lease lock
 （meta/lock_*）防止「上一次還在跑、下一次又觸發」的重疊執行；
@@ -23,6 +24,11 @@
 stocks_job/trading_job/finance_job/finance_early_month_job 皆帶入
 FINMIND_API_TOKEN（Secret Manager）——FinMind 匿名（無權杖）存取已不再
 可靠（實測回 402），股價/月營收/季損益/股利/三大法人皆改用附權杖請求。
+
+每個排程執行成功/失敗都會寫進 job_status/{lock_name}（見 _run_locked），
+搭配 ai_worker_health_job 彙總的本機 AI worker 積壓狀況，前端「系統健康」
+分頁可以一次看到所有排程 + 本機 worker 的最新狀態，不需要再手動查
+Cloud Logging。
 """
 
 import datetime
@@ -30,11 +36,13 @@ import datetime
 from firebase_functions import scheduler_fn
 from firebase_functions.options import MemoryOption
 from firebase_functions.params import SecretParam
+from firebase_admin import firestore
 
 from db_same_project import get_db
 import fetch_news
 import digest
 import news_cleanup
+import ai_worker_health
 
 TZ = 'Asia/Taipei'
 REGION = 'asia-east1'
@@ -52,15 +60,36 @@ def _run_locked(lock_name, work_fn, ttl_minutes):
     拿不到鎖（另一實例執行中）則跳過本次。
     以 try/finally 確保釋放，且只釋放本次 token 持有的鎖——
     即使執行超時後鎖被接管，也不會誤刪接管者的鎖。
+
+    同時把「這次有沒有成功跑完」寫進 job_status/{lock_name}（客戶端可讀，
+    見 firestore.rules）——這只能抓到「函式本身丟例外」的失敗，抓不到
+    fetch_stock_prices() 這類函式內部已經 try/except 吞掉、印一行警告
+    但沒有真的往外拋例外的「軟性失敗」（例如 TWSE/FinMind 掛掉但程式
+    本身順利跑完、只是沒寫入新資料）。這類軟性失敗要靠前端「系統健康」
+    頁面另外比對實際資料的 updatedAt 是否夠新來抓，兩者互補、缺一不可。
     """
     db = get_db()
     token = fetch_news.acquire_lock(db, lock_name, ttl_minutes=ttl_minutes)
     if token is None:
         print(f"⏭ 鎖 {lock_name} 使用中（另一執行個體進行中），跳過本次")
         return False
+    status_ref = db.collection('job_status').document(lock_name)
     try:
         work_fn(db)
+        status_ref.set({
+            'lastSuccessAt': firestore.SERVER_TIMESTAMP,
+            'lastAttemptAt': firestore.SERVER_TIMESTAMP,
+            'lastError': None,
+            'lastErrorAt': None,
+        }, merge=True)
         return True
+    except Exception as e:
+        status_ref.set({
+            'lastAttemptAt': firestore.SERVER_TIMESTAMP,
+            'lastError': str(e)[:500],
+            'lastErrorAt': firestore.SERVER_TIMESTAMP,
+        }, merge=True)
+        raise
     finally:
         fetch_news.release_lock(db, lock_name, token)
 
@@ -163,3 +192,17 @@ def news_cleanup_job(event: scheduler_fn.ScheduledEvent) -> None:
         print(f"  🗑 新聞保存期限清理：刪除 {result['deleted']} 篇"
               f"（略過異常 pubDate {result['skipped_invalid']} 篇，{status}）")
     _run_locked('news_cleanup', work, ttl_minutes=15)
+
+
+# ─── 本機 AI worker 健康檢查：每天一次，緊接在 news_cleanup_job 之後 ───
+# 本機 AI worker（tools/local_ai_worker.py）跑在使用者自己的電腦上，
+# Cloud Functions 完全看不到它有沒有在跑；這個排程只做唯讀彙總
+# （ai_jobs 待處理筆數、ai_insights 最近一次分析時間），寫進客戶端
+# 可讀的 job_status/ai_worker，讓前端「系統健康」頁面能看到 worker
+# 是否已經很久沒動靜，不需要等使用者自己發現股價/新聞分析停滯。
+@scheduler_fn.on_schedule(
+    schedule='35 2 * * *', timezone=TZ, region=REGION,
+    memory=MemoryOption.MB_256, timeout_sec=60, max_instances=1)
+def ai_worker_health_job(event: scheduler_fn.ScheduledEvent) -> None:
+    _run_locked('ai_worker_health', lambda db: ai_worker_health.check_ai_worker_health(db),
+                ttl_minutes=5)
