@@ -7,13 +7,43 @@ Secret Manager 的 `MONITOR_SERVICE_ACCOUNT` 跨專案讀寫，前端的
 搬到 `transcend-news-tbm`（目前是空的）的完整規劃：盤點、搬移工具、
 正式切換步驟、rollback。
 
-**本輪（這個 PR）只做了：唯讀盤點（含明確的存取限制說明）、搬移工具
+**本輪（這個 PR）只做了：唯讀盤查（含明確的存取限制說明）、搬移工具
 本體與測試、Rules/Indexes/Functions/前端切換的準備素材。沒有複製任何
 正式資料、沒有刪除任何資料、沒有執行任何 `firebase deploy`、沒有切換
-前端或 Functions 的實際連線目標。**
+前端或 Functions 的實際連線目標。**（這段是這個 PR 當時的範圍說明；
+切換後實際執行結果請見下面第 0 節——跟這裡規劃的不完全一樣。）
+
+## 0. 實際執行結果（跟本文件其餘部分規劃的不一樣）
+
+正式切換已經完成，但**實際執行的策略跟本文件第 4／8 節規劃的「完整
+複製」不一樣**：切換當下決定不搬移 `transcend-news-monitor` 既有的
+歷史資料，改成讓 `transcend-news-tbm` 從空資料庫開始，靠正式排程
+（`news_job`/`stocks_job`/`finance_job`/…）從切換那一刻起重新累積資料。
+
+實際做了什麼：
+- **只搬移了 `meta` 的白名單文件**（第 3 節列出的那份清單，例如
+  `newsIndex_*` 分片、`digest_tw`/`digest_us` 進度等結構性/狀態文件），
+  用 `tools/migrate_firestore.py --collections meta`。
+- **`news`／`stocks`／`revenue`／`financials`／`dividends`／`material`／
+  `daily`／`ai_jobs`／`ai_insights` 都沒有被複製**——下面第 2 節表格裡
+  這幾列的「本次搬移範圍」（全量／只搬本月＋上個月）是**原始規劃**，
+  不是實際發生的事。`transcend-news-tbm` 這幾個集合完全是切換後由
+  正式排程重新寫入的新資料，跟 `transcend-news-monitor` 裡的舊資料
+  沒有任何關聯（不共用文件 ID 以外的內容延續性）。
+- 第 8 節「正式切換步驟」裡的 **D. initial copy 這一步沒有執行**；
+  其餘步驟（Rules/Indexes 部署、Scheduler 暫停/恢復、Functions/前端
+  切換同專案 ADC）照原規劃執行。
+- `tools/migrate_firestore.py` 本身、它的 `--dry-run`/`--verify` 模式、
+  以及第 9 節的 rollback 分析，都還是有效、可用的工具/文件——只是
+  「完整複製」這個特定用途沒有被用上。如果之後真的需要把
+  `transcend-news-monitor` 的舊資料撈回來做歷史分析，這個工具還在，
+  仍然可以用；只是正式服務本身不依賴它搬過的資料。
+- `transcend-news-monitor` 專案/資料庫本身目前**保留、未刪除**，決定
+  留著或刪除是獨立的待辦事項，跟這次「不搬歷史資料」的決定分開處理。
 
 ## 目錄
 
+- [0. 實際執行結果（跟本文件其餘部分規劃的不一樣）](#0-實際執行結果跟本文件其餘部分規劃的不一樣)
 - [1. 存取限制（唯讀盤點做到哪裡為止）](#1-存取限制唯讀盤點做到哪裡為止)
 - [2. 集合盤點（依原始碼比對，不是猜測）](#2-集合盤點依原始碼比對不是猜測)
 - [3. meta 文件處理清單](#3-meta-文件處理清單)
@@ -66,7 +96,10 @@ python3 tools/migrate_firestore.py \
 的實際 `db.collection(...)`／`db.collection(...).document(...)` 呼叫整理，
 逐一列出證據行號：
 
-| 集合 | 文件 ID | 用途 | 證據 | 本次搬移範圍 |
+**下表「規劃搬移範圍」是本文件當初的原始規劃，不是實際執行結果**——
+實際上只有 `meta` 依白名單被搬移，其餘集合都沒有被複製（詳見第 0 節）。
+
+| 集合 | 文件 ID | 用途 | 證據 | 規劃搬移範圍（未實際執行，見第 0 節） |
 |---|---|---|---|---|
 | `news` | 文章 id（md5 hex，見 `fetch_news.py` 產生邏輯） | 新聞本文 | `fetch_news.py:568` | 只搬「本月＋上個月」（見 §4） |
 | `stocks` | `latest` | 即時股價快照 | `fetch_news.py:1128` | 全量 |
@@ -75,7 +108,7 @@ python3 tools/migrate_firestore.py \
 | `dividends` | 股票代號 | 股利 | `fetch_news.py:1738` | 全量 |
 | `material` | `competitors` | 競品重大訊息 | `fetch_news.py:1489` | 全量 |
 | `daily` | 股票代號 | 每日交易資訊 | `fetch_news.py:1607` | 全量 |
-| `meta` | 見第 3 節 | 排程鎖／去重索引／摘要信進度／一次性標記 | 見第 3 節 | 依白名單，見第 3 節 |
+| `meta` | 見第 3 節 | 排程鎖／去重索引／摘要信進度／一次性標記 | 見第 3 節 | 依白名單，見第 3 節（**這一列有實際執行**） |
 | `ai_jobs` | 對應 `news` 文章 id | AI 分析待辦 | `fetch_news.py:588`、`news_cleanup.py:52` | 只搬 ID 落在本次搬移的 news 範圍內的 |
 | `ai_insights` | 對應 `news` 文章 id | AI 分析結果 | `tools/local_ai_worker.py:235`、`news_cleanup.py:52` | 同上 |
 
@@ -364,7 +397,9 @@ split-brain（見第 9 節 rollback 的說明，這也是切換後 rollback 不�
    Descending），通常幾分鐘，視資料量而定。**這一步之前不能有任何
    讀取流量依賴這個 index**（此時前端還沒切過去，沒有影響）。
 
-**D. initial copy**
+**D. initial copy**（**規劃步驟，實際切換時沒有執行**——見第 0 節；
+   實際只跑了 `--collections meta` 搬移白名單文件，沒有做下面這個全量
+   `--copy`）
    依第 1 節取得 `transcend-news-monitor` 的 `roles/datastore.viewer`後：
    ```bash
    python3 tools/migrate_firestore.py \
@@ -377,7 +412,8 @@ split-brain（見第 9 節 rollback 的說明，這也是切換後 rollback 不�
    端持續有新資料寫入是預期的——這一步只是把「大部分資料」先搬過去，
    減少最後停機同步的資料量。
 
-**E. verify**
+**E. verify**（同樣是規劃步驟，因為 D 沒有執行，這一步也沒有對應的
+   全量資料要驗證；實際只驗證過 meta 白名單搬移的結果）
    確認 initial copy 沒有嚴重問題（`missing_in_dest`/`differs` 應該很少，
    因為 monitor 端在 copy 期間仍持續變動是正常的）。
 

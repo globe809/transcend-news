@@ -15,6 +15,7 @@ import { COMPETITORS, STOCK_META } from './config/competitors.js';
 const PRTab = lazy(() => import('./features/pr/PRTab.jsx').then(m => ({ default: m.PRTab })));
 const USMarketTab = lazy(() => import('./features/market/USMarketTab.jsx').then(m => ({ default: m.USMarketTab })));
 const IRTab = lazy(() => import('./features/ir/IRTab.jsx').then(m => ({ default: m.IRTab })));
+const HealthTab = lazy(() => import('./features/health/HealthTab.jsx').then(m => ({ default: m.HealthTab })));
 
 // ═══════════════════════════════════════════════════════════
 // MAIN APP
@@ -185,6 +186,7 @@ export default function App() {
               { id: 'pr', icon: '📡', label: 'PR 媒體戰情' },
               { id: 'ir', icon: '📈', label: 'IR 投資情報' },
               { id: 'us', icon: '🌐', label: '上游市場' },
+              { id: 'health', icon: '🩺', label: '系統健康' },
             ].map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
                 className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${tab === t.id ? 'text-white shadow' : 'text-red-200/60 hover:text-white'}`}
@@ -256,6 +258,8 @@ export default function App() {
               upstreamStatus={upstreamStatus}
               refreshUpstreamNews={refreshUpstreamNews}
             />
+          ) : tab === 'health' ? (
+            <HealthTab />
           ) : (
             <IRTab news={news} stocks={stocks} community={community} revenue={revenue} financials={financials} dividends={dividends} material={material} daily={daily} compRev={compRev} />
           )}
