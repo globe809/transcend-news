@@ -872,6 +872,7 @@ def fetch_monthly_revenue(db, stock_code='2451'):
             print(f"  [方法1] 取得 {len(rows)} 筆記錄")
             if rows:
                 print(f"  [方法1] 第一筆 keys: {list(rows[0].keys())}")
+            skipped = 0
             for row in rows:
                 try:
                     # FinMind 欄位: date(YYYY-MM), revenue(元), revenue_year(去年同期,元),
@@ -898,8 +899,11 @@ def fetch_monthly_revenue(db, stock_code='2451'):
                         'momPct': mom_pct, 'yoyPct': yoy_pct,
                         'label': key,
                     })
-                except Exception:
-                    continue
+                except Exception as row_err:
+                    skipped += 1
+                    print(f"  ⚠ [方法1] 略過異常資料列: {row_err} | {row}")
+            if skipped:
+                print(f"  ⚠ [方法1] 共略過 {skipped} 筆格式異常的月營收記錄")
     except Exception as e:
         print(f"  [方法1] 失敗: {e}")
 
@@ -947,6 +951,7 @@ def fetch_monthly_revenue(db, stock_code='2451'):
         tables = soup.find_all('table')
         print(f"  找到 {len(tables)} 個 <table>")
 
+        skipped2 = 0
         for ti, table in enumerate(tables):
             rows = table.find_all('tr')
             if len(rows) < 2:
@@ -1002,8 +1007,12 @@ def fetch_monthly_revenue(db, stock_code='2451'):
                         'yoyPct':     float(yoy_pct),
                         'label':      key,
                     })
-                except Exception:
-                    continue
+                except Exception as row_err:
+                    skipped2 += 1
+                    print(f"  ⚠ [方法2] 略過異常資料列: {row_err} | {cols[:10]}")
+
+        if skipped2:
+            print(f"  ⚠ [方法2] 共略過 {skipped2} 筆格式異常的月營收記錄")
 
     all_records.sort(key=lambda x: (x['year'], x['month']))
 
@@ -1340,6 +1349,7 @@ def fetch_quarterly_financials(db, stock_code='2451'):
 
     # 轉換成標準格式並計算利潤率
     quarters = []
+    skipped_quarters = 0
     for date, q in quarters_by_date.items():
         try:
             # FinMind value 是 float（如 462739000.0），須先轉 float 再 int
@@ -1366,8 +1376,12 @@ def fetch_quarterly_financials(db, stock_code='2451'):
                 'opIncome': op_inc, 'netIncome': net_inc, 'eps': eps,
                 'grossMargin': gross_margin, 'opMargin': op_margin, 'netMargin': net_margin,
             })
-        except Exception:
-            continue
+        except Exception as quarter_err:
+            skipped_quarters += 1
+            print(f"  ⚠ 略過異常季度資料 {date}: {quarter_err}")
+
+    if skipped_quarters:
+        print(f"  ⚠ 共略過 {skipped_quarters} 季格式異常的季度損益資料")
 
     if quarters:
         quarters.sort(key=lambda x: x['date'])
