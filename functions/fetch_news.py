@@ -20,6 +20,17 @@ from firebase_admin import credentials, firestore
 
 import intelligence
 
+
+def _finmind_token():
+    """
+    FinMind API 權杖：Cloud Functions 部署時以 Secret Manager 綁定
+    FINMIND_API_TOKEN，執行環境會把它注入成同名環境變數；本機/CI 測試
+    沒有設定時退回空字串（FinMind 對無權杖請求會回 402，各呼叫點的
+    既有例外處理會照常印出警告並略過，不影響其他資料）。
+    """
+    return os.environ.get('FINMIND_API_TOKEN', '')
+
+
 # ─── 情緒關鍵字 ───
 POS_KW = ['獲獎','表揚','優勝','榮獲','營收','新高','成長','獲利','上漲','突破',
            '合作','推出','創新','領先','冠軍','熱銷','供不應求','超預期','亮眼',
@@ -843,7 +854,7 @@ def fetch_monthly_revenue(db, stock_code='2451'):
     filter_code = stock_code  # 用於表格過濾
     BASE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 
-    # ── 方法 1：FinMind 開源 API（不受 IP 限制，免費無需 token）────
+    # ── 方法 1：FinMind 開源 API（不受 IP 限制）────
     try:
         import json as _json
         now_tw = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
@@ -851,7 +862,7 @@ def fetch_monthly_revenue(db, stock_code='2451'):
         url1 = (
             'https://api.finmindtrade.com/api/v4/data'
             f'?dataset=TaiwanStockMonthRevenue&data_id={stock_code}'
-            f'&start_date={start_date}&token='
+            f'&start_date={start_date}&token={_finmind_token()}'
         )
         r1 = requests.get(url1, headers={'User-Agent': BASE_UA}, timeout=20)
         print(f"  [方法1 FinMind] HTTP {r1.status_code}, {len(r1.content)} bytes")
@@ -1038,8 +1049,10 @@ def fetch_stock_prices(db):
         }, timeout=15)
         items = r.json().get('msgArray', [])
     except Exception as e:
+        # 不可 return：TWSE 掛掉／回傳非 JSON 時也要往下走到 FinMind 備援，
+        # 否則股價會卡住不更新（曾經發生：TWSE 空白回應讓備援完全沒被觸發）。
         print(f"  ⚠ TWSE API 失敗: {e}")
-        return
+        items = []
 
     stock_data = {}
     seen_codes = set()   # 防止 tse/otc 重複
@@ -1084,7 +1097,8 @@ def fetch_stock_prices(db):
                 r2 = requests.get(
                     'https://api.finmindtrade.com/api/v4/data',
                     params={'dataset': 'TaiwanStockPrice', 'data_id': code,
-                            'start_date': start_dt, 'end_date': end_dt},
+                            'start_date': start_dt, 'end_date': end_dt,
+                            'token': _finmind_token()},
                     timeout=15
                 )
                 records = r2.json().get('data', [])
@@ -1282,7 +1296,7 @@ def fetch_quarterly_financials(db, stock_code='2451'):
             url = (
                 'https://api.finmindtrade.com/api/v4/data'
                 f'?dataset={dataset}&data_id={stock_code}'
-                f'&start_date=2019-01-01&token='
+                f'&start_date=2019-01-01&token={_finmind_token()}'
             )
             r = requests.get(url, headers={'User-Agent': BASE_UA}, timeout=20)
             print(f"  [{dataset}] HTTP {r.status_code}, {len(r.content)} bytes")
@@ -1544,7 +1558,7 @@ def fetch_daily_trading(db, stock_code='2451'):
     try:
         url2 = (f'https://api.finmindtrade.com/api/v4/data'
                 f'?dataset=TaiwanStockInstitutionalInvestorsBuySell'
-                f'&data_id={stock_code}&start_date={start}&token=')
+                f'&data_id={stock_code}&start_date={start}&token={_finmind_token()}')
         r2 = requests.get(url2, headers={'User-Agent': BASE_UA}, timeout=20)
         print(f"  [法人] HTTP {r2.status_code}, {len(r2.content)} bytes")
         if r2.status_code == 200:
@@ -1649,7 +1663,7 @@ def fetch_dividend_data(db, stock_code='2451'):
         url_d = (
             'https://api.finmindtrade.com/api/v4/data'
             f'?dataset=TaiwanStockDividend&data_id={stock_code}'
-            f'&start_date=2015-01-01&token='
+            f'&start_date=2015-01-01&token={_finmind_token()}'
         )
         r_d = requests.get(url_d, headers={'User-Agent': BASE_UA}, timeout=20)
         print(f"  [Dividend] HTTP {r_d.status_code}, {len(r_d.content)} bytes")
@@ -1719,7 +1733,7 @@ def fetch_dividend_data(db, stock_code='2451'):
         url_r = (
             'https://api.finmindtrade.com/api/v4/data'
             f'?dataset=TaiwanStockDividendResult&data_id={stock_code}'
-            f'&start_date=2015-01-01&token='
+            f'&start_date=2015-01-01&token={_finmind_token()}'
         )
         r_r = requests.get(url_r, headers={'User-Agent': BASE_UA}, timeout=20)
         print(f"  [Result] HTTP {r_r.status_code}, {len(r_r.content)} bytes")

@@ -9,9 +9,11 @@ fetch_news.py 純函式單元測試（完全離線，不連接任何外部服務
 """
 
 import datetime
+import os
 import sys
 import types
 import unittest
+import unittest.mock
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -680,6 +682,50 @@ class TestMaterialNews(unittest.TestCase):
         many = [self._rec('2451', f'2026-01-{(i % 28) + 1:02d}', f'重訊{i}') for i in range(600)]
         merged, _ = fetch_news.merge_material_records([], many, cap=500)
         self.assertEqual(len(merged), 500)
+
+
+class TestFinmindToken(unittest.TestCase):
+    def test_defaults_to_empty_string_when_unset(self):
+        os.environ.pop('FINMIND_API_TOKEN', None)
+        self.assertEqual(fetch_news._finmind_token(), '')
+
+    def test_reads_from_environment_when_set(self):
+        with unittest.mock.patch.dict(os.environ, {'FINMIND_API_TOKEN': 'fake-token-for-test'}):
+            self.assertEqual(fetch_news._finmind_token(), 'fake-token-for-test')
+
+
+class TestFetchStockPricesTwseFallback(unittest.TestCase):
+    """
+    迴歸測試：實際觀察到 TWSE 即時行情 API 有時會回傳空/非 JSON 內容，
+    讓 requests/json 解析直接丟例外——這種情況也必須落到 FinMind 備援，
+    不能整批放棄（曾經因為 except 區塊直接 return，導致股價卡住不再更新）。
+    """
+
+    class _FakeResp:
+        def __init__(self, data):
+            self._data = data
+        def json(self):
+            return self._data
+
+    def test_finmind_fallback_fires_when_twse_request_raises(self):
+        db = FakeDB()
+
+        def fake_get(url, headers=None, params=None, timeout=None):
+            if 'mis.twse.com.tw' in url:
+                raise ValueError('Expecting value: line 1 column 1 (char 0)')
+            return self._FakeResp({'data': [
+                {'close': 95.0, 'Trading_Volume': 1000},
+                {'close': 100.0, 'Trading_Volume': 1200},
+            ]})
+
+        fetch_news.requests.get = MagicMock(side_effect=fake_get)
+        fetch_news.fetch_stock_prices(db)
+
+        saved = db.store.get('stocks/latest')
+        self.assertIsNotNone(saved, 'TWSE 呼叫丟例外時仍應落到 FinMind 備援並寫入 stocks/latest')
+        self.assertIn('2451', saved)
+        self.assertEqual(saved['2451']['price'], 100.0)
+        self.assertEqual(saved['2451']['change'], 5.0)
 
 
 if __name__ == '__main__':
