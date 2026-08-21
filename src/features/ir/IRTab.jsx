@@ -170,7 +170,10 @@ function RevenueChart({ revenue }) {
     return [...revenue].slice(-12).reverse().map(r => {
       const prevYr = revMap[`${r.year - 1}-${r.month}`] || 0;
       const yoyPct = prevYr > 0 ? +((r.revenue - prevYr) / prevYr * 100).toFixed(2) : null;
-      return { ...r, prevYrCalc: prevYr, yoyPctCalc: yoyPct };
+      // label 沒有隨 r 的其他欄位一起帶著走（原始 revenue 記錄本身沒有
+      // label 欄位，只有給圖表用的 data 陣列會另外算一次），漏了這行會讓
+      // 明細表格的「年月」欄位整欄空白——曾經真的發生過。
+      return { ...r, label: `${String(r.year).slice(2)}/${r.month}`, prevYrCalc: prevYr, yoyPctCalc: yoyPct };
     });
   }, [revenue, revMap]);
 
