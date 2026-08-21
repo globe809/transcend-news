@@ -185,14 +185,18 @@ function RevenueChart({ revenue }) {
           <MonthRevSVG data={data} />
 
           {/* 近 12 個月明細表 */}
+          {/* 手機寬度下表格會超出可視範圍，靠橫向捲動看到其餘欄位（含
+              年增率）——沒有這行提示的話，使用者很容易以為表格只有
+              目前看得到的那幾欄，完全不會想到要往右滑。 */}
+          <p className="text-xs text-gray-600 sm:hidden mb-1">← 左右滑動可看年增率 →</p>
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-700/60 text-gray-500">
-                  <th className="text-left pb-1.5 pr-3 font-medium">年月</th>
-                  <th className="text-right pb-1.5 pr-3 font-medium">當月營收（元）</th>
-                  <th className="text-right pb-1.5 pr-3 font-medium">去年同期（元）</th>
-                  <th className="text-right pb-1.5 font-medium">年增率</th>
+                  <th className="text-left pb-1.5 pr-3 font-medium whitespace-nowrap">年月</th>
+                  <th className="text-right pb-1.5 pr-3 font-medium whitespace-nowrap">當月營收（元）</th>
+                  <th className="text-right pb-1.5 pr-3 font-medium whitespace-nowrap">去年同期（元）</th>
+                  <th className="text-right pb-1.5 font-medium whitespace-nowrap">年增率</th>
                 </tr>
               </thead>
               <tbody>
@@ -228,14 +232,15 @@ function RevenueChart({ revenue }) {
       <AnnualRevSVG data={annualData} />
 
       {/* 明細表 */}
+      <p className="text-xs text-gray-600 sm:hidden mb-1">← 左右滑動可看更多欄位 →</p>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-700/60 text-gray-500">
-              <th className="text-left pb-1.5 pr-3 font-medium">年度</th>
-              <th className="text-right pb-1.5 pr-3 font-medium">全年營收（元）</th>
-              <th className="text-right pb-1.5 pr-3 font-medium">年增率</th>
-              <th className="text-right pb-1.5 font-medium">涵蓋月數</th>
+              <th className="text-left pb-1.5 pr-3 font-medium whitespace-nowrap">年度</th>
+              <th className="text-right pb-1.5 pr-3 font-medium whitespace-nowrap">全年營收（元）</th>
+              <th className="text-right pb-1.5 pr-3 font-medium whitespace-nowrap">年增率</th>
+              <th className="text-right pb-1.5 font-medium whitespace-nowrap">涵蓋月數</th>
             </tr>
           </thead>
           <tbody>
@@ -333,13 +338,15 @@ function QuarterlyPnL({ financials }) {
   return (
     <Card title="季度損益摘要（近 8 季）" icon="📋">
       {quarters.length > 0 ? (
+        <>
+        <p className="text-xs text-gray-600 sm:hidden mb-1">← 左右滑動可看更多欄位 →</p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-700/60 text-gray-500">
-                <th className="text-left pb-2 pr-3 font-medium">季度</th>
+                <th className="text-left pb-2 pr-3 font-medium whitespace-nowrap">季度</th>
                 {['grossMargin', 'opMargin', 'netMargin', 'eps'].map(k => (
-                  <th key={k} className="text-right pb-2 pr-3 font-medium last:pr-0">
+                  <th key={k} className="text-right pb-2 pr-3 font-medium last:pr-0 whitespace-nowrap">
                     <span className="inline-flex items-center justify-end gap-1">
                       <span>{TERM_TIPS[k].label}</span>
                       <TermTip tip={TERM_TIPS[k].tip} />
@@ -363,6 +370,7 @@ function QuarterlyPnL({ financials }) {
             </tbody>
           </table>
         </div>
+        </>
       ) : (
         <div className="h-28 flex items-center justify-center text-gray-600 text-sm">
           {financials === null ? '載入中…' : '尚無季度損益資料（Actions 跑完後自動更新）'}
@@ -396,24 +404,26 @@ function DividendHistory({ dividends }) {
   return (
     <Card title="歷年股利配息（近 10 年）" icon="💵">
       {records.length > 0 ? (
+        <>
+        <p className="text-xs text-gray-600 sm:hidden mb-1">← 左右滑動可看更多欄位 →</p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-700/60 text-gray-500">
-                <th className="text-left pb-2 pr-3 font-medium">配息年度</th>
-                <th className="text-right pb-2 pr-3 font-medium">
+                <th className="text-left pb-2 pr-3 font-medium whitespace-nowrap">配息年度</th>
+                <th className="text-right pb-2 pr-3 font-medium whitespace-nowrap">
                   <span className="inline-flex items-center justify-end gap-1">
                     <span>現金股利（元）</span>
                     <TermTip tip={divTipMap['現金股利']} />
                   </span>
                 </th>
-                <th className="text-right pb-2 pr-3 font-medium">
+                <th className="text-right pb-2 pr-3 font-medium whitespace-nowrap">
                   <span className="inline-flex items-center justify-end gap-1">
                     <span>股票股利（元）</span>
                     <TermTip tip={divTipMap['股票股利']} />
                   </span>
                 </th>
-                <th className="text-right pb-2 font-medium">
+                <th className="text-right pb-2 font-medium whitespace-nowrap">
                   <span className="inline-flex items-center justify-end gap-1">
                     <span>合計（元）</span>
                     <TermTip tip={divTipMap['殖利率']} />
@@ -439,6 +449,7 @@ function DividendHistory({ dividends }) {
             </tbody>
           </table>
         </div>
+        </>
       ) : (
         <div className="h-28 flex items-center justify-center text-gray-600 text-sm">
           {dividends === null ? '載入中…' : '尚無股利資料（Actions 跑完後自動更新）'}
