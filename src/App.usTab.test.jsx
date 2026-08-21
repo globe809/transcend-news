@@ -64,9 +64,10 @@ describe('App — 上游市場分頁的篩選功能不受 PR 分頁改動影響'
     await renderAppSettled();
     await switchTab('上游市場');
 
-    // US 分頁的工具列仍然存在且能正常篩選。
-    const searchBox = screen.getByPlaceholderText('搜尋標題、內容、媒體或品牌…');
-    expect(searchBox).toBeTruthy();
+    // 三個分頁都是 React.lazy 動態載入，切換分頁後元件要等 import()
+    // 的 Promise resolve 才會實際掛載——用 findBy*（會輪詢等待）取代
+    // getBy*，避免在 Suspense fallback 還沒被換掉前就斷言失敗。
+    const searchBox = await screen.findByPlaceholderText('搜尋標題、內容、媒體或品牌…');
     expect(screen.getByText('上游市場新聞A')).toBeTruthy();
     expect(screen.getByText('上游市場新聞B')).toBeTruthy();
 
@@ -81,8 +82,9 @@ describe('App — 上游市場分頁的篩選功能不受 PR 分頁改動影響'
     await renderAppSettled();
     await switchTab('上游市場');
 
+    const mediaFilter = await screen.findByLabelText('依媒體篩選');
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('依媒體篩選'), { target: { value: '媒體B' } });
+      fireEvent.change(mediaFilter, { target: { value: '媒體B' } });
     });
     expect(screen.queryByText('上游市場新聞A')).toBeNull();
     expect(screen.getByText('上游市場新聞B')).toBeTruthy();
@@ -96,6 +98,7 @@ describe('App — PR 分頁只出現一個篩選工具列', () => {
 
     // 整個 PR 分頁只能有一個「搜尋標題、內容、媒體或品牌…」輸入框
     // （PRTab 自己管理的工具列），不能是 App 外層工具列 + PRTab 工具列兩個。
-    expect(screen.getAllByPlaceholderText('搜尋標題、內容、媒體或品牌…')).toHaveLength(1);
+    // findAllBy*：PRTab 是 lazy load，等它實際掛載後再斷言數量。
+    expect(await screen.findAllByPlaceholderText('搜尋標題、內容、媒體或品牌…')).toHaveLength(1);
   });
 });
