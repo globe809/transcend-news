@@ -150,6 +150,16 @@ class TestScheduledEntrypoints(unittest.TestCase):
             self.assertIn(main.MAIL2000_SMTP_PASSWORD, secrets,
                          f'{job_name} 必須帶入 MAIL2000_SMTP_PASSWORD 才能寄信')
 
+    def test_finmind_dependent_jobs_require_finmind_secret(self):
+        # stocks_job/trading_job/finance_job/finance_early_month_job 都會呼叫
+        # FinMind API（股價備援/三大法人/月營收/季損益/股利），必須帶入
+        # FINMIND_API_TOKEN，否則 FinMind 匿名配額用盡時整批失敗（見
+        # fetch_news._finmind_token()）。
+        for job_name in ('stocks_job', 'trading_job', 'finance_job', 'finance_early_month_job'):
+            secrets = getattr(main, job_name)._schedule_opts['secrets']
+            self.assertIn(main.FINMIND_API_TOKEN, secrets,
+                         f'{job_name} 必須帶入 FINMIND_API_TOKEN 才能呼叫 FinMind')
+
     def test_news_job_routes_through_lock(self):
         with patch.object(main, '_run_locked') as mrun:
             main.news_job(None)

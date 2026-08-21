@@ -9,9 +9,11 @@ fetch_news.py 純函式單元測試（完全離線，不連接任何外部服務
 """
 
 import datetime
+import os
 import sys
 import types
 import unittest
+import unittest.mock
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -680,6 +682,16 @@ class TestMaterialNews(unittest.TestCase):
         many = [self._rec('2451', f'2026-01-{(i % 28) + 1:02d}', f'重訊{i}') for i in range(600)]
         merged, _ = fetch_news.merge_material_records([], many, cap=500)
         self.assertEqual(len(merged), 500)
+
+
+class TestFinmindToken(unittest.TestCase):
+    def test_defaults_to_empty_string_when_unset(self):
+        os.environ.pop('FINMIND_API_TOKEN', None)
+        self.assertEqual(fetch_news._finmind_token(), '')
+
+    def test_reads_from_environment_when_set(self):
+        with unittest.mock.patch.dict(os.environ, {'FINMIND_API_TOKEN': 'fake-token-for-test'}):
+            self.assertEqual(fetch_news._finmind_token(), 'fake-token-for-test')
 
 
 class TestFetchStockPricesTwseFallback(unittest.TestCase):

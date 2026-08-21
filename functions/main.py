@@ -19,6 +19,10 @@
 （meta/lock_*）防止「上一次還在跑、下一次又觸發」的重疊執行；
 鎖有 TTL（皆大於該函式 timeout），函式異常中止時鎖會過期被接管，
 不會永久鎖死。所有寫入皆為固定文件 ID 的冪等寫入，重跑不產生重複資料。
+
+stocks_job/trading_job/finance_job/finance_early_month_job 皆帶入
+FINMIND_API_TOKEN（Secret Manager）——FinMind 匿名（無權杖）存取已不再
+可靠（實測回 402），股價/月營收/季損益/股利/三大法人皆改用附權杖請求。
 """
 
 import datetime
@@ -35,6 +39,7 @@ import news_cleanup
 TZ = 'Asia/Taipei'
 REGION = 'asia-east1'
 MAIL2000_SMTP_PASSWORD = SecretParam('MAIL2000_SMTP_PASSWORD')
+FINMIND_API_TOKEN = SecretParam('FINMIND_API_TOKEN')
 
 
 def _tw_now():
@@ -63,7 +68,8 @@ def _run_locked(lock_name, work_fn, ttl_minutes):
 # ─── 即時股價：交易日 09:00–13:59 每分鐘觸發，13:35 後自動略過 ───
 @scheduler_fn.on_schedule(
     schedule='* 9-13 * * 1-5', timezone=TZ, region=REGION,
-    memory=MemoryOption.MB_256, timeout_sec=120, max_instances=1)
+    memory=MemoryOption.MB_256, timeout_sec=120, max_instances=1,
+    secrets=[FINMIND_API_TOKEN])
 def stocks_job(event: scheduler_fn.ScheduledEvent) -> None:
     now = _tw_now().replace(tzinfo=None)
     if not fetch_news.is_tw_market_open(now):
@@ -86,7 +92,8 @@ def news_job(event: scheduler_fn.ScheduledEvent) -> None:
 # ─── 每日交易資料（開收盤 + 三大法人）：收盤後與法人公布後各一次 ───
 @scheduler_fn.on_schedule(
     schedule='40 13,17 * * 1-5', timezone=TZ, region=REGION,
-    memory=MemoryOption.MB_256, timeout_sec=300, max_instances=1)
+    memory=MemoryOption.MB_256, timeout_sec=300, max_instances=1,
+    secrets=[FINMIND_API_TOKEN])
 def trading_job(event: scheduler_fn.ScheduledEvent) -> None:
     def work(db):
         fetch_news.fetch_stock_prices(db)   # 收盤價一併校正
@@ -98,7 +105,8 @@ def trading_job(event: scheduler_fn.ScheduledEvent) -> None:
 # 與 finance_early_month_job 共用同一把鎖，兩排程不會互相重疊
 @scheduler_fn.on_schedule(
     schedule='30 17 * * *', timezone=TZ, region=REGION,
-    memory=MemoryOption.MB_512, timeout_sec=540, max_instances=1)
+    memory=MemoryOption.MB_512, timeout_sec=540, max_instances=1,
+    secrets=[FINMIND_API_TOKEN])
 def finance_job(event: scheduler_fn.ScheduledEvent) -> None:
     _run_locked('finance', lambda db: fetch_news.fetch_all_financials(db),
                 ttl_minutes=12)
@@ -107,7 +115,8 @@ def finance_job(event: scheduler_fn.ScheduledEvent) -> None:
 # ─── 財務類加密頻：每月 1–10 日（月營收申報期）09–18 時每小時 ───
 @scheduler_fn.on_schedule(
     schedule='15 9-18 1-10 * *', timezone=TZ, region=REGION,
-    memory=MemoryOption.MB_512, timeout_sec=540, max_instances=1)
+    memory=MemoryOption.MB_512, timeout_sec=540, max_instances=1,
+    secrets=[FINMIND_API_TOKEN])
 def finance_early_month_job(event: scheduler_fn.ScheduledEvent) -> None:
     _run_locked('finance', lambda db: fetch_news.fetch_all_financials(db),
                 ttl_minutes=12)
